@@ -1,0 +1,43 @@
+---
+// src/pages/index.astro
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/Section.astro';
+
+const sections = [
+  {
+    id: 'section-1',
+    eyebrow: 'Island 01',
+    title: 'Lorem Ipsum Dolor',
+    text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
+  },
+  {
+    id: 'section-2',
+    eyebrow: 'Island 02',
+    title: 'Sit Amet Consectetur',
+    text: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.',
+  },
+  {
+    id: 'section-3',
+    eyebrow: 'Island 03',
+    title: 'Adipiscing Elit Sed',
+    text: 'Sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque.',
+  },
+  {
+    id: 'section-4',
+    eyebrow: 'Island 04',
+    title: 'Do Eiusmod Tempor',
+    text: 'Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.',
+  },
+];
+---
+
+<Layout title="My CV">
+  {sections.map((section) => (
+    <Section
+      id={section.id}
+      eyebrow={section.eyebrow}
+      title={section.title}
+      text={section.text}
+    />
+  ))}
+</Layout>

@@ -1,0 +1,45 @@
+---
+// src/layouts/Layout.astro
+// Basic page shell. Keeping global resets minimal on purpose so nothing
+// here fights with the per-section styles later.
+
+interface Props {
+  title?: string;
+}
+
+const { title = "My CV" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    color-scheme: light;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    background: #ffffff;
+    color: #1a1a1a;
+    line-height: 1.5;
+  }
+</style>
