@@ -23,42 +23,6 @@
   </div>
 </div>
 
-<script>
-  const island = document.querySelector<HTMLElement>(".corner-island-inner");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
-
-  if (island && !prefersReducedMotion) {
-    const maxOffset = 18; // px — how far it can drift at most
-    const ease = 0.07; // lower = lazier / more delayed follow
-
-    let targetX = 0;
-    let targetY = 0;
-    let currentX = 0;
-    let currentY = 0;
-
-    window.addEventListener("mousemove", (e) => {
-      // normalize cursor position across the whole window to -1..1,
-      // so it reads as the island reacting to the page, not just to
-      // hovering directly over it
-      const nx = (e.clientX / window.innerWidth) * 2 - 1;
-      const ny = (e.clientY / window.innerHeight) * 2 - 1;
-      targetX = nx * maxOffset;
-      targetY = ny * maxOffset;
-    });
-
-    function tick() {
-      currentX += (targetX - currentX) * ease;
-      currentY += (targetY - currentY) * ease;
-      island.style.transform = `translate(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px)`;
-      requestAnimationFrame(tick);
-    }
-
-    requestAnimationFrame(tick);
-  }
-</script>
-
 <style>
   .corner-island {
     position: fixed;
@@ -87,9 +51,9 @@
 
   @media (max-width: 700px) {
     .corner-island {
-      width: min(70vw, 480px);
-      bottom: -10vw;
-      left: -12vw;
+      width: min(90vw, 620px);
+      bottom: -12vw;
+      left: -14vw;
     }
   }
 

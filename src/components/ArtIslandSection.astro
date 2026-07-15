@@ -1,0 +1,249 @@
+---
+// src/components/ArtIslandSection.astro
+//
+// A variant of Section.astro for sections that have TWO flanking
+// illustrations (top-left and bottom-right) sitting behind the centered
+// text, instead of one full-bleed backdrop.
+//
+// Both illustrations share the same animation style as CornerIsland.astro:
+// a constant CSS bob loop on the outer wrapper, plus a JS-driven
+// mouse-repel drift on an inner wrapper (kept on separate elements so
+// the two transforms don't fight each other — see the comment in
+// CornerIsland.astro for why).
+//
+// The mouse-driven part is a proximity REPEL: each island tracks the
+// vector from the cursor to its own rest position and drifts away
+// along that vector, with the push fading to zero once the cursor is
+// further than `influenceRadius` away. So pointing at/near an island
+// pushes it off in the opposite direction; move the cursor elsewhere
+// and it eases back to rest.
+//
+// Sizing is deliberately NOT reduced at narrow viewports — the images
+// stay the same size as desktop and instead overflow past the
+// left/right edges — `.art-section { overflow: hidden }` clips that
+// overflow so it doesn't cause horizontal scrolling. Positioning IS
+// adjusted at narrow viewports though (see the max-width: 640px query
+// below): the `left: 8rem` / `right: 6rem` corner offsets below are
+// tuned for wide screens, where they nudge the islands in a bit from
+// the true corners. At the same fixed rem values on a narrow screen
+// they instead push the top island off toward the right edge and the
+// bottom island off toward the left edge, so the mobile query pulls
+// both back to hug their own corners.
+//
+// Usage:
+//   <ArtIslandSection
+//     id="art-skills"
+//     eyebrow="Island 01"
+//     title="Lorem Ipsum Dolor"
+//     text="Lorem ipsum dolor sit amet..."
+//     topImage="/images/left_top_art_island.svg"
+//     bottomImage="/images/right_bottom_art_island.svg"
+//   />
+
+interface Props {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  text: string;
+  topImage: string;
+  bottomImage: string;
+}
+
+const { id, eyebrow, title, text, topImage, bottomImage } = Astro.props;
+---
+
+<section class="art-section" id={id}>
+  <div class="art-island art-island-top" aria-hidden="true">
+    <div class="art-island-inner parallax-inner">
+      <img src={topImage} alt="" />
+    </div>
+  </div>
+
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="art-island art-island-bottom" aria-hidden="true">
+    <div class="art-island-inner parallax-inner">
+      <img src={bottomImage} alt="" />
+    </div>
+  </div>
+</section>
+
+<script>
+  // Proximity-repel drift for every `.parallax-inner` element on the page
+  // (both islands here, and reused automatically if this component is
+  // used more than once). One mousemove listener + one rAF loop drive
+  // all of them, each easing toward its own target offset.
+  //
+  // Unlike a simple "follow the cursor" tilt, the target here points
+  // AWAY from the cursor: each island measures the vector from the
+  // pointer to its own untransformed rest position, and drifts along
+  // that vector. The push strength falls off linearly with distance and
+  // is zero past `influenceRadius`, so far-away islands just sit still.
+  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (islands.length && !prefersReducedMotion) {
+    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+    const influenceRadius = 500; // px, push fades to 0 beyond this distance
+    const ease = 0.08;
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
+
+    const state = Array.from(islands).map((el) => ({
+      el,
+      currentX: 0,
+      currentY: 0,
+    }));
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      hasMouse = true;
+    });
+
+    function tick() {
+      for (const s of state) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (hasMouse) {
+          // Rest position = current on-screen center minus whatever
+          // offset we've already applied, so this stays correct as the
+          // page scrolls or the island is mid-drift.
+          const rect = s.el.getBoundingClientRect();
+          const restX = rect.left + rect.width / 2 - s.currentX;
+          const restY = rect.top + rect.height / 2 - s.currentY;
+
+          const dx = restX - mouseX;
+          const dy = restY - mouseY;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist < influenceRadius) {
+            const falloff = 1 - dist / influenceRadius; // 1 = cursor on top, 0 = at the edge
+            const nx = dx / dist;
+            const ny = dy / dist;
+            targetX = nx * maxOffset * falloff;
+            targetY = ny * maxOffset * falloff;
+          }
+        }
+
+        s.currentX += (targetX - s.currentX) * ease;
+        s.currentY += (targetY - s.currentY) * ease;
+        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .art-section {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    overflow: hidden;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(32ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: #1a1a1a;
+  }
+
+  .body-text {
+    font-size: 1.05rem;
+    color: #444;
+    margin: 0;
+  }
+
+  .art-island {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .art-island-inner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .art-island-top {
+    top: -12rem;
+    left: 16rem;
+    width: clamp(320px, 34vw, 520px);
+    animation: bob-top 7s ease-in-out infinite;
+  }
+
+  .art-island-bottom {
+    bottom: 8rem;
+    right: 6rem;
+    width: clamp(380px, 42vw, 640px);
+    animation: bob-bottom 5.5s ease-in-out infinite;
+  }
+
+  @keyframes bob-top {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes bob-bottom {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .art-island-top,
+    .art-island-bottom {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .art-island-top {
+      top: -3rem;
+      left: -3rem;
+    }
+
+    .art-island-bottom {
+      bottom: 2rem;
+      right: -3rem;
+    }
+
+    .content {
+      width: min(32ch, 100%);
+      padding-inline: 1.5rem;
+    }
+  }
+</style>

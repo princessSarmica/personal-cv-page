@@ -2,14 +2,9 @@
 // src/pages/index.astro
 import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
+import ArtIslandSection from '../components/ArtIslandSection.astro';
 
 const sections = [
-  {
-    id: 'section-1',
-    eyebrow: 'Island 01',
-    title: 'Lorem Ipsum Dolor',
-    text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
-  },
   {
     id: 'section-2',
     eyebrow: 'Island 02',
@@ -32,6 +27,15 @@ const sections = [
 ---
 
 <Layout title="My CV">
+  <ArtIslandSection
+    id="section-1"
+    eyebrow="Island 01"
+    title="Lorem Ipsum Dolor"
+    text="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam."
+    topImage="/personal-cv-page/images/left_top_art_island.svg"
+    bottomImage="/personal-cv-page/images/right_bottom_art_island.svg"
+  />
+
   {sections.map((section) => (
     <Section
       id={section.id}
