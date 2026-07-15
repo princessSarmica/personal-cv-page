@@ -21,14 +21,27 @@
 // Sizing is deliberately NOT reduced at narrow viewports — the images
 // stay the same size as desktop and instead overflow past the
 // left/right edges — `.art-section { overflow: hidden }` clips that
-// overflow so it doesn't cause horizontal scrolling. Positioning IS
-// adjusted at narrow viewports though (see the max-width: 640px query
-// below): the `left: 8rem` / `right: 6rem` corner offsets below are
-// tuned for wide screens, where they nudge the islands in a bit from
-// the true corners. At the same fixed rem values on a narrow screen
-// they instead push the top island off toward the right edge and the
-// bottom island off toward the left edge, so the mobile query pulls
-// both back to hug their own corners.
+// overflow so it doesn't cause horizontal scrolling.
+//
+// Positioning is fluid instead of a single mobile breakpoint. A plain
+// `left: 16rem` (fine on a wide screen) doesn't scale down as the
+// viewport narrows, so anywhere between "wide" and the old 640px
+// mobile override, the offset stayed frozen at its desktop value while
+// the section itself kept shrinking — which is exactly why the top
+// island crept toward the middle (and behind the text) on in-between
+// screen sizes instead of just at the phone breakpoint.
+//
+// Fix: each offset below is `clamp(mobileValue, calc(a + b*vw), desktopValue)`.
+// That's a straight line through two anchor points —
+// viewport width 640px -> the old mobile value, 1280px -> the old
+// desktop value — so the island's corner offset scales continuously
+// with the viewport instead of jumping between two fixed states. Below
+// 640px it holds at the mobile value; above 1280px it holds at the
+// desktop value; in between it interpolates. If you want to re-tune
+// the look, it's easiest to pick new values at those two widths and
+// re-derive the calc() (see the component's git history / ask for the
+// derivation), rather than hand-tweaking the calc() coefficients
+// directly.
 //
 // Usage:
 //   <ArtIslandSection
@@ -200,15 +213,19 @@ const { id, eyebrow, title, text, topImage, bottomImage } = Astro.props;
   }
 
   .art-island-top {
-    top: -12rem;
-    left: 16rem;
+    /* Anchors: -3rem at 640px viewport width, -12rem at 1280px. */
+    top: clamp(-12rem, calc(96px - 22.5vw), -3rem);
+    /* Anchors: -3rem at 640px viewport width, 16rem at 1280px. */
+    left: clamp(-3rem, calc(-352px + 47.5vw), 16rem);
     width: clamp(320px, 34vw, 520px);
     animation: bob-top 7s ease-in-out infinite;
   }
 
   .art-island-bottom {
-    bottom: 8rem;
-    right: 6rem;
+    /* Anchors: 2rem at 640px viewport width, 8rem at 1280px. */
+    bottom: clamp(2rem, calc(-64px + 15vw), 8rem);
+    /* Anchors: -3rem at 640px viewport width, 6rem at 1280px. */
+    right: clamp(-3rem, calc(-192px + 22.5vw), 6rem);
     width: clamp(380px, 42vw, 640px);
     animation: bob-bottom 5.5s ease-in-out infinite;
   }
@@ -231,16 +248,6 @@ const { id, eyebrow, title, text, topImage, bottomImage } = Astro.props;
   }
 
   @media (max-width: 640px) {
-    .art-island-top {
-      top: -3rem;
-      left: -3rem;
-    }
-
-    .art-island-bottom {
-      bottom: 2rem;
-      right: -3rem;
-    }
-
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
