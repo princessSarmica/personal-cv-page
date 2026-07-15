@@ -3,6 +3,8 @@
 // Basic page shell. Keeping global resets minimal on purpose so nothing
 // here fights with the per-section styles later.
 
+import CornerIsland from '../components/CornerIsland.astro';
+
 interface Props {
   title?: string;
 }
@@ -19,6 +21,7 @@ const { title = "My CV" } = Astro.props;
   </head>
   <body>
     <slot />
+    <CornerIsland />
   </body>
 </html>
 

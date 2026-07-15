@@ -1,0 +1,101 @@
+---
+// src/components/CornerIsland.astro
+//
+// The persistent "front" island — stays fixed in the bottom-left corner
+// across every section as the page scrolls. This is separate from the
+// per-section illustrations in Section.astro, which come and go with
+// each section.
+//
+// The image itself lives in public/images/front-island.svg (drop a
+// replacement in there with the same filename to swap it later, e.g.
+// once a version with the sitting figure is ready).
+//
+// Two nested layers on purpose:
+//   .corner-island        — fixed position + the constant CSS bob loop
+//   .corner-island-inner  — the mouse-follow offset, set via JS below
+// Keeping them on separate elements means the CSS animation and the
+// JS-driven transform don't fight over the same `transform` property.
+---
+
+<div class="corner-island" aria-hidden="true">
+  <div class="corner-island-inner">
+    <img src="/personal-cv-page/images/front-island.svg" alt="" />
+  </div>
+</div>
+
+<script>
+  const island = document.querySelector<HTMLElement>(".corner-island-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (island && !prefersReducedMotion) {
+    const maxOffset = 18; // px — how far it can drift at most
+    const ease = 0.07; // lower = lazier / more delayed follow
+
+    let targetX = 0;
+    let targetY = 0;
+    let currentX = 0;
+    let currentY = 0;
+
+    window.addEventListener("mousemove", (e) => {
+      // normalize cursor position across the whole window to -1..1,
+      // so it reads as the island reacting to the page, not just to
+      // hovering directly over it
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = (e.clientY / window.innerHeight) * 2 - 1;
+      targetX = nx * maxOffset;
+      targetY = ny * maxOffset;
+    });
+
+    function tick() {
+      currentX += (targetX - currentX) * ease;
+      currentY += (targetY - currentY) * ease;
+      island.style.transform = `translate(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px)`;
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .corner-island {
+    position: fixed;
+    bottom: -6vw;
+    left: -10vw;
+    width: min(55vw, 900px);
+    z-index: 5;
+    pointer-events: none;
+    animation: bob 6s ease-in-out infinite;
+  }
+
+  .corner-island-inner {
+    width: 100%;
+  }
+
+  .corner-island img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @media (max-width: 700px) {
+    .corner-island {
+      width: min(70vw, 480px);
+      bottom: -10vw;
+      left: -12vw;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .corner-island {
+      animation: none;
+    }
+  }
+</style>
