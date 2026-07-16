@@ -1,0 +1,273 @@
+---
+// src/components/ComputerIslandSection.astro
+//
+// Same family as ArtIslandSection.astro: two flanking illustrations
+// sitting behind centered-ish text, one JS-driven mouse-repel script,
+// one CSS bob loop per island. Layout differs though — per the
+// reference screenshot, neither island bleeds off the section's edges
+// here (both sit fully inside the frame), and the arrangement is
+// left-middle / top-right rather than top-left / bottom-right:
+//
+//   - `leftImage`  (telephone-pole island, svg)  -> mid-left, roughly
+//     vertically centered
+//   - `rightImage` (computer island, gif)        -> upper-right,
+//     larger
+//
+// Because nothing bleeds off an edge here, offsets are plain vw/vh
+// instead of the clamp(mobileValue, calc(a + b*vw), desktopValue)
+// trick used in ArtIslandSection. That trick existed there to bridge
+// a fixed *rem* offset (which doesn't scale with viewport width) up to
+// a *vw*-scaled width. Since every offset below is already vw/vh, it
+// scales continuously with the viewport on its own — no separate
+// mobile breakpoint needed for position. If it still looks cramped on
+// very narrow phones (the two width clamps have a px floor, so an
+// island can stop shrinking before its offset does), add a
+// `max-width: 640px` query the same way CornerIsland.astro does, or
+// just ask to have it tuned.
+//
+// NOTE on rightImage: the gif you're using is ~19MB, which is a lot
+// for a background decoration — worth converting to a compressed
+// .webm/.mp4 (via <video autoplay loop muted playsinline>) or a
+// lighter-weight animated webp if you get a chance, since a 19MB file
+// will noticeably slow down first load, especially on mobile. Left it
+// as a plain <img> with loading="lazy" for now so it doesn't block
+// anything above it, but that doesn't shrink the download itself.
+//
+// Usage:
+//   <ComputerIslandSection
+//     id="section-cs"
+//     eyebrow="Island 02"
+//     title="Lorem Ipsum Dolor"
+//     text="Lorem ipsum dolor sit amet..."
+//     leftImage="/images/telephone_pole_island.svg"
+//     rightImage="/images/computer_island.gif"
+//   />
+
+interface Props {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  text: string;
+  leftImage: string;
+  rightImage: string;
+}
+
+const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
+---
+
+<section class="computer-section" id={id}>
+  <div class="computer-island computer-island-left" aria-hidden="true">
+    <div class="computer-island-inner parallax-inner">
+      <img src={leftImage} alt="" />
+    </div>
+  </div>
+
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="computer-island computer-island-right" aria-hidden="true">
+    <div class="computer-island-inner parallax-inner">
+      <img src={rightImage} alt="" loading="lazy" decoding="async" />
+    </div>
+  </div>
+</section>
+
+<script>
+  // Same proximity-repel drift as ArtIslandSection.astro, driving every
+  // `.parallax-inner` element on the page. If both components end up
+  // on the same page, each ships its own copy of this script and each
+  // one queries ALL `.parallax-inner` elements globally (not just its
+  // own) — that's intentional/harmless (both compute the same easing
+  // toward the same targets), just a little redundant. Worth hoisting
+  // into one shared script later if a third section joins this family.
+  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (islands.length && !prefersReducedMotion) {
+    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+    const influenceRadius = 500; // px, push fades to 0 beyond this distance
+    const ease = 0.08;
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
+
+    const state = Array.from(islands).map((el) => ({
+      el,
+      currentX: 0,
+      currentY: 0,
+    }));
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      hasMouse = true;
+    });
+
+    function tick() {
+      for (const s of state) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (hasMouse) {
+          const rect = s.el.getBoundingClientRect();
+          const restX = rect.left + rect.width / 2 - s.currentX;
+          const restY = rect.top + rect.height / 2 - s.currentY;
+
+          const dx = restX - mouseX;
+          const dy = restY - mouseY;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist < influenceRadius) {
+            const falloff = 1 - dist / influenceRadius;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            targetX = nx * maxOffset * falloff;
+            targetY = ny * maxOffset * falloff;
+          }
+        }
+
+        s.currentX += (targetX - s.currentX) * ease;
+        s.currentY += (targetY - s.currentY) * ease;
+        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .computer-section {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    overflow: hidden;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(32ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: #1a1a1a;
+  }
+
+  .body-text {
+    font-size: 1.05rem;
+    color: #444;
+    margin: 0;
+  }
+
+  .computer-island {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .computer-island-inner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Telephone-pole island: smaller, mid-left, roughly vertically
+     centered. Doesn't bleed off any edge. */
+  .computer-island-left {
+    top: 32vh;
+    left: 16vw;
+    width: clamp(200px, 22vw, 320px);
+    animation: bob-left 6.5s ease-in-out infinite;
+  }
+
+  /* Computer island: larger, upper-right, its trailing cable dipping
+     down toward mid-frame. Also doesn't bleed off an edge. */
+  .computer-island-right {
+    top: 2vh;
+    right: 12vw;
+    width: clamp(260px, 32vw, 440px);
+    animation: bob-right 5.8s ease-in-out infinite;
+  }
+
+  @keyframes bob-left {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes bob-right {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .computer-island-left,
+    .computer-island-right {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .content {
+      width: min(32ch, 100%);
+      padding-inline: 1.5rem;
+    }
+
+    /* On mobile the powerline island's mid-left absolute position sits
+       right under the (now full-width) text, so instead of overlaying
+       it we drop it into normal document flow below the content. Since
+       it's DOM-first (before .content), `order` is what actually moves
+       it below the text visually — `.computer-section` still has
+       `place-items: center`, which centers any normal-flow grid item,
+       so no extra centering rule is needed once it's out of `absolute`
+       positioning. The right-hand computer island is untouched; it
+       wasn't reported as a problem. */
+    .computer-island-left {
+      position: static;
+      order: 1;
+      top: auto;
+      left: auto;
+      width: clamp(180px, 50vw, 260px);
+      margin: 2.5rem auto 0;
+    }
+
+    /* `right: 12vw` (the desktop value) leaves the computer island
+       close enough to center that it overlaps the now full-width text
+       on narrow screens, hence the tighter `right` below. But the
+       `top: -6vw` that was here is what's actually cutting the gif
+       off: a negative top pushes the island's box above the section's
+       own top edge, and `.computer-section { overflow: hidden }` crops
+       anything outside that box on every side, top included. Making
+       the section taller wouldn't fix that — the top edge is still
+       the top edge no matter how tall the section grows — so this
+       keeps `top` non-negative instead. */
+    .computer-island-right {
+      right: -8vw;
+      top: 4vh;
+    }
+  }
+</style>
