@@ -1,0 +1,261 @@
+---
+// src/components/EducationIslandSection.astro
+//
+// Same family as ArtIslandSection.astro / ComputerIslandSection.astro:
+// two illustrations flanking centered-ish text, one JS-driven
+// mouse-repel script, one CSS bob loop per island. This is a
+// "background + foreground" pair rather than two symmetric corners,
+// and both live on the RIGHT side, stacked on top of each other:
+//
+//   - `bigImage`   (education_island.svg) -> the large landmass,
+//     bleeding off the bottom-right edge, further back visually
+//     (lower z-index, positioned first in the DOM).
+//   - `smallImage` (small_island.svg)     -> the smaller island
+//     carrying the college-building silhouette, layered in front of
+//     the big island (higher z-index), sitting a bit higher up and
+//     inset from it so it reads as "on top of" the mountain rather
+//     than off to another corner.
+//
+// `.content` still sits above both islands (z-index 3, islands
+// pointer-events: none) so the text stays legible/clickable — since
+// both islands are now confined to the right side, `.content`
+// (currently centered via width: min(32ch, 100%); margin: 0 auto)
+// probably won't overlap them much in practice, but if it still creeps
+// into the islands once real content/viewport sizes are in, the fix is
+// the same left-shift ArtIslandSection got (justify-items: start on
+// the section + a margin-left on .content) — just ask.
+//
+// Positioning technique picked per-island based on whether it bleeds
+// off an edge, same logic as the other two components in this family:
+//   - `bigImage` bleeds off the bottom-right, so it uses the
+//     clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
+//     from ArtIslandSection.astro (a fixed rem offset doesn't scale
+//     with viewport width the way a vw-based width does, so without
+//     this the offset only makes sense at a couple of exact widths —
+//     see the longer explanation in ArtIslandSection.astro).
+//   - `smallImage` also uses that technique here (rather than plain
+//     vw/vh) so it scales in lockstep with `bigImage` and keeps
+//     looking "stacked on it" instead of drifting apart at some
+//     viewport widths.
+// These are starting values eyeballed off the screenshots — expect to
+// nudge them once you see it live, same as the other two sections.
+//
+// Usage:
+//   <EducationIslandSection
+//     id="section-education"
+//     eyebrow="Island 03"
+//     title="Adipiscing Elit Sed"
+//     text="Sunt in culpa qui officia deserunt mollit anim id est laborum..."
+//     bigImage="/images/education_island.svg"
+//     smallImage="/images/small_island.svg"
+//   />
+
+interface Props {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  text: string;
+  bigImage: string;
+  smallImage: string;
+}
+
+const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
+---
+
+<section class="education-section" id={id}>
+  <div class="education-island education-island-big" aria-hidden="true">
+    <div class="education-island-inner parallax-inner">
+      <img src={bigImage} alt="" />
+    </div>
+  </div>
+
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="education-island education-island-small" aria-hidden="true">
+    <div class="education-island-inner parallax-inner">
+      <img src={smallImage} alt="" />
+    </div>
+  </div>
+</section>
+
+<script>
+  // Same proximity-repel drift as the rest of this family, driving
+  // every `.parallax-inner` element on the page. If more than one of
+  // these sections lands on the same page, each ships its own copy of
+  // this script and each queries ALL `.parallax-inner` elements
+  // globally (not just its own) — intentional/harmless (they all
+  // compute the same easing toward the same targets), just a little
+  // redundant. Worth hoisting into one shared script if this family
+  // keeps growing.
+  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (islands.length && !prefersReducedMotion) {
+    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+    const influenceRadius = 500; // px, push fades to 0 beyond this distance
+    const ease = 0.08;
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
+
+    const state = Array.from(islands).map((el) => ({
+      el,
+      currentX: 0,
+      currentY: 0,
+    }));
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      hasMouse = true;
+    });
+
+    function tick() {
+      for (const s of state) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (hasMouse) {
+          const rect = s.el.getBoundingClientRect();
+          const restX = rect.left + rect.width / 2 - s.currentX;
+          const restY = rect.top + rect.height / 2 - s.currentY;
+
+          const dx = restX - mouseX;
+          const dy = restY - mouseY;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist < influenceRadius) {
+            const falloff = 1 - dist / influenceRadius;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            targetX = nx * maxOffset * falloff;
+            targetY = ny * maxOffset * falloff;
+          }
+        }
+
+        s.currentX += (targetX - s.currentX) * ease;
+        s.currentY += (targetY - s.currentY) * ease;
+        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .education-section {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    overflow: hidden;
+  }
+
+  .content {
+    position: relative;
+    z-index: 3;
+
+    width: min(32ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: #1a1a1a;
+  }
+
+  .body-text {
+    font-size: 1.05rem;
+    color: #444;
+    margin: 0;
+  }
+
+  .education-island {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .education-island-inner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Big background landmass: bigger now, and no longer bleeds off the
+     BOTTOM (that was the piece getting cropped by `overflow: hidden`
+     below) — `bottom` is a small fixed gap so the whole island stays
+     inside the section's own box. It still bleeds off the right edge
+     a bit on wide screens, so `right` keeps the fluid
+     clamp(mobileValue, calc(a + b*vw), desktopValue) treatment.
+     Anchors: -4rem at 640px viewport width, 8rem at 1280px. Stays
+     z-index 1 (the default from .education-island) — it's the back
+     layer. */
+  .education-island-big {
+    bottom: 6vh;
+    right: clamp(-4rem, calc(-256px + 30vw), 8rem);
+    width: clamp(480px, 55vw, 860px);
+    animation: bob-big 7.5s ease-in-out infinite;
+  }
+
+  /* Small foreground island with the college silhouette: much smaller
+     now, and pulled in a lot further from the edge so it only overlaps
+     the lower-middle portion of the mountain instead of covering most
+     of it. Shares the big island's `bottom` value so the two sit on
+     the same visual baseline. `right` keeps the same fluid-anchor
+     technique (4rem at 640px, 18rem at 1280px) so it scales in
+     lockstep with the big island. Still z-index 2, in front of it. */
+  .education-island-small {
+    z-index: 2;
+    bottom: 2vh;
+    right: clamp(4rem, calc(-160px + 35vw), 18rem);
+    width: clamp(140px, 15vw, 220px);
+    animation: bob-small 6s ease-in-out infinite;
+  }
+
+  @keyframes bob-big {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @keyframes bob-small {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .education-island-big,
+    .education-island-small {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .content {
+      width: min(32ch, 100%);
+      padding-inline: 1.5rem;
+    }
+  }
+</style>

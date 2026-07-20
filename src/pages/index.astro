@@ -4,6 +4,7 @@ import Layout from '../layouts/Layout.astro';
 import Section from '../components/Section.astro';
 import ArtIslandSection from '../components/ArtIslandSection.astro';
 import ComputerIslandSection from '../components/ComputerIslandSection.astro';
+import EducationIslandSection from '../components/EducationIslandSection.astro';
 
 const sections = [
   {
@@ -38,6 +39,15 @@ const sections = [
     text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident."
     leftImage="/personal-cv-page/images/left_powerline_island.svg"
     rightImage="/personal-cv-page/images/computer_island.gif"
+  />
+
+  <EducationIslandSection
+    id="section-cs"
+    eyebrow="Island 03"
+    title="Sit Amet Consectetur"
+    text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident."
+    bigImage="/personal-cv-page/images/education_island.svg"
+    smallImage="/personal-cv-page/images/education_island_small.svg"
   />
 
   {sections.map((section) => (
