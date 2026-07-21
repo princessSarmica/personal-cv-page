@@ -8,35 +8,59 @@
 // and both live on the RIGHT side, stacked on top of each other:
 //
 //   - `bigImage`   (education_island.svg) -> the large landmass,
-//     bleeding off the bottom-right edge, further back visually
-//     (lower z-index, positioned first in the DOM).
+//     sitting low-right, further back visually (lower z-index,
+//     positioned first in the DOM). Sized/positioned so it just
+//     slightly overlaps into the text column — `.content` stays
+//     z-index 3 (above both islands) so the text is never actually
+//     obscured, just visually close to the island's edge.
 //   - `smallImage` (small_island.svg)     -> the smaller island
 //     carrying the college-building silhouette, layered in front of
 //     the big island (higher z-index), sitting a bit higher up and
 //     inset from it so it reads as "on top of" the mountain rather
 //     than off to another corner.
 //
-// `.content` still sits above both islands (z-index 3, islands
-// pointer-events: none) so the text stays legible/clickable — since
-// both islands are now confined to the right side, `.content`
-// (currently centered via width: min(32ch, 100%); margin: 0 auto)
-// probably won't overlap them much in practice, but if it still creeps
-// into the islands once real content/viewport sizes are in, the fix is
-// the same left-shift ArtIslandSection got (justify-items: start on
-// the section + a margin-left on .content) — just ask.
+// `.education-section` is taller than a normal viewport on purpose
+// (`min-height: 130vh` instead of `100vh`), to give the
+// bottom-anchored islands room without getting cropped by
+// `overflow: hidden` (absolutely positioned children never contribute
+// to a container's height, so a plain 100vh box only had exactly
+// enough room for `.content`, not for the images poking out past it —
+// see the fuller explanation this comment used to have, still true).
 //
-// Positioning technique picked per-island based on whether it bleeds
-// off an edge, same logic as the other two components in this family:
-//   - `bigImage` bleeds off the bottom-right, so it uses the
-//     clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
-//     from ArtIslandSection.astro (a fixed rem offset doesn't scale
-//     with viewport width the way a vw-based width does, so without
-//     this the offset only makes sense at a couple of exact widths —
-//     see the longer explanation in ArtIslandSection.astro).
-//   - `smallImage` also uses that technique here (rather than plain
-//     vw/vh) so it scales in lockstep with `bigImage` and keeps
-//     looking "stacked on it" instead of drifting apart at some
-//     viewport widths.
+// That taller box is also *why* `align-items: start` is used here
+// instead of the `place-items: center` every other section in this
+// family uses: centering `.content` inside a 130vh box (when the text
+// itself is much shorter than that) pushes it down and leaves a big,
+// visually odd gap of empty space above it. Starting it at the top
+// (with the section's existing padding as the gap) keeps the text
+// where it visually belongs and lets the extra height live below the
+// text, near the bottom-anchored islands, where it's actually needed.
+//
+// Positioning: only the STACK (`.education-island-stack`, wrapping
+// both islands) is positioned against the section — `top`/`right` use
+// the clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
+// from ArtIslandSection.astro, since it bleeds off the right edge on
+// wide screens (a fixed rem offset doesn't scale with viewport width
+// the way a vw-based width does — see the longer explanation in
+// ArtIslandSection.astro). On mobile the stack is pushed even further
+// right so part of it is deliberately cropped off-screen — see the
+// max-width: 640px query.
+//
+// `smallImage` is positioned in %, relative to the stack — NOT vh/vw
+// relative to the section. That's a deliberate fix: `bigImage`'s
+// rendered height depends on its own width (it's `width: <something
+// in vw>; height: auto`), so its actual pixel height changes with
+// viewport width in a way that has nothing to do with vh. Positioning
+// `smallImage` with an independent vh offset meant the two only lined
+// up correctly at whatever viewport width they happened to be tuned
+// against — everywhere else, `smallImage` drifted up or down the
+// mountain because the two offsets (vh vs. the big island's actual
+// vw-driven height) scaled at different rates. Since `.education-
+// island-stack` is sized to `bigImage`'s own rendered box (nothing
+// else inside it takes up space), a percentage-based top/right on
+// `smallImage` is always relative to that same box, so it scales in
+// lockstep with `bigImage` at every viewport width instead of just a
+// couple of tuned ones.
 // These are starting values eyeballed off the screenshots — expect to
 // nudge them once you see it live, same as the other two sections.
 //
@@ -63,9 +87,17 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
 ---
 
 <section class="education-section" id={id}>
-  <div class="education-island education-island-big" aria-hidden="true">
-    <div class="education-island-inner parallax-inner">
-      <img src={bigImage} alt="" />
+  <div class="education-island-stack" aria-hidden="true">
+    <div class="education-island-big">
+      <div class="education-island-inner parallax-inner">
+        <img src={bigImage} alt="" />
+      </div>
+    </div>
+
+    <div class="education-island-small">
+      <div class="education-island-inner parallax-inner">
+        <img src={smallImage} alt="" />
+      </div>
     </div>
   </div>
 
@@ -73,12 +105,6 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
     <h2>{title}</h2>
     <p class="body-text">{text}</p>
-  </div>
-
-  <div class="education-island education-island-small" aria-hidden="true">
-    <div class="education-island-inner parallax-inner">
-      <img src={smallImage} alt="" />
-    </div>
   </div>
 </section>
 
@@ -154,9 +180,10 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
 <style>
   .education-section {
     position: relative;
-    min-height: 100vh;
+    min-height: 130vh;
     display: grid;
-    place-items: center;
+    justify-items: center;
+    align-items: start;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     overflow: hidden;
   }
@@ -192,9 +219,20 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
     margin: 0;
   }
 
-  .education-island {
+  /* Positioned against the section: bleeds off the right edge on
+     wide screens, so `right` keeps the fluid
+     clamp(mobileValue, calc(a + b*vw), desktopValue) treatment.
+     Anchors: -2rem at 640px viewport width, 3rem at 1280px. Sized to
+     `bigImage`'s own width — nothing else inside it affects its size
+     — which is exactly what makes it a stable coordinate system for
+     `.education-island-small`'s percentage-based position below.
+     `pointer-events: none` lives here now instead of on `.education-
+     island`, since that covers both children at once. */
+  .education-island-stack {
     position: absolute;
-    z-index: 1;
+    top: 16vh;
+    right: clamp(-2rem, calc(-112px + 12.5vw), 3rem);
+    width: clamp(390px, 46vw, 700px);
     pointer-events: none;
   }
 
@@ -204,34 +242,35 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
     height: auto;
   }
 
-  /* Big background landmass: bigger now, and no longer bleeds off the
-     BOTTOM (that was the piece getting cropped by `overflow: hidden`
-     below) — `bottom` is a small fixed gap so the whole island stays
-     inside the section's own box. It still bleeds off the right edge
-     a bit on wide screens, so `right` keeps the fluid
-     clamp(mobileValue, calc(a + b*vw), desktopValue) treatment.
-     Anchors: -4rem at 640px viewport width, 8rem at 1280px. Stays
-     z-index 1 (the default from .education-island) — it's the back
-     layer. */
+  /* Big background landmass: fills the stack (100% of its width — the
+     stack was sized to this image in the first place), normal
+     document flow inside it (not absolutely positioned — it's the
+     thing the stack's own size comes from). `.content` is z-index 3,
+     above both islands, so the text itself never gets covered even
+     where the stack's edge slightly overlaps the text column — it
+     just sits visually close to it. z-index 1 = the back layer. */
   .education-island-big {
-    bottom: 6vh;
-    right: clamp(-4rem, calc(-256px + 30vw), 8rem);
-    width: clamp(480px, 55vw, 860px);
+    position: relative;
+    z-index: 1;
+    width: 100%;
     animation: bob-big 7.5s ease-in-out infinite;
   }
 
-  /* Small foreground island with the college silhouette: much smaller
-     now, and pulled in a lot further from the edge so it only overlaps
-     the lower-middle portion of the mountain instead of covering most
-     of it. Shares the big island's `bottom` value so the two sit on
-     the same visual baseline. `right` keeps the same fluid-anchor
-     technique (4rem at 640px, 18rem at 1280px) so it scales in
-     lockstep with the big island. Still z-index 2, in front of it. */
+  /* Small foreground island with the college silhouette: positioned in
+     % relative to the stack (i.e. relative to the big island's own
+     rendered box), NOT vh/vw relative to the section — see the
+     component-level comment above for why that's the fix for it
+     drifting out of place across viewport widths. `top`/`right`/
+     `width` are all % of the stack, so they scale in lockstep with
+     the big island automatically. These are eyeballed starting values
+     for "sits on the lower-middle of the mountain" — nudge directly if
+     it needs to move. z-index 2 = in front of the big island. */
   .education-island-small {
+    position: absolute;
     z-index: 2;
-    bottom: 2vh;
-    right: clamp(4rem, calc(-160px + 35vw), 18rem);
-    width: clamp(140px, 15vw, 220px);
+    top: 86%;
+    right: 18%;
+    width: 30%;
     animation: bob-small 6s ease-in-out infinite;
   }
 
@@ -256,6 +295,14 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
+    }
+
+    /* Deliberately push the whole stack further right than its
+       desktop position so part of it crops off-screen — same
+       overflow: hidden that protects against horizontal scrolling
+       elsewhere in this family, just leaned into on purpose here. */
+    .education-island-stack {
+      right: -8vw;
     }
   }
 </style>

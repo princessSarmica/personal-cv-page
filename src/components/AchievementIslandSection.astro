@@ -245,21 +245,23 @@ const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
        of overlaying it. `order` moves it after `.content` visually
        even though it's first in the DOM; `.achievement-section`'s
        existing `place-items: center` centers it automatically once
-       it's back in flow. */
+       it's back in flow. Margin-top is the knob for "how far below
+       the text it sits" — smaller value pulls it up closer to the
+       text. */
     .achievement-island-left {
       position: static;
       order: 1;
       top: auto;
       left: auto;
       width: clamp(80px, 24vw, 130px);
-      margin: 2.5rem auto 0;
+      margin: 1rem auto 0;
     }
 
     /* Tighter `right` so the temple island doesn't creep under the
        now full-width text on narrow screens. */
     .achievement-island-right {
       right: -6vw;
-      top: 4vh;
+      top: 0vh;
     }
   }
 </style>

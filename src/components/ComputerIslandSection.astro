@@ -146,7 +146,7 @@ const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
 <style>
   .computer-section {
     position: relative;
-    min-height: 100vh;
+    min-height: 130vh;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
@@ -199,8 +199,8 @@ const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
   /* Telephone-pole island: smaller, mid-left, roughly vertically
      centered. Doesn't bleed off any edge. */
   .computer-island-left {
-    top: 32vh;
-    left: 16vw;
+    top: 52vh;
+    left: 20vw;
     width: clamp(200px, 22vw, 320px);
     animation: bob-left 6.5s ease-in-out infinite;
   }
@@ -208,7 +208,7 @@ const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
   /* Computer island: larger, upper-right, its trailing cable dipping
      down toward mid-frame. Also doesn't bleed off an edge. */
   .computer-island-right {
-    top: 2vh;
+    top: 24vh;
     right: 12vw;
     width: clamp(260px, 32vw, 440px);
     animation: bob-right 5.8s ease-in-out infinite;

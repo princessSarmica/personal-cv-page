@@ -45,4 +45,21 @@ const { title = "My CV" } = Astro.props;
     color: #1a1a1a;
     line-height: 1.5;
   }
+
+  /* Breathing room between sections. Every section component in this
+     project (Section.astro, ArtIslandSection.astro,
+     ComputerIslandSection.astro, EducationIslandSection.astro,
+     AchievementIslandSection.astro, ...) renders a top-level
+     `<section>`, and they're all siblings directly under `<body>` via
+     `<slot />` here — so one adjacent-sibling rule here adds the gap
+     between every pair of them, instead of having to repeat a
+     margin/padding rule inside each section component individually.
+     `section + section` only matches from the second section onward,
+     so the very first section on the page stays flush with the top.
+     If a section ever needs to sit flush against its neighbor on
+     purpose, override with `margin-top: 0` on that specific instance
+     (e.g. via a wrapper class) rather than removing this rule. */
+  section + section {
+    margin-top: clamp(2rem, 6vw, 5rem);
+  }
 </style>
