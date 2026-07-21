@@ -1,0 +1,265 @@
+---
+// src/components/AchievementIslandSection.astro
+//
+// Same family as ComputerIslandSection.astro: two flanking
+// illustrations sitting behind centered-ish text, one JS-driven
+// mouse-repel script, one CSS bob loop per island. Neither island
+// bleeds off the section's edges here either, so positioning is plain
+// vw/vh (same reasoning as ComputerIslandSection.astro — a vw/vh
+// offset already scales continuously with the viewport, so there's no
+// need for the clamp(mobileValue, calc(a + b*vw), desktopValue) trick
+// ArtIslandSection.astro needs for its bleeding corners).
+//
+// Per your reference screenshot, the arrangement is close to
+// ComputerIslandSection's but tuned differently:
+//
+//   - `leftImage`  (statue island, svg) -> mid-left, narrower and
+//     taller than the telephone-pole island was, sitting a little
+//     further in from the edge.
+//   - `rightImage` (temple island, svg) -> right side, large, sitting
+//     lower and tucked in much closer to the right edge than the
+//     computer island was.
+//
+// (The mountain shape bottom-left in your screenshot is the
+// persistent CornerIsland.astro front island that's on every section
+// via Layout.astro — not one of this component's two images.)
+//
+// Included a mobile media query mirroring ComputerIslandSection's:
+// left island drops into normal flow below the text (via `order`)
+// instead of overlaying it, right island gets a tighter `right` so it
+// doesn't creep under the now full-width text. Same as the other
+// sections in this family, treat these as starting values to nudge
+// once you see it live.
+//
+// Usage:
+//   <AchievementIslandSection
+//     id="section-achievements"
+//     eyebrow="Island 04"
+//     title="Do Eiusmod Tempor"
+//     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur..."
+//     leftImage="/images/left_achievement_island.svg"
+//     rightImage="/images/right_achievement_island.svg"
+//   />
+
+interface Props {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  text: string;
+  leftImage: string;
+  rightImage: string;
+}
+
+const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
+---
+
+<section class="achievement-section" id={id}>
+  <div class="achievement-island achievement-island-left" aria-hidden="true">
+    <div class="achievement-island-inner parallax-inner">
+      <img src={leftImage} alt="" />
+    </div>
+  </div>
+
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="achievement-island achievement-island-right" aria-hidden="true">
+    <div class="achievement-island-inner parallax-inner">
+      <img src={rightImage} alt="" />
+    </div>
+  </div>
+</section>
+
+<script>
+  // Same proximity-repel drift as the rest of this family, driving
+  // every `.parallax-inner` element on the page. If more than one of
+  // these sections lands on the same page, each ships its own copy of
+  // this script and each queries ALL `.parallax-inner` elements
+  // globally (not just its own) — intentional/harmless (they all
+  // compute the same easing toward the same targets), just a little
+  // redundant. Worth hoisting into one shared script if this family
+  // keeps growing.
+  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (islands.length && !prefersReducedMotion) {
+    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+    const influenceRadius = 500; // px, push fades to 0 beyond this distance
+    const ease = 0.08;
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
+
+    const state = Array.from(islands).map((el) => ({
+      el,
+      currentX: 0,
+      currentY: 0,
+    }));
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      hasMouse = true;
+    });
+
+    function tick() {
+      for (const s of state) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (hasMouse) {
+          const rect = s.el.getBoundingClientRect();
+          const restX = rect.left + rect.width / 2 - s.currentX;
+          const restY = rect.top + rect.height / 2 - s.currentY;
+
+          const dx = restX - mouseX;
+          const dy = restY - mouseY;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist < influenceRadius) {
+            const falloff = 1 - dist / influenceRadius;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            targetX = nx * maxOffset * falloff;
+            targetY = ny * maxOffset * falloff;
+          }
+        }
+
+        s.currentX += (targetX - s.currentX) * ease;
+        s.currentY += (targetY - s.currentY) * ease;
+        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .achievement-section {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    overflow: hidden;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(32ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: #1a1a1a;
+  }
+
+  .body-text {
+    font-size: 1.05rem;
+    color: #444;
+    margin: 0;
+  }
+
+  .achievement-island {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .achievement-island-inner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Statue island: narrower and taller than a typical flanking island,
+     mid-left but a bit further in from the edge than
+     ComputerIslandSection's telephone-pole island was. Doesn't bleed
+     off any edge. */
+  .achievement-island-left {
+    top: 30vh;
+    left: 22vw;
+    width: clamp(130px, 12vw, 200px);
+    animation: bob-left 6.5s ease-in-out infinite;
+  }
+
+  /* Temple island: large, sitting lower and tucked in much closer to
+     the right edge than the computer island was. Also doesn't bleed
+     off any edge. */
+  .achievement-island-right {
+    top: 16vh;
+    right: 2vw;
+    width: clamp(320px, 40vw, 560px);
+    animation: bob-right 5.8s ease-in-out infinite;
+  }
+
+  @keyframes bob-left {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes bob-right {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .achievement-island-left,
+    .achievement-island-right {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .content {
+      width: min(32ch, 100%);
+      padding-inline: 1.5rem;
+    }
+
+    /* Same fix as ComputerIslandSection: the mid-left absolute
+       position sits right under the (now full-width) text on mobile,
+       so drop it into normal document flow below the content instead
+       of overlaying it. `order` moves it after `.content` visually
+       even though it's first in the DOM; `.achievement-section`'s
+       existing `place-items: center` centers it automatically once
+       it's back in flow. */
+    .achievement-island-left {
+      position: static;
+      order: 1;
+      top: auto;
+      left: auto;
+      width: clamp(80px, 24vw, 130px);
+      margin: 2.5rem auto 0;
+    }
+
+    /* Tighter `right` so the temple island doesn't creep under the
+       now full-width text on narrow screens. */
+    .achievement-island-right {
+      right: -6vw;
+      top: 4vh;
+    }
+  }
+</style>

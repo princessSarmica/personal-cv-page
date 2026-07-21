@@ -5,14 +5,9 @@ import Section from '../components/Section.astro';
 import ArtIslandSection from '../components/ArtIslandSection.astro';
 import ComputerIslandSection from '../components/ComputerIslandSection.astro';
 import EducationIslandSection from '../components/EducationIslandSection.astro';
+import AchievementIslandSection from '../components/AchievementIslandSection.astro';
 
 const sections = [
-  {
-    id: 'section-3',
-    eyebrow: 'Island 03',
-    title: 'Adipiscing Elit Sed',
-    text: 'Sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque.',
-  },
   {
     id: 'section-4',
     eyebrow: 'Island 04',
@@ -48,6 +43,15 @@ const sections = [
     text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident."
     bigImage="/personal-cv-page/images/education_island.svg"
     smallImage="/personal-cv-page/images/education_island_small.svg"
+  />
+
+  <AchievementIslandSection
+    id="section-cs"
+    eyebrow="Island 04"
+    title="Sit Amet Consectetur"
+    text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident."
+    leftImage="/personal-cv-page/images/left_achievement_island.svg"
+    rightImage="/personal-cv-page/images/right_achievement_island.svg"
   />
 
   {sections.map((section) => (
