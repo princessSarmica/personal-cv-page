@@ -1,0 +1,90 @@
+---
+// src/components/OtherIslandSection.astro
+//
+// Closing full-bleed illustration for the bottom of the page — not
+// part of the flanking-islands family (ArtIslandSection /
+// ComputerIslandSection / EducationIslandSection /
+// AchievementIslandSection). No text, no mouse-repel, no bob loop —
+// just one image that always spans the full viewport width, edge to
+// edge, regardless of screen size.
+//
+// "Full viewport width no matter what" is done with the standard
+// break-out-of-the-container trick:
+//   width: 100vw; position: relative; left: 50%; right: 50%;
+//   margin-left: -50vw; margin-right: -50vw;
+// `width: 100%` alone would only match the width of whatever contains
+// it. Right now nothing in Layout.astro constrains that (it's a bare
+// `<slot />` in `<body>`), so `100%` would likely look identical today
+// — but the 100vw break-out doesn't depend on that staying true, so
+// this keeps working even if a max-width wrapper gets added around
+// the page later. `overflow-x: hidden` on the section guards against
+// the one common side effect of this trick: 100vw includes the
+// vertical scrollbar's width, which can introduce a few px of
+// horizontal overflow on some browsers.
+//
+// Height is deliberately NOT constrained — it's `height: auto`, so
+// the image keeps its own aspect ratio at whatever height that
+// implies once stretched to full width. Your source file is a very
+// tall/portrait image (3840 x 6320), so at full viewport width this
+// will render quite tall (on a 1440px-wide screen, roughly 2370px
+// tall) — that's inherent to the source image's proportions, not a
+// bug; let me know if you actually want it cropped to a shorter band
+// instead of showing the whole illustration.
+//
+// IMPORTANT — file size: the uploaded SVG is ~45MB. It's not really a
+// vector image; it's a single base64-encoded PNG wrapped in an <svg>
+// (a `<use>` pointing at an embedded `<image>`), so the file weighs as
+// much as that PNG does and won't scale crisply the way a real vector
+// would either. 45MB shipped to every visitor at the end of a CV page
+// is a lot — enough to make the page feel broken on a slow connection.
+// Two things worth doing when you get a chance:
+//   1. Re-export it as a compressed .webp or .avif (or a well-optimized
+//      .jpg) instead of a base64 PNG inside an SVG — that alone could
+//      plausibly take it from 45MB to a few hundred KB with no visible
+//      quality loss for a photographic/painterly illustration like
+//      this.
+//   2. Since it's the very last thing on the page, `loading="lazy"` (already
+//      added below) means it won't compete with anything above it for
+//      bandwidth on initial load — but it'll still be a slow, heavy
+//      request whenever it does load.
+// Left the <img> pointed at the file as-is for now so this works today;
+// swap the `image` prop to the smaller file once you have one, nothing
+// else here needs to change.
+//
+// Usage:
+//   <OtherIslandSection
+//     id="section-closing"
+//     image="/images/other_island.svg"
+//   />
+
+interface Props {
+  id: string;
+  image: string;
+  alt?: string;
+}
+
+const { id, image, alt = "" } = Astro.props;
+---
+
+<section class="other-section" id={id}>
+  <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
+</section>
+
+<style>
+  .other-section {
+    position: relative;
+    width: 100vw;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    overflow-x: hidden;
+    line-height: 0;
+  }
+
+  .other-section-image {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+</style>

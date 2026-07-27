@@ -6,6 +6,7 @@ import ArtIslandSection from '../components/ArtIslandSection.astro';
 import ComputerIslandSection from '../components/ComputerIslandSection.astro';
 import EducationIslandSection from '../components/EducationIslandSection.astro';
 import AchievementIslandSection from '../components/AchievementIslandSection.astro';
+import OtherIslandSection from '../components/OtherIslandSection.astro';
 
 const sections = [
   {
@@ -62,4 +63,9 @@ const sections = [
       text={section.text}
     />
   ))}
+
+  <OtherIslandSection
+    id="section-closing"
+    image="/personal-cv-page/images/other_island.webp"
+  />
 </Layout>
