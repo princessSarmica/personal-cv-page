@@ -22,14 +22,24 @@
 // vertical scrollbar's width, which can introduce a few px of
 // horizontal overflow on some browsers.
 //
-// Height is deliberately NOT constrained — it's `height: auto`, so
-// the image keeps its own aspect ratio at whatever height that
-// implies once stretched to full width. Your source file is a very
-// tall/portrait image (3840 x 6320), so at full viewport width this
-// will render quite tall (on a 1440px-wide screen, roughly 2370px
-// tall) — that's inherent to the source image's proportions, not a
-// bug; let me know if you actually want it cropped to a shorter band
-// instead of showing the whole illustration.
+// Height on wide screens is unconstrained (`height: auto`), so the
+// image keeps its own aspect ratio and the whole illustration shows —
+// your current source is a wide/landscape image, so this looks right
+// at desktop widths without any cropping.
+//
+// On narrow screens that same wide aspect ratio flattens out into a
+// short strip (a ~16:9-ish image at 375px wide is only ~210px tall),
+// which read as "barely covers a third of the screen" — not enough
+// presence for a closing illustration. Fixed below: under
+// `max-width: 640px`, the section gets a fixed, taller
+// `aspect-ratio` (4 / 5) instead of an auto height, and the image
+// switches to `object-fit: cover` with `object-position: center`
+// inside that box. That crops the left and right edges off and shows
+// only the center vertical slice, at whatever height the 4:5 box
+// implies — same idea as a CSS "cover" background image. `4 / 5` is
+// an eyeballed starting ratio; make it a bigger first number (e.g.
+// `1 / 1`) for a shorter crop, or a bigger second number (e.g.
+// `3 / 5`) for a taller one.
 //
 // IMPORTANT — file size: the uploaded SVG is ~45MB. It's not really a
 // vector image; it's a single base64-encoded PNG wrapped in an <svg>
@@ -86,5 +96,23 @@ const { id, image, alt = "" } = Astro.props;
     display: block;
     width: 100%;
     height: auto;
+  }
+
+  @media (max-width: 640px) {
+    /* Taller, fixed box instead of auto height, so the wide image has
+       somewhere to be cropped into rather than just flattening out. */
+    .other-section {
+      aspect-ratio: 4 / 5;
+    }
+
+    /* object-fit: cover fills that box by cropping the sides (since
+       the source is wider than 4:5), object-position: center keeps
+       the crop centered horizontally instead of favoring one edge. */
+    .other-section-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
   }
 </style>
