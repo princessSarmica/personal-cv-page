@@ -30,16 +30,36 @@
 // On narrow screens that same wide aspect ratio flattens out into a
 // short strip (a ~16:9-ish image at 375px wide is only ~210px tall),
 // which read as "barely covers a third of the screen" — not enough
-// presence for a closing illustration. Fixed below: under
-// `max-width: 640px`, the section gets a fixed, taller
-// `aspect-ratio` (4 / 5) instead of an auto height, and the image
-// switches to `object-fit: cover` with `object-position: center`
-// inside that box. That crops the left and right edges off and shows
-// only the center vertical slice, at whatever height the 4:5 box
-// implies — same idea as a CSS "cover" background image. `4 / 5` is
-// an eyeballed starting ratio; make it a bigger first number (e.g.
-// `1 / 1`) for a shorter crop, or a bigger second number (e.g.
-// `3 / 5`) for a taller one.
+// presence for a closing illustration.
+//
+// Fixed the same way BonusIslandSection's background scales: under
+// `max-width: 640px`, the section gets a real viewport-height box, and
+// the image switches to `object-fit: cover` so it fills that box by
+// cropping instead of flattening out.
+//
+// That box has to be `height: 100vh`, not `min-height: 100vh` — this
+// tripped up the first attempt at this fix. `.other-section-image`
+// fills it via `height: 100%`, and a percentage height on a child only
+// resolves against a parent that has a DEFINITE height; a `min-height`
+// alone doesn't count as definite (per spec, it's a constraint, not a
+// used value), so the image's `100%` was computing back to `auto` —
+// meaning the image rendered at its natural (short) aspect-ratio
+// height same as before, while the section around it was genuinely
+// 100vh tall, and the gap between the two showed up as blank white
+// space at the bottom. `height: 100vh` gives the child something
+// definite to resolve against, so `height: 100%` on the image actually
+// means something. Safe to use a hard `height` here (rather than the
+// usual "prefer min-height" advice) because this section's only
+// content on mobile is the image itself — there's nothing else that
+// could need more room and get clipped.
+//
+// `object-position: top` (rather than `center`) is deliberate — this
+// image's TOP edge is the one that has to match BonusIslandSection's
+// bottom (see the shared `.sky-chain` seam-matching in Layout.astro),
+// so keeping that edge protected from cropping matters; whatever gets
+// trimmed off is the bottom of the illustration instead, which doesn't
+// need to line up with anything since this is the last section on the
+// page.
 //
 // File size: you've since swapped the original ~45MB base64-in-SVG
 // export for other_island_2.webp (~2.4MB) — a big improvement, though
@@ -87,20 +107,21 @@ const { id, image, alt = "" } = Astro.props;
   }
 
   @media (max-width: 640px) {
-    /* Taller, fixed box instead of auto height, so the wide image has
-       somewhere to be cropped into rather than just flattening out. */
+    /* height (not min-height) — see the component-level comment above
+       for why the distinction matters here. */
     .other-section {
-      aspect-ratio: 4 / 5;
+      height: 100vh;
     }
 
-    /* object-fit: cover fills that box by cropping the sides (since
-       the source is wider than 4:5), object-position: center keeps
-       the crop centered horizontally instead of favoring one edge. */
+    /* object-fit: cover fills that box by cropping (mostly the sides,
+       since the source is much wider than tall); object-position: top
+       keeps the crop anchored to the top edge specifically — see the
+       comment above for why that edge can't be the one that moves. */
     .other-section-image {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      object-position: center;
+      object-position: top;
     }
   }
 </style>
