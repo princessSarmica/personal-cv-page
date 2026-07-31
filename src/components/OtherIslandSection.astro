@@ -41,25 +41,13 @@
 // `1 / 1`) for a shorter crop, or a bigger second number (e.g.
 // `3 / 5`) for a taller one.
 //
-// IMPORTANT — file size: the uploaded SVG is ~45MB. It's not really a
-// vector image; it's a single base64-encoded PNG wrapped in an <svg>
-// (a `<use>` pointing at an embedded `<image>`), so the file weighs as
-// much as that PNG does and won't scale crisply the way a real vector
-// would either. 45MB shipped to every visitor at the end of a CV page
-// is a lot — enough to make the page feel broken on a slow connection.
-// Two things worth doing when you get a chance:
-//   1. Re-export it as a compressed .webp or .avif (or a well-optimized
-//      .jpg) instead of a base64 PNG inside an SVG — that alone could
-//      plausibly take it from 45MB to a few hundred KB with no visible
-//      quality loss for a photographic/painterly illustration like
-//      this.
-//   2. Since it's the very last thing on the page, `loading="lazy"` (already
-//      added below) means it won't compete with anything above it for
-//      bandwidth on initial load — but it'll still be a slow, heavy
-//      request whenever it does load.
-// Left the <img> pointed at the file as-is for now so this works today;
-// swap the `image` prop to the smaller file once you have one, nothing
-// else here needs to change.
+// File size: you've since swapped the original ~45MB base64-in-SVG
+// export for other_island_2.webp (~2.4MB) — a big improvement, though
+// still worth a look if you want to shave it down further (a well
+// compressed webp of a similar sky/landscape scene can often get well
+// under 1MB with no visible quality loss). `loading="lazy"` is still
+// on the <img> below so it doesn't compete with anything above it for
+// bandwidth on initial load either way.
 //
 // Usage:
 //   <OtherIslandSection
@@ -76,7 +64,7 @@ interface Props {
 const { id, image, alt = "" } = Astro.props;
 ---
 
-<section class="other-section" id={id}>
+<section class="other-section sky-chain" id={id}>
   <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
 </section>
 

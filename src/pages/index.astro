@@ -1,21 +1,12 @@
 ---
 // src/pages/index.astro
 import Layout from '../layouts/Layout.astro';
-import Section from '../components/Section.astro';
 import ArtIslandSection from '../components/ArtIslandSection.astro';
 import ComputerIslandSection from '../components/ComputerIslandSection.astro';
 import EducationIslandSection from '../components/EducationIslandSection.astro';
 import AchievementIslandSection from '../components/AchievementIslandSection.astro';
+import BonusIslandSection from '../components/BonusIslandSection.astro';
 import OtherIslandSection from '../components/OtherIslandSection.astro';
-
-const sections = [
-  {
-    id: 'section-4',
-    eyebrow: 'Island 04',
-    title: 'Do Eiusmod Tempor',
-    text: 'Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.',
-  },
-];
 ---
 
 <Layout title="My CV">
@@ -55,14 +46,13 @@ const sections = [
     rightImage="/personal-cv-page/images/right_achievement_island.svg"
   />
 
-  {sections.map((section) => (
-    <Section
-      id={section.id}
-      eyebrow={section.eyebrow}
-      title={section.title}
-      text={section.text}
-    />
-  ))}
+  <BonusIslandSection
+    id="section-bonus"
+    eyebrow="Bonus"
+    title="One More Thing"
+    text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt."
+    backgroundImage="/personal-cv-page/images/bonus_island_background.webp"
+  />
 
   <OtherIslandSection
     id="section-closing"

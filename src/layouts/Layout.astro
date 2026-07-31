@@ -28,6 +28,30 @@ const { title = "My CV" } = Astro.props;
 <style is:global>
   :root {
     color-scheme: light;
+
+    /* Shared boundary colors for the page-wide sky -> sunset -> dusk
+       backdrop across ArtIslandSection -> ComputerIslandSection ->
+       EducationIslandSection -> AchievementIslandSection.
+       Each section's gradient reuses the SAME variable at a shared
+       edge (e.g. --sky-1 is both Art's bottom and Computer's top), so
+       adjacent sections are guaranteed to meet at the exact same
+       color — not just a close visual match — with zero risk of the
+       two ever drifting apart the way hand-picked hex values in two
+       different files could.
+       --dusk-blue is AchievementIslandSection's bottom color, which
+       now needs to match BonusIslandSection's top (BonusIslandSection
+       sits between Achievement and the closing OtherIslandSection).
+       This used to be an eyeballed guess off a screenshot; now that
+       you've uploaded the actual bonus_island_background.png, it's
+       been updated to the real sampled top-row color of that image
+       (#0cd4ee) instead. */
+    --sky-0: #dcf3fc; /* page top: ArtIslandSection top */
+    --sky-1: #c7e9f7; /* ArtIslandSection bottom = ComputerIslandSection top */
+    --sky-2: #b2def2; /* ComputerIslandSection bottom = EducationIslandSection top */
+    --sky-3: #9dd3ec; /* EducationIslandSection bottom = AchievementIslandSection top */
+    --sunset-mid: #f3b67a; /* AchievementIslandSection midpoint: warm gold */
+    --sunset-deep: #e8875f; /* AchievementIslandSection midpoint: deeper coral */
+    --dusk-blue: #0cd4ee; /* AchievementIslandSection bottom = BonusIslandSection top (sampled) */
   }
 
   * {
@@ -61,5 +85,20 @@ const { title = "My CV" } = Astro.props;
      (e.g. via a wrapper class) rather than removing this rule. */
   section + section {
     margin-top: clamp(2rem, 6vw, 5rem);
+  }
+
+  /* The 4 gradient-backed sections (ArtIslandSection,
+     ComputerIslandSection, EducationIslandSection,
+     AchievementIslandSection), plus BonusIslandSection and
+     OtherIslandSection (both backed by real images instead of a CSS
+     gradient, but part of the same continuous chain visually), all
+     carry this marker class specifically so this override can zero
+     out the gap rule above between them. A visible white strip from
+     the rule above would show through right at each seam and break
+     the continuous-sky illusion, so consecutive `.sky-chain` sections
+     sit flush against each other; the gap rule still applies normally
+     around any section that ISN'T part of the chain. */
+  .sky-chain + .sky-chain {
+    margin-top: 0;
   }
 </style>
