@@ -42,13 +42,30 @@
 // here), so no separate mobile height fix needed — same reasoning as
 // Computer/Education.
 //
-// `background-position` is a placeholder (`center`) — no actual image
-// yet. This section sits between EducationIslandSection (`--sky-3`)
-// and BonusIslandSection (`--dusk-blue`), so both edges matter, same
-// situation as Computer/Education: once you share the file, I can
-// sample its real top/bottom colors to update `--sky-3`/`--dusk-blue`
-// for an exact seam match, and pick whichever `background-position`
-// keeps the more important edge from being cropped.
+// `background-position: top` protects the true top edge — the one
+// that has to match EducationIslandSection's bottom — from ever being
+// cropped. `background-size: cover` fills the section completely (no
+// gaps, ever) and crops the sides/bottom as needed.
+//
+// This went through a `background-size: 100% auto` detour and back:
+// the ORIGINAL scale-mismatch bug (cloud shapes not lining up at the
+// seam) wasn't caused by `cover` itself — it was caused by Education
+// and this section having DIFFERENT heights (`130vh` vs `100vh`),
+// which made `cover` scale each image by a different factor. Once
+// Education's height was brought back down to match this section's
+// `100vh` (it needed to anyway, to look consistent with the rest of
+// the page), plain `cover` scales both images by the same factor
+// again — same fix, without `100% auto`'s side effect of leaving a
+// gap whenever the image's width-driven height came up short of the
+// section's fixed vh height.
+//
+// NOTE: I still don't have the actual background image files for
+// either section — this is reasoned from first principles (how
+// `cover` behaves, and why matching section heights matters) plus the
+// two comparison screenshots you sent, not from measuring the real
+// files. Once you can share the actual files, I can sample their real
+// edge colors/dimensions and verify this precisely instead of
+// reasoning it out blind.
 //
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
@@ -179,7 +196,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     overflow: hidden;
     background-size: cover;
-    background-position: center;
+    background-position: top;
     background-repeat: no-repeat;
   }
 
