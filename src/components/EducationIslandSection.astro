@@ -64,6 +64,26 @@
 // These are starting values eyeballed off the screenshots — expect to
 // nudge them once you see it live, same as the other two sections.
 //
+// Background: real image (`backgroundImage`), same technique as
+// BonusIslandSection / ComputerIslandSection now use — inline
+// `background-image` style, `background-size: cover` in the scoped
+// CSS — instead of the flat `--sky-2` -> `--sky-3` gradient this used
+// to have. Sizes against the section's own final box regardless of
+// how its height was determined (`min-height: 130vh` here), so this
+// doesn't have the percentage-height-vs-min-height footgun that hit
+// OtherIslandSection on mobile — no separate mobile height fix needed.
+//
+// `background-position` is a placeholder (`center`) — no actual image
+// yet. This section sits between ComputerIslandSection (`--sky-2`)
+// and AchievementIslandSection (`--sky-3`), so both edges matter, same
+// situation as ComputerIslandSection: once you share the file, I can
+// sample its real top/bottom colors to update `--sky-2`/`--sky-3` for
+// an exact seam match, and pick whichever `background-position` keeps
+// the more important edge from being cropped.
+//
+// Still carries `.sky-chain`, so the gap-collapsing on both sides
+// keeps working regardless of what backs it.
+//
 // Usage:
 //   <EducationIslandSection
 //     id="section-education"
@@ -72,6 +92,7 @@
 //     text="Sunt in culpa qui officia deserunt mollit anim id est laborum..."
 //     bigImage="/images/education_island.svg"
 //     smallImage="/images/small_island.svg"
+//     backgroundImage="/images/education_island_background.webp"
 //   />
 
 interface Props {
@@ -81,12 +102,17 @@ interface Props {
   text: string;
   bigImage: string;
   smallImage: string;
+  backgroundImage: string;
 }
 
-const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
+const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astro.props;
 ---
 
-<section class="education-section" id={id}>
+<section
+  class="education-section sky-chain"
+  id={id}
+  style={`background-image: url(${backgroundImage});`}
+>
   <div class="education-island-stack" aria-hidden="true">
     <div class="education-island-big">
       <div class="education-island-inner parallax-inner">
@@ -186,6 +212,9 @@ const { id, eyebrow, title, text, bigImage, smallImage } = Astro.props;
     align-items: start;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 
   .content {

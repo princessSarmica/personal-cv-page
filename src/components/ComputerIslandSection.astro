@@ -33,6 +33,32 @@
 // as a plain <img> with loading="lazy" for now so it doesn't block
 // anything above it, but that doesn't shrink the download itself.
 //
+// Background: real image (`backgroundImage`, same technique as
+// BonusIslandSection: a `background-image` set via inline style, plus
+// `background-size: cover` in the scoped CSS) instead of the flat
+// `--sky-1` -> `--sky-2` gradient this used to have. `background-size:
+// cover` always sizes against the element's own final rendered box,
+// no matter how that height was determined (min-height + content, in
+// this case) — unlike an `<img>` with `height: 100%`, which is what
+// bit OtherIslandSection on mobile (percentage heights don't resolve
+// against a `min-height`-only parent). Backgrounds don't have that
+// footgun, so no separate mobile height fix is needed here the way it
+// was there.
+//
+// `background-position` is a placeholder (`center`) for now — I don't
+// have the actual image yet, so I can't tell whether it needs to favor
+// the top edge (which has to match ArtIslandSection's `--sky-1`) or
+// the bottom edge (which has to match EducationIslandSection's
+// `--sky-2`) the way OtherIslandSection favors its top. Both edges
+// matter here, unlike OtherIslandSection where only one did, so once
+// you share the actual file I can pick the right one — or sample both
+// edges and update `--sky-1`/`--sky-2` in Layout.astro to match them
+// exactly, same as I did for `--dusk-blue` against
+// bonus_island_background.png.
+//
+// Still carries `.sky-chain`, so the gap-collapsing on both sides
+// keeps working regardless of what backs it.
+//
 // Usage:
 //   <ComputerIslandSection
 //     id="section-cs"
@@ -41,6 +67,7 @@
 //     text="Lorem ipsum dolor sit amet..."
 //     leftImage="/images/telephone_pole_island.svg"
 //     rightImage="/images/computer_island.gif"
+//     backgroundImage="/images/computer_island_background.webp"
 //   />
 
 interface Props {
@@ -50,12 +77,17 @@ interface Props {
   text: string;
   leftImage: string;
   rightImage: string;
+  backgroundImage: string;
 }
 
-const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
+const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Astro.props;
 ---
 
-<section class="computer-section" id={id}>
+<section
+  class="computer-section sky-chain"
+  id={id}
+  style={`background-image: url(${backgroundImage});`}
+>
   <div class="computer-island computer-island-left" aria-hidden="true">
     <div class="computer-island-inner parallax-inner">
       <img src={leftImage} alt="" />
@@ -151,6 +183,9 @@ const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 
   .content {

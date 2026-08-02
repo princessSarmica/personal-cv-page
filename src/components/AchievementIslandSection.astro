@@ -31,6 +31,28 @@
 // sections in this family, treat these as starting values to nudge
 // once you see it live.
 //
+// Background: real image (`backgroundImage`), same technique as the
+// rest of this family now uses — inline `background-image` style,
+// `background-size: cover` in the scoped CSS — instead of the 4-stop
+// "sky -> sunset -> dusk" gradient this used to have (it was the odd
+// one out: a 4-stop arc from `--sky-3` through `--sunset-mid` /
+// `--sunset-deep` to `--dusk-blue`, versus the flat two-stop gradients
+// the others had). Sizes against the section's own final box
+// regardless of how its height was determined (`min-height: 100vh`
+// here), so no separate mobile height fix needed — same reasoning as
+// Computer/Education.
+//
+// `background-position` is a placeholder (`center`) — no actual image
+// yet. This section sits between EducationIslandSection (`--sky-3`)
+// and BonusIslandSection (`--dusk-blue`), so both edges matter, same
+// situation as Computer/Education: once you share the file, I can
+// sample its real top/bottom colors to update `--sky-3`/`--dusk-blue`
+// for an exact seam match, and pick whichever `background-position`
+// keeps the more important edge from being cropped.
+//
+// Still carries `.sky-chain`, so the gap-collapsing on both sides
+// keeps working regardless of what backs it.
+//
 // Usage:
 //   <AchievementIslandSection
 //     id="section-achievements"
@@ -39,6 +61,7 @@
 //     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur..."
 //     leftImage="/images/left_achievement_island.svg"
 //     rightImage="/images/right_achievement_island.svg"
+//     backgroundImage="/images/achievement_island_background.webp"
 //   />
 
 interface Props {
@@ -48,12 +71,17 @@ interface Props {
   text: string;
   leftImage: string;
   rightImage: string;
+  backgroundImage: string;
 }
 
-const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
+const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Astro.props;
 ---
 
-<section class="achievement-section" id={id}>
+<section
+  class="achievement-section sky-chain"
+  id={id}
+  style={`background-image: url(${backgroundImage});`}
+>
   <div class="achievement-island achievement-island-left" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
       <img src={leftImage} alt="" />
@@ -150,6 +178,9 @@ const { id, eyebrow, title, text, leftImage, rightImage } = Astro.props;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 
   .content {
