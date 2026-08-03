@@ -1,0 +1,99 @@
+---
+// src/components/IntroIslandSection.astro
+//
+// New first section on the page — sits before ArtIslandSection. Just
+// centered text (no flanking islands, no mouse-repel script, no
+// background image yet), styled with the same `.content` conventions
+// as every other section in this family (`width: min(*ch, 100%);
+// margin: 0 auto; text-align: left;`, same padding scale), so it reads
+// as part of the same design system even though it's simpler.
+//
+// Two lines of text:
+//   - `name`   -> "Name Surname", rendered noticeably bigger than any
+//     other section's heading (`clamp(2.75rem, 6vw, 4.5rem)` vs the
+//     usual `clamp(2rem, 4vw, 3rem)` for h2 elsewhere), since this is
+//     the one place on the page that should read as a name/title card.
+//   - `titles` -> a single line underneath, e.g. "Title 1, Title 2,
+//     Title 3" — smaller, muted, same treatment as `.body-text`
+//     elsewhere.
+//
+// No background image or islands were provided for this one, so it's
+// left plain (transparent, showing the page's white background) —
+// structurally ready for a `backgroundImage` prop later (optional, see
+// Props below) if you want to give it the same real-image treatment as
+// Art/Computer/Education/Achievement down the line. Since it doesn't
+// carry `.sky-chain`, the normal `section + section` gap in
+// Layout.astro applies between this and ArtIslandSection, same as any
+// other non-chained pair.
+//
+// Usage:
+//   <IntroIslandSection
+//     id="section-intro"
+//     name="Name Surname"
+//     titles="Title 1, Title 2, Title 3"
+//   />
+
+interface Props {
+  id: string;
+  name: string;
+  titles: string;
+  backgroundImage?: string;
+}
+
+const { id, name, titles, backgroundImage } = Astro.props;
+---
+
+<section
+  class="intro-section"
+  id={id}
+  style={backgroundImage ? `background-image: url(${backgroundImage});` : undefined}
+>
+  <div class="content">
+    <h1>{name}</h1>
+    <p class="titles">{titles}</p>
+  </div>
+</section>
+
+<style>
+  .intro-section {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    background-size: cover;
+    background-position: bottom;
+    background-repeat: no-repeat;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(36ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+
+  h1 {
+    font-size: clamp(2.75rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.05;
+    margin: 0 0 1rem;
+    color: #1a1a1a;
+  }
+
+  .titles {
+    font-size: 1.05rem;
+    color: #444;
+    margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    .content {
+      width: min(36ch, 100%);
+      padding-inline: 1.5rem;
+    }
+  }
+</style>
