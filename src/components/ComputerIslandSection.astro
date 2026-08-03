@@ -33,31 +33,32 @@
 // as a plain <img> with loading="lazy" for now so it doesn't block
 // anything above it, but that doesn't shrink the download itself.
 //
-// Background: real image (`backgroundImage`, same technique as
-// BonusIslandSection: a `background-image` set via inline style, plus
-// `background-size: cover` in the scoped CSS) instead of the flat
-// `--sky-1` -> `--sky-2` gradient this used to have. `background-size:
-// cover` always sizes against the element's own final rendered box,
-// no matter how that height was determined (min-height + content, in
-// this case) — unlike an `<img>` with `height: 100%`, which is what
-// bit OtherIslandSection on mobile (percentage heights don't resolve
-// against a `min-height`-only parent). Backgrounds don't have that
-// footgun, so no separate mobile height fix is needed here the way it
-// was there.
+// Background: real image (`backgroundImage`), via `background-image`
+// + `background-size: cover`. This is the section that fell behind
+// the rest of the family's fixes — it was still on `min-height: 130vh`
+// + `background-position: center` while Art/Education/Achievement had
+// all moved to matched `min-height: 100vh` + an edge-protecting
+// position, which is exactly why the Computer<->Education seam was
+// visibly broken (different heights meant `cover` scaled the two
+// images by different factors, on top of `center` not protecting
+// either edge at all). Now matches: `min-height: 100vh` (same as
+// every other section in the chain) + `background-position: top`.
 //
-// `background-position` is a placeholder (`center`) for now — I don't
-// have the actual image yet, so I can't tell whether it needs to favor
-// the top edge (which has to match ArtIslandSection's `--sky-1`) or
-// the bottom edge (which has to match EducationIslandSection's
-// `--sky-2`) the way OtherIslandSection favors its top. Both edges
-// matter here, unlike OtherIslandSection where only one did, so once
-// you share the actual file I can pick the right one — or sample both
-// edges and update `--sky-1`/`--sky-2` in Layout.astro to match them
-// exactly, same as I did for `--dusk-blue` against
-// bonus_island_background.png.
+// `top` protects this section's TOP edge — the one that has to match
+// ArtIslandSection's bottom (Art already protects its own bottom with
+// `background-position: bottom`), so that seam gets both sides exact.
+// The bottom edge (against EducationIslandSection) is the
+// lower-priority side here — same class of tradeoff as Achievement's
+// bottom against Bonus — but matching heights alone should make it
+// much closer than it was.
 //
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
+//
+// NOTE: I still don't have the actual background image file — this is
+// reasoned from first principles, not measured against the real file.
+// Once you share it, I can sample its real top/bottom colors to update
+// `--sky-1`/`--sky-2` in Layout.astro for an exact match.
 //
 // Usage:
 //   <ComputerIslandSection
@@ -178,13 +179,16 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
 <style>
   .computer-section {
     position: relative;
-    min-height: 130vh;
+    min-height: 100vh;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    overflow: hidden;
+    /* No `overflow: hidden` here anymore — see the comment on
+       `overflow-x: hidden` on `html` in Layout.astro. That now handles
+       horizontal clipping page-wide, so an island that needs more
+       vertical room than this section provides isn't hard-clipped. */
     background-size: cover;
-    background-position: center;
+    background-position: top;
     background-repeat: no-repeat;
   }
 

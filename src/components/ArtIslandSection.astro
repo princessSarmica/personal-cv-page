@@ -196,7 +196,11 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    overflow: hidden;
+    /* No `overflow: hidden` here anymore — horizontal bleed (the two
+       islands intentionally poking off the left/right edges) is now
+       caught by `overflow-x: hidden` on `html` in Layout.astro
+       instead, so a vertically-overflowing island isn't hard-clipped
+       by this section's own box. See the comment there for why. */
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;

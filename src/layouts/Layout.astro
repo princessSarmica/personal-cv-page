@@ -63,6 +63,19 @@ const { title = "My CV" } = Astro.props;
 
   html {
     scroll-behavior: smooth;
+    /* Page-level horizontal-scroll guard. This used to live as
+       `overflow: hidden` on each individual flanking-island section
+       (Art/Computer/Education/Achievement), clipping their
+       intentionally edge-bleeding islands. That worked for the
+       horizontal bleed it was meant for, but also clipped those
+       islands VERTICALLY whenever one needed more room than its own
+       section's box provided — the "islands cut off at the top/bottom"
+       bug. Moving the horizontal clip up here means the individual
+       sections no longer need `overflow: hidden` at all: horizontal
+       bleed off the viewport's left/right edges is still caught here,
+       but an island that overflows past its own section's top/bottom
+       is now free to do so instead of being hard-clipped. */
+    overflow-x: hidden;
   }
 
   body {

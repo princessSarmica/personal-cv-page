@@ -221,7 +221,12 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    overflow: hidden;
+    /* No `overflow: hidden` here anymore — see the comment on
+       `overflow-x: hidden` on `html` in Layout.astro. That now handles
+       horizontal clipping page-wide (including the island stack's
+       intentional bleed off the right edge), so the stack isn't
+       hard-clipped vertically when it needs more room than this
+       section provides. */
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
