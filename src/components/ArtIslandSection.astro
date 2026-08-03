@@ -43,6 +43,30 @@
 // derivation), rather than hand-tweaking the calc() coefficients
 // directly.
 //
+// Background: real image (`backgroundImage`), via `background-image`
+// + `background-size: cover` — replacing the flat `--sky-0` ->
+// `--sky-1` gradient this used to have, same technique the rest of
+// the family settled on (Computer/Education/Achievement) after some
+// back-and-forth on those: `cover`, with `min-height: 100vh` (already
+// true here), so it scales the background by the same factor as every
+// other section in the chain and always fills completely — no gaps,
+// no scale mismatches between adjacent sections.
+//
+// `background-position: bottom` protects the true bottom edge — the
+// one that has to match ComputerIslandSection's top, the same variable
+// (`--sky-1`) this section's old gradient ended on. This is the very
+// first section on the page, so there's no section above it whose edge
+// needs protecting — `cover` is free to crop the top and the sides.
+//
+// Still carries `.sky-chain`, so the gap-collapsing against
+// ComputerIslandSection keeps working regardless of what backs it.
+//
+// NOTE: I don't have the actual background image file yet — this is
+// built the same way Computer/Education/Achievement's backgrounds
+// were, off a placeholder path. Once you share the real file, I can
+// sample its bottom-edge color to update `--sky-1` in Layout.astro for
+// an exact seam match against Computer.
+//
 // Usage:
 //   <ArtIslandSection
 //     id="art-skills"
@@ -51,6 +75,7 @@
 //     text="Lorem ipsum dolor sit amet..."
 //     topImage="/images/left_top_art_island.svg"
 //     bottomImage="/images/right_bottom_art_island.svg"
+//     backgroundImage="/images/art_island_background.webp"
 //   />
 
 interface Props {
@@ -60,12 +85,17 @@ interface Props {
   text: string;
   topImage: string;
   bottomImage: string;
+  backgroundImage: string;
 }
 
-const { id, eyebrow, title, text, topImage, bottomImage } = Astro.props;
+const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Astro.props;
 ---
 
-<section class="art-section" id={id}>
+<section
+  class="art-section sky-chain"
+  id={id}
+  style={`background-image: url(${backgroundImage});`}
+>
   <div class="art-island art-island-top" aria-hidden="true">
     <div class="art-island-inner parallax-inner">
       <img src={topImage} alt="" />
@@ -167,6 +197,9 @@ const { id, eyebrow, title, text, topImage, bottomImage } = Astro.props;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     overflow: hidden;
+    background-size: cover;
+    background-position: bottom;
+    background-repeat: no-repeat;
   }
 
   .content {
