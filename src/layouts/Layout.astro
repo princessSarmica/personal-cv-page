@@ -52,6 +52,15 @@ const { title = "My CV" } = Astro.props;
     --dusk-blue: #00d4f4; /* Achievement bottom / Bonus top seam-blend target — set to rgb(0, 212, 244) per your request */
     --sky-4: #04c9d1; /* Bonus bottom / Other top seam-blend target — set to rgb(4, 201, 209) per your request */
 
+    /* IntroIslandSection bottom / ArtIslandSection top seam-blend
+       target — the newest link in the chain, added ahead of
+       everything above (Intro is now the very first section on the
+       page, sitting before Art). Set to rgb(0, 191, 237) per your
+       request. Named descriptively rather than continuing the
+       `--sky-N` numbering, same reasoning as `--dusk-blue`: it sits
+       outside that sequential run rather than as its next member. */
+    --intro-seam: #00bfed;
+
     /* --sunset-mid / --sunset-deep are no longer used — they backed
        AchievementIslandSection's old 4-stop gradient, which is now a
        real background image like the rest of the chain. Left out
@@ -132,7 +141,10 @@ const { title = "My CV" } = Astro.props;
      the rule above would show through right at each seam and break
      the continuous-sky illusion, so consecutive `.sky-chain` sections
      sit flush against each other; the gap rule still applies normally
-     around any section that ISN'T part of the chain. */
+     around any section that ISN'T part of the chain.
+     IntroIslandSection now also carries `.sky-chain` (it's the first
+     section in the chain, ahead of ArtIslandSection), so this rule is
+     what makes those two sit flush together too. */
   .sky-chain + .sky-chain {
     margin-top: 0;
   }
@@ -166,6 +178,7 @@ const { title = "My CV" } = Astro.props;
      sides of the seam.
 
      A section that needs fades on BOTH sides (e.g. ComputerIslandSection,
+     ArtIslandSection now that IntroIslandSection precedes it, ...
      sandwiched between two different seams) carries both classes and
      sets both `--seam-target-*` variables independently — they don't
      have to be the same color. `height` uses `clamp()` so the band

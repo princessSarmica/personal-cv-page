@@ -52,12 +52,17 @@
 // Computer/Education/Achievement/Bonus now all do too.
 //
 // `background-position: bottom` protects the true bottom edge — the
-// one that has to match ComputerIslandSection's top. This is the very
-// first section on the page, so there's no section above it whose edge
-// needs protecting — `cover` is free to crop the top and the sides.
+// one that has to match ComputerIslandSection's top.
 //
-// Still carries `.sky-chain`, so the gap-collapsing against
-// ComputerIslandSection keeps working regardless of what backs it.
+// Carries `.sky-chain` on both sides now: `.seam-fade-bottom` (against
+// ComputerIslandSection's top, unchanged) AND `.seam-fade-top`
+// (against IntroIslandSection's bottom, new — this used to be the
+// first section on the page with nothing above it to blend into, but
+// IntroIslandSection now sits before it). `--seam-target-top` is set
+// to the same `--intro-seam` variable IntroIslandSection uses for its
+// own `--seam-target-bottom`, so the two fades meet at an identical
+// color instead of just a close match — see the shared comment in
+// Layout.astro for how the two half-fades work together.
 //
 // NOTE: I don't have the actual background image file yet — this is
 // built off a placeholder path.
@@ -87,7 +92,7 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
 ---
 
 <section
-  class="art-section sky-chain seam-fade-bottom"
+  class="art-section sky-chain seam-fade-bottom seam-fade-top"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -199,11 +204,13 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
-    /* Seam-blend target for `.seam-fade-bottom` (see the shared
-       comment in Layout.astro) — softens the boundary against
-       ComputerIslandSection's top into var(--sky-1) regardless of
-       what each image's actual edge pixels show. */
+    /* Seam-blend targets (see the shared comment in Layout.astro):
+       bottom softens into var(--sky-1) against ComputerIslandSection's
+       top; top softens into var(--intro-seam) against
+       IntroIslandSection's bottom — both regardless of what this
+       section's own background image shows right at those edges. */
     --seam-target-bottom: var(--sky-1);
+    --seam-target-top: var(--intro-seam);
   }
 
   .content {

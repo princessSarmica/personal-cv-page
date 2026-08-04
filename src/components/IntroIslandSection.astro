@@ -54,11 +54,16 @@
 // Both `cloudImage`/`cloudSmileImage` are optional so existing usage
 // without them still works (renders as before: plain, no cloud, or
 // cloud with no smile crossfade if `cloudSmileImage` is omitted).
-// Since this section still doesn't carry `.sky-chain`, it's not part
-// of the seam-color-matching system the rest of the chain uses (see
-// Layout.astro) — worth revisiting later if the sky photo here ends
-// up needing to match ArtIslandSection's top edge, but not done here
-// since it wasn't asked for.
+// Now carries `.sky-chain .seam-fade-bottom`, joining the same
+// seam-color-matching system the rest of the chain uses (see
+// Layout.astro). `--seam-target-bottom` is set to the new
+// `--intro-seam` variable, and ArtIslandSection's top now fades to
+// that same variable via its own `.seam-fade-top` — so the two
+// sections blend into one shared color at the seam instead of
+// showing a hard edge. Being `.sky-chain` also zeroes out the normal
+// inter-section margin against ArtIslandSection (also `.sky-chain`),
+// so they sit flush against each other the way the rest of the chain
+// does.
 //
 // Usage:
 //   <IntroIslandSection
@@ -83,7 +88,7 @@ const { id, name, titles, backgroundImage, cloudImage, cloudSmileImage } = Astro
 ---
 
 <section
-  class="intro-section"
+  class="intro-section sky-chain seam-fade-bottom"
   id={id}
   style={backgroundImage ? `background-image: url(${backgroundImage});` : undefined}
 >
@@ -182,6 +187,12 @@ const { id, name, titles, backgroundImage, cloudImage, cloudSmileImage } = Astro
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
+    /* Seam-blend target for `.seam-fade-bottom` (see the shared
+       comment in Layout.astro) — softens the boundary against
+       ArtIslandSection's top into var(--intro-seam) regardless of
+       what this section's own sky photo shows right at its bottom
+       edge. */
+    --seam-target-bottom: var(--intro-seam);
   }
 
   .content {
