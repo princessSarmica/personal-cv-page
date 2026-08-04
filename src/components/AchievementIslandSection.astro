@@ -31,44 +31,35 @@
 // sections in this family, treat these as starting values to nudge
 // once you see it live.
 //
-// Background: real image (`backgroundImage`), same technique as the
-// rest of this family now uses — inline `background-image` style,
-// `background-size: cover` in the scoped CSS — instead of the 4-stop
-// "sky -> sunset -> dusk" gradient this used to have (it was the odd
-// one out: a 4-stop arc from `--sky-3` through `--sunset-mid` /
-// `--sunset-deep` to `--dusk-blue`, versus the flat two-stop gradients
-// the others had). Sizes against the section's own final box
-// regardless of how its height was determined (`min-height: 100vh`
-// here), so no separate mobile height fix needed — same reasoning as
-// Computer/Education.
+// Background: real image (`backgroundImage`), via `background-image`
+// + `background-size: cover`, `min-height: 100vh` — same technique
+// every section in this family uses. Every section keeps a CONSISTENT
+// height across every screen size, with the background's left/right
+// edges cropped as needed to make that happen.
 //
 // `background-position: top` protects the true top edge — the one
 // that has to match EducationIslandSection's bottom — from ever being
-// cropped. `background-size: cover` fills the section completely (no
-// gaps, ever) and crops the sides/bottom as needed.
+// cropped. The bottom edge (against BonusIslandSection) is the
+// lower-priority side here.
 //
-// This went through a `background-size: 100% auto` detour and back:
-// the ORIGINAL scale-mismatch bug (cloud shapes not lining up at the
-// seam) wasn't caused by `cover` itself — it was caused by Education
-// and this section having DIFFERENT heights (`130vh` vs `100vh`),
-// which made `cover` scale each image by a different factor. Once
-// Education's height was brought back down to match this section's
-// `100vh` (it needed to anyway, to look consistent with the rest of
-// the page), plain `cover` scales both images by the same factor
-// again — same fix, without `100% auto`'s side effect of leaving a
-// gap whenever the image's width-driven height came up short of the
-// section's fixed vh height.
+// Carries `seam-fade-bottom` (blending into var(--dusk-blue)) against
+// BonusIslandSection's top. Pixel-sampling your screenshots showed
+// this edge's actual color isn't fixed — it's an arbitrary crop of
+// interior content, not a real matched edge — so this fade is a
+// deliberate mask rather than a precision fix (see the shared comment
+// in Layout.astro).
 //
-// NOTE: I still don't have the actual background image files for
-// either section — this is reasoned from first principles (how
-// `cover` behaves, and why matching section heights matters) plus the
-// two comparison screenshots you sent, not from measuring the real
-// files. Once you can share the actual files, I can sample their real
-// edge colors/dimensions and verify this precisely instead of
-// reasoning it out blind.
+// Also carries `seam-fade-top` (blending into var(--sky-3)) against
+// EducationIslandSection's bottom. That transition looked fine on the
+// screens tested earlier, but broke too on some wide/short viewports
+// — same fade treatment applied here now for consistency.
 //
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
+//
+// NOTE: I still don't have the actual background image files for
+// either section — this is reasoned from first principles, not
+// measured against the real files.
 //
 // Usage:
 //   <AchievementIslandSection
@@ -95,7 +86,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
 ---
 
 <section
-  class="achievement-section sky-chain"
+  class="achievement-section sky-chain seam-fade-top seam-fade-bottom"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -194,13 +185,20 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    /* No `overflow: hidden` here anymore — see the comment on
-       `overflow-x: hidden` on `html` in Layout.astro. That now handles
-       horizontal clipping page-wide, so an island that needs more
-       vertical room than this section provides isn't hard-clipped. */
+    /* No `overflow: hidden` here — see the comment on `overflow-x:
+       hidden` on `html` in Layout.astro. That handles horizontal
+       clipping page-wide, so an island that needs more vertical room
+       than this section provides isn't hard-clipped. */
     background-size: cover;
     background-position: top;
     background-repeat: no-repeat;
+    /* Seam-blend targets (see the shared comment in Layout.astro) —
+       one variable per edge since this section needs two different
+       colors. Top softens into var(--sky-3)
+       (EducationIslandSection's bottom); bottom softens into
+       var(--dusk-blue) (BonusIslandSection's top). */
+    --seam-target-top: var(--sky-3);
+    --seam-target-bottom: var(--dusk-blue);
   }
 
   .content {

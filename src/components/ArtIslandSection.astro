@@ -20,8 +20,8 @@
 //
 // Sizing is deliberately NOT reduced at narrow viewports — the images
 // stay the same size as desktop and instead overflow past the
-// left/right edges — `.art-section { overflow: hidden }` clips that
-// overflow so it doesn't cause horizontal scrolling.
+// left/right edges — that overflow is caught by `overflow-x: hidden`
+// on `html` in Layout.astro so it doesn't cause horizontal scrolling.
 //
 // Positioning is fluid instead of a single mobile breakpoint. A plain
 // `left: 16rem` (fine on a wide screen) doesn't scale down as the
@@ -44,17 +44,15 @@
 // directly.
 //
 // Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover` — replacing the flat `--sky-0` ->
-// `--sky-1` gradient this used to have, same technique the rest of
-// the family settled on (Computer/Education/Achievement) after some
-// back-and-forth on those: `cover`, with `min-height: 100vh` (already
-// true here), so it scales the background by the same factor as every
-// other section in the chain and always fills completely — no gaps,
-// no scale mismatches between adjacent sections.
+// + `background-size: cover`, `min-height: 100vh`. Back to this
+// technique (from a brief detour through a real, uncropped <img>) per
+// your correction: the goal is every section keeping a CONSISTENT
+// height across every screen size, cropping the left/right edges of
+// the background as needed to make that happen — same as
+// Computer/Education/Achievement/Bonus now all do too.
 //
 // `background-position: bottom` protects the true bottom edge — the
-// one that has to match ComputerIslandSection's top, the same variable
-// (`--sky-1`) this section's old gradient ended on. This is the very
+// one that has to match ComputerIslandSection's top. This is the very
 // first section on the page, so there's no section above it whose edge
 // needs protecting — `cover` is free to crop the top and the sides.
 //
@@ -62,10 +60,7 @@
 // ComputerIslandSection keeps working regardless of what backs it.
 //
 // NOTE: I don't have the actual background image file yet — this is
-// built the same way Computer/Education/Achievement's backgrounds
-// were, off a placeholder path. Once you share the real file, I can
-// sample its bottom-edge color to update `--sky-1` in Layout.astro for
-// an exact seam match against Computer.
+// built off a placeholder path.
 //
 // Usage:
 //   <ArtIslandSection
@@ -92,7 +87,7 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
 ---
 
 <section
-  class="art-section sky-chain"
+  class="art-section sky-chain seam-fade-bottom"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -196,14 +191,19 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    /* No `overflow: hidden` here anymore — horizontal bleed (the two
-       islands intentionally poking off the left/right edges) is now
-       caught by `overflow-x: hidden` on `html` in Layout.astro
-       instead, so a vertically-overflowing island isn't hard-clipped
-       by this section's own box. See the comment there for why. */
+    /* No `overflow: hidden` here — horizontal bleed (the two islands
+       intentionally poking off the left/right edges) is caught by
+       `overflow-x: hidden` on `html` in Layout.astro instead, so a
+       vertically-overflowing island isn't hard-clipped by this
+       section's own box. See the comment there for why. */
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
+    /* Seam-blend target for `.seam-fade-bottom` (see the shared
+       comment in Layout.astro) — softens the boundary against
+       ComputerIslandSection's top into var(--sky-1) regardless of
+       what each image's actual edge pixels show. */
+    --seam-target-bottom: var(--sky-1);
   }
 
   .content {

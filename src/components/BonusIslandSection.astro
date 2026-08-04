@@ -8,35 +8,42 @@
 // — just centered text over a single full-bleed background image
 // (`backgroundImage`, your bonus_island_background.webp).
 //
-// I sampled the actual pixel colors of both images you've uploaded
+// Background: real image (`backgroundImage`), via `background-image`
+// + `background-size: cover`, `min-height: 100vh` — brought in line
+// with the rest of the family (this section used to be the odd one
+// out, on a real, uncropped <img> instead). The goal across every
+// section in this chain is a CONSISTENT height on every screen size,
+// with the background's left/right edges cropped as needed to make
+// that happen, rather than letting each image's own aspect ratio
+// drive its section's height.
+//
+// `background-position: top` protects this section's TOP edge — the
+// one that has to match AchievementIslandSection's bottom. The bottom
+// edge (against OtherIslandSection, the closing full-bleed
+// illustration) is the lower-priority side — OtherIslandSection shows
+// its own image at full aspect ratio on desktop regardless, so that
+// seam was always more approximate than pixel-locked.
+//
+// I sampled the actual pixel colors of both images you'd uploaded
+// earlier (before this section moved off the real-<img> approach)
 // rather than eyeballing them off screenshots:
 //   bonus_island_background.png  top ~ #0cd4ee, bottom ~ #04c9d1
 //   other_island_2.webp          top ~ #08c6c9
-// Two things follow from that:
-//   1. AchievementIslandSection's `--dusk-blue` variable (its own
-//      bottom color, which this section's TOP needs to match) has
-//      been updated in Layout.astro from an eyeballed guess to the
-//      real sampled #0cd4ee, so that seam is now an exact match
-//      instead of a close-enough one.
-//   2. This section's bottom (~#04c9d1) and other_island_2's top
-//      (~#08c6c9) are close but not pixel-identical — a few points
-//      off in each RGB channel. That's normal (compression, and I
-//      averaged a strip rather than the exact edge row), and since
-//      both images are a fairly uniform, smooth sky/teal color right
-//      at that edge (not detailed illustration content), the
-//      difference should read as invisible in practice. If you or I
-//      spot an actual visible line once it's live, the fix is a
-//      matching CSS gradient overlay at the seam rather than
-//      re-exporting the art.
+// `--dusk-blue` in Layout.astro (AchievementIslandSection's bottom,
+// which this section's top needs to match) is still set to that
+// sampled #0cd4ee.
 //
-// Background sizing: `background-size: cover` so the image always
-// fills the section at any viewport size, but `background-position:
-// bottom` specifically (not `center`) — that guarantees the true
-// bottom edge (the one matching other_island_2's top) is NEVER what
-// gets cropped away on an odd aspect ratio; only the top edge can lose
-// a sliver, and that seam is against a CSS gradient variable I can
-// freely retune to match whatever ends up showing, so it's the safer
-// side to leave flexible.
+// Carries `seam-fade-top` (blending into var(--dusk-blue)) to pair
+// with AchievementIslandSection's `seam-fade-bottom` — since
+// Achievement's bottom edge turned out to be an arbitrary/uncropped
+// crop rather than a fixed color (confirmed by sampling multiple
+// screenshots of the same seam), this fade is what actually makes the
+// two sides agree on a color, rather than relying on the underlying
+// images to happen to match.
+//
+// Also carries `seam-fade-bottom` (blending into var(--sky-4)) to pair
+// with OtherIslandSection's `seam-fade-top` — same idea, softening the
+// boundary against the closing illustration.
 //
 // This section (and OtherIslandSection) carry the shared `.sky-chain`
 // marker class from Layout.astro, so the normal gap between sections
@@ -64,7 +71,7 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
 ---
 
 <section
-  class="bonus-section sky-chain"
+  class="bonus-section sky-chain seam-fade-top seam-fade-bottom"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -82,10 +89,18 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    overflow: hidden;
+    /* No `overflow: hidden` here — see the comment on `overflow-x:
+       hidden` on `html` in Layout.astro. */
     background-size: cover;
-    background-position: bottom;
+    background-position: top;
     background-repeat: no-repeat;
+    /* Seam-blend targets (see the shared comment in Layout.astro) —
+       one variable per edge since this section needs two different
+       colors. Top softens into var(--dusk-blue)
+       (AchievementIslandSection's bottom); bottom softens into
+       var(--sky-4) (OtherIslandSection's top). */
+    --seam-target-top: var(--dusk-blue);
+    --seam-target-bottom: var(--sky-4);
   }
 
   .content {

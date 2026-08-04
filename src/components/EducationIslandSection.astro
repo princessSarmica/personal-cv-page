@@ -19,43 +19,26 @@
 //     inset from it so it reads as "on top of" the mountain rather
 //     than off to another corner.
 //
-// Background — back to `background-image` + `background-size: cover`,
-// after two other approaches (`100% auto`, then a real <img>) each
-// fixed one symptom while causing another. Worth recapping why, since
-// this is the 4th iteration on this one property:
+// Background: real image (`backgroundImage`), via `background-image`
+// + `background-size: cover`, `min-height: 100vh` — same technique
+// every section in this family uses. Every section keeps a CONSISTENT
+// height across every screen size, with the background's left/right
+// edges cropped as needed to make that happen.
 //
-//   1. `cover`, with this section at `min-height: 130vh` and
-//      AchievementIslandSection at `100vh` — DIFFERENT heights. `cover`
-//      scales an image by whatever factor is needed to fill its own
-//      section's box, so two different section heights meant two
-//      different scale factors — the actual root cause of the cloud
-//      shapes not lining up at the seam.
-//   2. `background-size: 100% auto` — fixed the scale (both sections
-//      now scaled purely by width, which was equal), but a CSS
-//      background never contributes to its own element's size, so
-//      whenever the image's width-driven height came up short of
-//      `min-height: 100vh`, a gap opened at the unprotected edge.
-//   3. A real <img> — no gap ever (section height = image's own
-//      rendered height, always, by construction), but that same
-//      "always exactly the image's own height" property meant the
-//      section could render noticeably shorter than every other
-//      ~100vh section on the page, which is the "too small" issue you
-//      just flagged.
+// `background-position: bottom` protects the true bottom edge — the
+// one that has to match AchievementIslandSection's top — from ever
+// being cropped; `cover` is free to crop the top and the sides.
 //
-// The actual fix was simpler than any of the above: go back to
-// `cover`, but make THIS section's `min-height` match Achievement's
-// exactly (`100vh`, not `130vh`). Equal heights means `cover` scales
-// both images by the same factor again (root cause of the ORIGINAL
-// scale bug, removed) — while `cover` also guarantees the image always
-// fully fills the section (no gaps, ever, unlike `100% auto`) and
-// crops left/right on wide/narrow screens same as every other section
-// in this family (which you asked for a few messages back). It also
-// means this section is now exactly `100vh`, same as the rest of the
-// page, instead of the image-dependent height from the <img> attempt.
+// Carries `seam-fade-top` (blending into var(--sky-2)) against
+// ComputerIslandSection's bottom — that seam has zero real edge
+// protection on either side (both sections protect their OTHER
+// edge), so the fade masks whatever mismatch shows up there.
 //
-// `background-position: bottom` still protects the true bottom edge —
-// the one that has to match AchievementIslandSection's top — from
-// ever being cropped; `cover` is free to crop the top and the sides.
+// Also carries `seam-fade-bottom` (blending into var(--sky-3)) against
+// AchievementIslandSection's top. This seam looked right on the
+// screens tested earlier, but turned out to still break on some wide/
+// short viewports too — same class of issue as the others, just not
+// caught until later. Same fix applied here for consistency.
 //
 // Positioning: `.education-island-stack`'s `top`/`right` use the
 // clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
@@ -87,13 +70,9 @@
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
 //
-// NOTE: I still don't have the actual background image files
-// (education_island_background.webp / achievement_island_background)
-// — everything above is reasoned from first principles plus the
-// comparison screenshots you've sent, not from measuring the real
-// files directly. Once you can share the actual image files, I can
-// verify this against their real dimensions/colors instead of
-// reasoning it out blind.
+// NOTE: I still don't have the actual background image files — this
+// is reasoned from first principles, not measured against the real
+// files.
 //
 // Usage:
 //   <EducationIslandSection
@@ -120,7 +99,7 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
 ---
 
 <section
-  class="education-section sky-chain"
+  class="education-section sky-chain seam-fade-top seam-fade-bottom"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -221,15 +200,21 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    /* No `overflow: hidden` here anymore — see the comment on
-       `overflow-x: hidden` on `html` in Layout.astro. That now handles
-       horizontal clipping page-wide (including the island stack's
-       intentional bleed off the right edge), so the stack isn't
-       hard-clipped vertically when it needs more room than this
-       section provides. */
+    /* No `overflow: hidden` here — see the comment on `overflow-x:
+       hidden` on `html` in Layout.astro. That handles horizontal
+       clipping page-wide (including the island stack's intentional
+       bleed off the right edge), so the stack isn't hard-clipped
+       vertically when it needs more room than this section provides. */
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
+    /* Seam-blend targets (see the shared comment in Layout.astro) —
+       one variable per edge since this section needs two different
+       colors. Top softens into var(--sky-2) (ComputerIslandSection's
+       bottom); bottom softens into var(--sky-3)
+       (AchievementIslandSection's top). */
+    --seam-target-top: var(--sky-2);
+    --seam-target-bottom: var(--sky-3);
   }
 
   .content {

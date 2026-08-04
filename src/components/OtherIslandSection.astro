@@ -61,6 +61,14 @@
 // need to line up with anything since this is the last section on the
 // page.
 //
+// Carries `seam-fade-top` (blending into var(--sky-4)) to pair with
+// BonusIslandSection's `seam-fade-bottom` — same shared fade mask
+// technique used across the rest of the chain (see the comment in
+// Layout.astro). Works here even though this section is backed by a
+// plain <img> rather than a CSS background-image — the fade is just a
+// pseudo-element painted on top of `.other-section`, which is already
+// `position: relative`, so it doesn't care what's underneath it.
+//
 // File size: you've since swapped the original ~45MB base64-in-SVG
 // export for other_island_2.webp (~2.4MB) — a big improvement, though
 // still worth a look if you want to shave it down further (a well
@@ -84,7 +92,7 @@ interface Props {
 const { id, image, alt = "" } = Astro.props;
 ---
 
-<section class="other-section sky-chain" id={id}>
+<section class="other-section sky-chain seam-fade-top" id={id}>
   <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
 </section>
 
@@ -98,6 +106,10 @@ const { id, image, alt = "" } = Astro.props;
     margin-right: -50vw;
     overflow-x: hidden;
     line-height: 0;
+    /* Seam-blend target for `.seam-fade-top` (see the shared comment
+       in Layout.astro) — softens the boundary against
+       BonusIslandSection's bottom into var(--sky-4). */
+    --seam-target-top: var(--sky-4);
   }
 
   .other-section-image {

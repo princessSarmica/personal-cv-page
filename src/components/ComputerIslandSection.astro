@@ -34,31 +34,36 @@
 // anything above it, but that doesn't shrink the download itself.
 //
 // Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover`. This is the section that fell behind
-// the rest of the family's fixes — it was still on `min-height: 130vh`
-// + `background-position: center` while Art/Education/Achievement had
-// all moved to matched `min-height: 100vh` + an edge-protecting
-// position, which is exactly why the Computer<->Education seam was
-// visibly broken (different heights meant `cover` scaled the two
-// images by different factors, on top of `center` not protecting
-// either edge at all). Now matches: `min-height: 100vh` (same as
-// every other section in the chain) + `background-position: top`.
+// + `background-size: cover`, `min-height: 100vh` — same technique
+// every other section in this family uses. The goal, per your
+// clarification: every section keeps a CONSISTENT height across every
+// screen size, with the background's left/right edges cropped as
+// needed to make that happen, rather than letting the image's own
+// aspect ratio drive the section's height.
 //
-// `top` protects this section's TOP edge — the one that has to match
-// ArtIslandSection's bottom (Art already protects its own bottom with
-// `background-position: bottom`), so that seam gets both sides exact.
-// The bottom edge (against EducationIslandSection) is the
-// lower-priority side here — same class of tradeoff as Achievement's
-// bottom against Bonus — but matching heights alone should make it
-// much closer than it was.
+// `background-position: top` protects this section's TOP edge — the
+// one that has to match ArtIslandSection's bottom (Art protects its
+// own bottom with `background-position: bottom`), so that seam gets
+// both sides exact. The bottom edge (against EducationIslandSection)
+// is the lower-priority side here — same class of tradeoff as
+// Achievement's bottom against Bonus.
+//
+// This section sits between two different seams, so it carries BOTH
+// `seam-fade-top` (blending into var(--sky-1), matching Art's bottom)
+// AND `seam-fade-bottom` (blending into var(--sky-2), matching
+// Education's top) — see the shared comment in Layout.astro for how
+// the fade technique works and why Computer/Education specifically
+// needed this (pixel sampling off your screenshots confirmed a real
+// color mismatch at Art/Computer despite both edges being
+// "protected", and Computer/Education has zero protection on either
+// side since Computer's bottom and Education's top are both the
+// lower-priority, uncropped side for their sections).
 //
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
 //
 // NOTE: I still don't have the actual background image file — this is
 // reasoned from first principles, not measured against the real file.
-// Once you share it, I can sample its real top/bottom colors to update
-// `--sky-1`/`--sky-2` in Layout.astro for an exact match.
 //
 // Usage:
 //   <ComputerIslandSection
@@ -85,7 +90,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
 ---
 
 <section
-  class="computer-section sky-chain"
+  class="computer-section sky-chain seam-fade-top seam-fade-bottom"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -183,13 +188,18 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    /* No `overflow: hidden` here anymore — see the comment on
-       `overflow-x: hidden` on `html` in Layout.astro. That now handles
-       horizontal clipping page-wide, so an island that needs more
-       vertical room than this section provides isn't hard-clipped. */
+    /* No `overflow: hidden` here — see the comment on `overflow-x:
+       hidden` on `html` in Layout.astro. That handles horizontal
+       clipping page-wide, so an island that needs more vertical room
+       than this section provides isn't hard-clipped. */
     background-size: cover;
     background-position: top;
     background-repeat: no-repeat;
+    /* Seam-blend targets (see the shared comment in Layout.astro).
+       Two separate variables since this section needs two different
+       colors — one per edge, not one shared value. */
+    --seam-target-top: var(--sky-1);
+    --seam-target-bottom: var(--sky-2);
   }
 
   .content {
@@ -296,14 +306,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
 
     /* `right: 12vw` (the desktop value) leaves the computer island
        close enough to center that it overlaps the now full-width text
-       on narrow screens, hence the tighter `right` below. But the
-       `top: -6vw` that was here is what's actually cutting the gif
-       off: a negative top pushes the island's box above the section's
-       own top edge, and `.computer-section { overflow: hidden }` crops
-       anything outside that box on every side, top included. Making
-       the section taller wouldn't fix that — the top edge is still
-       the top edge no matter how tall the section grows — so this
-       keeps `top` non-negative instead. */
+       on narrow screens, hence the tighter `right` below. */
     .computer-island-right {
       right: -8vw;
       top: 4vh;

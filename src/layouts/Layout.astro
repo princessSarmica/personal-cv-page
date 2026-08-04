@@ -46,10 +46,11 @@ const { title = "My CV" } = Astro.props;
        been updated to the real sampled top-row color of that image
        (#0cd4ee) instead. */
     --sky-0: #dcf3fc; /* page top: ArtIslandSection top */
-    --sky-1: #c7e9f7; /* ArtIslandSection bottom = ComputerIslandSection top */
-    --sky-2: #b2def2; /* ComputerIslandSection bottom = EducationIslandSection top */
-    --sky-3: #9dd3ec; /* EducationIslandSection bottom = AchievementIslandSection top (placeholder until you share the real image) */
-    --dusk-blue: #0cd4ee; /* AchievementIslandSection bottom = BonusIslandSection top (sampled from bonus_island_background.png) */
+    --sky-1: #3a6ef5; /* Art bottom / Computer top seam-blend target — set to rgb(58, 110, 245) per your request */
+    --sky-2: #14e5fb; /* Computer bottom / Education top seam-blend target — set to rgb(20, 229, 251) per your request */
+    --sky-3: #1dedfa; /* Education bottom / Achievement top seam-blend target — set to rgb(29, 237, 250) per your request */
+    --dusk-blue: #00d4f4; /* Achievement bottom / Bonus top seam-blend target — set to rgb(0, 212, 244) per your request */
+    --sky-4: #04c9d1; /* Bonus bottom / Other top seam-blend target — set to rgb(4, 201, 209) per your request */
 
     /* --sunset-mid / --sunset-deep are no longer used — they backed
        AchievementIslandSection's old 4-stop gradient, which is now a
@@ -116,5 +117,67 @@ const { title = "My CV" } = Astro.props;
      around any section that ISN'T part of the chain. */
   .sky-chain + .sky-chain {
     margin-top: 0;
+  }
+
+  /* Seam-blend utility classes, shared across every section in the
+     `.sky-chain`. Each `cover`-cropped section can only guarantee its
+     OWN edge pixel is exact on ONE of its two sides (top OR bottom,
+     whichever `background-position` protects) — the other side is an
+     arbitrary crop of interior content, and even on a "both sides
+     protected" seam, the two different source images' true edge
+     colors aren't guaranteed to match each other. Rather than trying
+     to fix that at the image-crop level (which `cover` fundamentally
+     can't do for more than one edge per section), these two classes
+     repaint a soft gradient band at the very top/bottom of a section,
+     fading between the section's own actual image and a flat,
+     agreed-upon color — so regardless of what the underlying cropped
+     image actually shows right at the boundary, the seam eases into
+     the same color on both sides instead of hitting a hard line.
+     (Tried a wave-shaped cutout here first — reverted per your
+     feedback back to a plain top-to-bottom gradient blend.)
+
+     `.seam-fade-bottom::after` paints a band at the very bottom of a
+     section, fading from transparent (revealing the section's own
+     image, in the middle) to solid `--seam-target-bottom` (right at
+     the bottom edge). `.seam-fade-top::before` paints a matching band
+     at the very TOP of the next section, fading from solid
+     `--seam-target-top` (right at the top edge) back to transparent.
+     On a properly paired seam both variables are set to the identical
+     color, so the two fades reach the same color exactly where the
+     sections meet — no hard line, just a smooth color blend on both
+     sides of the seam.
+
+     A section that needs fades on BOTH sides (e.g. ComputerIslandSection,
+     sandwiched between two different seams) carries both classes and
+     sets both `--seam-target-*` variables independently — they don't
+     have to be the same color. `height` uses `clamp()` so the band
+     stays a sensible size on both very short and very tall viewports.
+     `z-index: 0` keeps this below normal in-flow content (`.content`,
+     islands — all z-index 1+), and `pointer-events: none` keeps it
+     from blocking anything. */
+  .seam-fade-bottom,
+  .seam-fade-top {
+    position: relative;
+  }
+
+  .seam-fade-bottom::after,
+  .seam-fade-top::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: clamp(40px, 9vh, 140px);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .seam-fade-bottom::after {
+    bottom: 0;
+    background: linear-gradient(to bottom, transparent, var(--seam-target-bottom));
+  }
+
+  .seam-fade-top::before {
+    top: 0;
+    background: linear-gradient(to bottom, var(--seam-target-top), transparent);
   }
 </style>
