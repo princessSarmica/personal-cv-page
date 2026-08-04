@@ -2,11 +2,11 @@
 // src/components/IntroIslandSection.astro
 //
 // New first section on the page — sits before ArtIslandSection. Just
-// centered text (no flanking islands, no mouse-repel script, no
-// background image yet), styled with the same `.content` conventions
-// as every other section in this family (`width: min(*ch, 100%);
-// margin: 0 auto; text-align: left;`, same padding scale), so it reads
-// as part of the same design system even though it's simpler.
+// centered text (no background image or islands originally), styled
+// with the same `.content` conventions as every other section in this
+// family (`width: min(*ch, 100%); margin: 0 auto; text-align: left;`,
+// same padding scale), so it reads as part of the same design system
+// even though it's simpler.
 //
 // Two lines of text:
 //   - `name`   -> "Name Surname", rendered noticeably bigger than any
@@ -17,20 +17,57 @@
 //     Title 3" — smaller, muted, same treatment as `.body-text`
 //     elsewhere.
 //
-// No background image or islands were provided for this one, so it's
-// left plain (transparent, showing the page's white background) —
-// structurally ready for a `backgroundImage` prop later (optional, see
-// Props below) if you want to give it the same real-image treatment as
-// Art/Computer/Education/Achievement down the line. Since it doesn't
-// carry `.sky-chain`, the normal `section + section` gap in
-// Layout.astro applies between this and ArtIslandSection, same as any
-// other non-chained pair.
+// Now takes an optional `backgroundImage` (your sky photo) and
+// `cloudImage` (the plain cloud) prop. The cloud is treated exactly
+// like a single flanking island from the rest of the family — same
+// nested split as every other island:
+//   `.intro-cloud`       — outer wrapper, the constant CSS bob loop
+//   `.intro-cloud-inner` — `.parallax-inner`, the JS-driven mouse-repel
+//     drift (kept on a separate element so the two transforms don't
+//     fight each other over the same `transform` property — see the
+//     comment in CornerIsland.astro / ArtIslandSection.astro for why).
+// The `<script>` below is the same proximity-repel drift used in
+// every other section — it queries ALL `.parallax-inner` elements
+// globally (not just this section's own cloud), so it also drives
+// whatever islands are already on the page from Art/Computer/etc.
+// That's intentional/harmless (every copy computes the same easing
+// toward the same targets), just a little redundant — same tradeoff
+// noted in those files.
+//
+// New: optional `cloudSmileImage` prop — a second cloud image (same
+// cloud, smiling) layered directly on top of `cloudImage` inside
+// `.intro-cloud-inner`, at `opacity: 0` by default and crossfaded to
+// `opacity: 1` on `:hover` of `.intro-cloud`. This is a plain CSS
+// opacity transition on the image itself, so it composes cleanly with
+// the two existing transforms (the CSS bob on `.intro-cloud`, the JS
+// drift on `.intro-cloud-inner`) instead of competing with them —
+// nothing here touches `transform`.
+// Needed `.intro-cloud`'s `pointer-events` flipped from `none` to
+// `auto` for the `:hover` to fire at all — previously the cloud was
+// purely decorative and click/hover-transparent. It's still
+// `aria-hidden` and non-interactive otherwise (no click behavior, no
+// focus target), so this only affects mouse hover, not keyboard nav.
+// Note this is hover-only: touch devices have no persistent cursor,
+// so the smile won't appear on mobile/tablet as-is. Revisit with a
+// tap-toggle if that matters.
+//
+// Both `cloudImage`/`cloudSmileImage` are optional so existing usage
+// without them still works (renders as before: plain, no cloud, or
+// cloud with no smile crossfade if `cloudSmileImage` is omitted).
+// Since this section still doesn't carry `.sky-chain`, it's not part
+// of the seam-color-matching system the rest of the chain uses (see
+// Layout.astro) — worth revisiting later if the sky photo here ends
+// up needing to match ArtIslandSection's top edge, but not done here
+// since it wasn't asked for.
 //
 // Usage:
 //   <IntroIslandSection
 //     id="section-intro"
 //     name="Name Surname"
 //     titles="Title 1, Title 2, Title 3"
+//     backgroundImage="/images/intro_sky_background.webp"
+//     cloudImage="/images/intro_cloud.png"
+//     cloudSmileImage="/images/intro_cloud_smile.png"
 //   />
 
 interface Props {
@@ -38,9 +75,11 @@ interface Props {
   name: string;
   titles: string;
   backgroundImage?: string;
+  cloudImage?: string;
+  cloudSmileImage?: string;
 }
 
-const { id, name, titles, backgroundImage } = Astro.props;
+const { id, name, titles, backgroundImage, cloudImage, cloudSmileImage } = Astro.props;
 ---
 
 <section
@@ -48,11 +87,87 @@ const { id, name, titles, backgroundImage } = Astro.props;
   id={id}
   style={backgroundImage ? `background-image: url(${backgroundImage});` : undefined}
 >
+  {cloudImage && (
+    <div class="intro-cloud" aria-hidden="true">
+      <div class="intro-cloud-inner parallax-inner">
+        <img src={cloudImage} alt="" class="cloud-base" />
+        {cloudSmileImage && (
+          <img src={cloudSmileImage} alt="" class="cloud-smile" />
+        )}
+      </div>
+    </div>
+  )}
+
   <div class="content">
     <h1>{name}</h1>
     <p class="titles">{titles}</p>
   </div>
 </section>
+
+<script>
+  // Same proximity-repel drift as the rest of this family, driving
+  // every `.parallax-inner` element on the page. See
+  // ArtIslandSection.astro for the full explanation of how the
+  // repel-away-from-cursor math works.
+  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (islands.length && !prefersReducedMotion) {
+    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+    const influenceRadius = 500; // px, push fades to 0 beyond this distance
+    const ease = 0.08;
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
+
+    const state = Array.from(islands).map((el) => ({
+      el,
+      currentX: 0,
+      currentY: 0,
+    }));
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      hasMouse = true;
+    });
+
+    function tick() {
+      for (const s of state) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (hasMouse) {
+          const rect = s.el.getBoundingClientRect();
+          const restX = rect.left + rect.width / 2 - s.currentX;
+          const restY = rect.top + rect.height / 2 - s.currentY;
+
+          const dx = restX - mouseX;
+          const dy = restY - mouseY;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist < influenceRadius) {
+            const falloff = 1 - dist / influenceRadius;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            targetX = nx * maxOffset * falloff;
+            targetY = ny * maxOffset * falloff;
+          }
+        }
+
+        s.currentX += (targetX - s.currentX) * ease;
+        s.currentY += (targetY - s.currentY) * ease;
+        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
 
 <style>
   .intro-section {
@@ -61,6 +176,9 @@ const { id, name, titles, backgroundImage } = Astro.props;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    /* No `overflow: hidden` here — see the comment on `overflow-x:
+       hidden` / `overflow-x: clip` on `html` in Layout.astro, which
+       handles horizontal clipping page-wide instead. */
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
@@ -90,10 +208,84 @@ const { id, name, titles, backgroundImage } = Astro.props;
     margin: 0;
   }
 
+  /* The cloud: a single flanking island, upper-right — mirroring where
+     a corner accent usually sits in this design. Doesn't bleed off any
+     edge, so (like ComputerIslandSection/AchievementIslandSection)
+     plain vw/vh offsets are enough — no need for the fluid
+     clamp(mobileValue, calc(a + b*vw), desktopValue) trick
+     ArtIslandSection/EducationIslandSection use for their
+     edge-bleeding corners. Starting values eyeballed for "sits above
+     and to the right of the text, mostly clear of it" — nudge once
+     it's live.
+
+     `pointer-events: auto` (was `none`) so the `.cloud-smile` hover
+     crossfade below can actually fire — this is the only interactive
+     bit on an otherwise decorative, aria-hidden element. */
+  .intro-cloud {
+    position: absolute;
+    z-index: 1;
+    pointer-events: auto;
+    top: 10vh;
+    right: 6vw;
+    width: clamp(260px, 32vw, 480px);
+    animation: bob-cloud 7s ease-in-out infinite;
+  }
+
+  /* `relative` so `.cloud-smile` (absolutely positioned) stacks
+     directly on top of `.cloud-base` instead of the section. */
+  .intro-cloud-inner {
+    position: relative;
+  }
+
+  .cloud-base,
+  .cloud-smile {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Smile crossfade: sits exactly on top of the base cloud, invisible
+     until hover. Pure opacity transition — deliberately not touching
+     `transform`, since both the outer bob (`.intro-cloud`) and the JS
+     drift (`.intro-cloud-inner`, applied via inline style from the
+     script above) already own that property on their respective
+     elements. */
+  .cloud-smile {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+
+  .intro-cloud:hover .cloud-smile {
+    opacity: 1;
+  }
+
+  @keyframes bob-cloud {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .intro-cloud {
+      animation: none;
+    }
+  }
+
   @media (max-width: 640px) {
     .content {
       width: min(36ch, 100%);
       padding-inline: 1.5rem;
+    }
+
+    /* Smaller and tucked toward the top on narrow screens so it sits
+       above the now full-width text instead of overlapping it, same
+       spirit as the other sections' mobile treatment for their
+       islands. */
+    .intro-cloud {
+      top: 3vh;
+      right: -8vw;
+      width: clamp(180px, 50vw, 300px);
     }
   }
 </style>
