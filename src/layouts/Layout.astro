@@ -75,12 +75,30 @@ const { title = "My CV" } = Astro.props;
        sections no longer need `overflow: hidden` at all: horizontal
        bleed off the viewport's left/right edges is still caught here,
        but an island that overflows past its own section's top/bottom
-       is now free to do so instead of being hard-clipped. */
+       is now free to do so instead of being hard-clipped.
+       `overflow-x: hidden` alone left a sliver of white space visible
+       on some mobile screens — one of the intentionally bleeding
+       islands (Art's corners, Education's stack, CornerIsland, etc.)
+       was pushing the page's actual scrollable width past the visible
+       viewport, and `hidden` on `html` by itself doesn't always fully
+       suppress that on every mobile browser. `overflow-x: clip` is a
+       stricter mode that also removes the overflow from the
+       scrollable area entirely (rather than just hiding a scrollbar),
+       so it's added as a second line — browsers that don't support
+       `clip` yet just keep using the `hidden` line above it, and ones
+       that do support it get the stronger guarantee. `width: 100%`
+       plus `max-width: 100vw` on `body` below closes the gap the rest
+       of the way, so no descendant can widen the actual html/body box
+       in the first place. */
     overflow-x: hidden;
+    overflow-x: clip;
   }
 
   body {
     margin: 0;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
     font-family: ui-sans-serif, system-ui, sans-serif;
     background: #ffffff;
     color: #1a1a1a;
