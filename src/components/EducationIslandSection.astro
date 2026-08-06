@@ -70,6 +70,12 @@
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
 //
+// Now also carries `.halftone-hover`, joining the single, page-wide
+// cursor-spotlight element in Layout.astro (`.halftone-spotlight`,
+// see the comment there) purely by having this class — no markup or
+// script needed here for it, since `body:has(.halftone-hover:hover)
+// .halftone-spotlight` is what actually turns the spotlight on.
+//
 // NOTE: I still don't have the actual background image files — this
 // is reasoned from first principles, not measured against the real
 // files.
@@ -99,7 +105,7 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
 ---
 
 <section
-  class="education-section sky-chain seam-fade-top seam-fade-bottom"
+  class="education-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >

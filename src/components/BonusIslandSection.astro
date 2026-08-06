@@ -4,9 +4,9 @@
 // Last content section on the page, sitting between
 // AchievementIslandSection and the purely decorative closing
 // OtherIslandSection. Unlike the rest of the flanking-islands family,
-// this one has no separate island illustrations or mouse-repel script
-// — just centered text over a single full-bleed background image
-// (`backgroundImage`, your bonus_island_background.webp).
+// this one has no separate island illustrations — just centered text
+// over a single full-bleed background image (`backgroundImage`, your
+// bonus_island_background.webp).
 //
 // Background: real image (`backgroundImage`), via `background-image`
 // + `background-size: cover`, `min-height: 100vh` — brought in line
@@ -50,6 +50,15 @@
 // collapses to 0 on both sides of this one — see the
 // `.sky-chain + .sky-chain` rule there.
 //
+// Now also carries `.halftone-hover`, joining the single, page-wide
+// cursor-spotlight element in Layout.astro (`.halftone-spotlight`,
+// see the comment there) purely by carrying this class — no markup or
+// script needed here for it, since `body:has(.halftone-hover:hover)
+// .halftone-spotlight` is what actually turns the spotlight on. This
+// component still has no `<script>` tag of its own — nothing here
+// needs the mouse-repel parallax drift either, since there are no
+// islands.
+//
 // Usage:
 //   <BonusIslandSection
 //     id="section-bonus"
@@ -71,7 +80,7 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
 ---
 
 <section
-  class="bonus-section sky-chain seam-fade-top seam-fade-bottom"
+  class="bonus-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >

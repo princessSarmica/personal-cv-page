@@ -69,6 +69,21 @@
 // pseudo-element painted on top of `.other-section`, which is already
 // `position: relative`, so it doesn't care what's underneath it.
 //
+// Now also carries `.halftone-hover`, same as the rest of the chain —
+// joins the single, page-wide cursor-spotlight element in
+// Layout.astro (`.halftone-spotlight`) purely by having this class,
+// which is all `body:has(.halftone-hover:hover) .halftone-spotlight`
+// needs to turn the spotlight on while the cursor's over this
+// section. No per-section markup or script needed for it any more —
+// an earlier version added a `.halftone-overlay` div + script to
+// every section individually, but that ran into exactly this
+// section's own `overflow-x: hidden` (needed for the 100vw break-out
+// above) computing its `overflow-y` to `auto` per the CSS overflow
+// spec, which clipped that per-section overlay's bleed and cut the
+// spotlight off at this section's top edge. The page-wide version
+// doesn't have a per-section box to clip in the first place, so this
+// section needs nothing beyond the `.halftone-hover` class itself.
+//
 // File size: you've since swapped the original ~45MB base64-in-SVG
 // export for other_island_2.webp (~2.4MB) — a big improvement, though
 // still worth a look if you want to shave it down further (a well
@@ -92,7 +107,7 @@ interface Props {
 const { id, image, alt = "" } = Astro.props;
 ---
 
-<section class="other-section sky-chain seam-fade-top" id={id}>
+<section class="other-section sky-chain seam-fade-top halftone-hover" id={id}>
   <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
 </section>
 

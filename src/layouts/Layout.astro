@@ -22,8 +22,33 @@ const { title = "My CV" } = Astro.props;
   <body>
     <slot />
     <CornerIsland />
+    <div class="halftone-spotlight" aria-hidden="true"></div>
   </body>
 </html>
+
+<script>
+  // Single, page-wide driver for the halftone cursor spotlight (see
+  // `.halftone-spotlight` in the global styles below). Position
+  // tracking is trivial here: the element is `position: fixed;
+  // inset: 0`, so its own box IS the viewport, meaning the cursor's
+  // `clientX`/`clientY` are already exactly the right coordinates —
+  // no per-section bounding-rect math needed. Whether the spotlight is
+  // actually visible is handled separately, in pure CSS, via
+  // `body:has(.halftone-hover:hover) .halftone-spotlight` — this
+  // script only ever needs to know where the cursor is, never which
+  // section it's over.
+  const spotlight = document.querySelector<HTMLElement>(".halftone-spotlight");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (spotlight && !prefersReducedMotion) {
+    window.addEventListener("mousemove", (e) => {
+      spotlight.style.setProperty("--mx", `${e.clientX}px`);
+      spotlight.style.setProperty("--my", `${e.clientY}px`);
+    });
+  }
+</script>
 
 <style is:global>
   :root {
@@ -210,5 +235,76 @@ const { title = "My CV" } = Astro.props;
   .seam-fade-top::before {
     top: 0;
     background: linear-gradient(to bottom, var(--seam-target-top), transparent);
+  }
+
+  /* Halftone cursor spotlight — a dot-grid pattern that shows around
+     the cursor while it's over any `.halftone-hover` section,
+     print-halftone style (inspired by the card hover effect on
+     rossdraws.com/collections/tutorials).
+
+     ONE element for the whole page (added once in the `<body>` above,
+     not per-section) — this replaces an earlier per-section design
+     that sized `.halftone-overlay` to each section and let it bleed
+     `--halftone-radius` past that section's own edges so the circle
+     wouldn't get clipped mid-shape near a boundary. That worked at
+     internal seams (the next section painted over the bleed) but
+     broke in two ways: the very last section's downward bleed had
+     nothing to paint over it, quietly adding blank scrollable space
+     to the bottom of the page; and OtherIslandSection sets its own
+     `overflow-x: hidden` for its full-viewport-width breakout, which
+     (per the CSS overflow spec: setting one overflow axis to non-
+     visible computes the other to `auto` if it was `visible`) made
+     ITS OWN `overflow-y` compute to `auto` — so unlike every other
+     section, it actually clipped its own overlay's upward bleed at
+     its own top edge, cutting the circle off right where it meets
+     BonusIslandSection.
+
+     This version sidesteps both bugs instead of patching around them:
+     `position: fixed; inset: 0` means the element IS the viewport, not
+     sized to or bounded by any section, so there's no section
+     boundary left to bleed past or get clipped by, and being `fixed`
+     it's out of normal flow entirely — it can never add to the page's
+     scrollable height regardless of how big its mask circle is.
+     `--mx`/`--my` are plain viewport coordinates, kept in sync with
+     the cursor by the single script in this file (no per-section
+     bounding-rect math needed any more either, since this element's
+     box always starts at (0, 0) in viewport space). `mix-blend-mode:
+     overlay` still blends the dots against whatever section happens
+     to be underneath at that screen position — that part didn't need
+     to change, blend modes don't care whether the element above is
+     sized to a section or the whole viewport.
+
+     Visibility is handled in pure CSS via `:has()` rather than a
+     per-section `:hover` rule targeting a per-section child: `body:
+     has(.halftone-hover:hover) .halftone-spotlight` sets opacity only
+     while the cursor is over SOME `.halftone-hover` section, whichever
+     one it currently is — the single spotlight element doesn't need
+     to know which. */
+  .halftone-spotlight {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    --halftone-color: #ffffff;
+    --halftone-radius: 160px;
+    --mx: 50vw;
+    --my: 50vh;
+    background-image: radial-gradient(circle, var(--halftone-color) 38%, transparent 40%);
+    background-size: 10px 10px;
+    mix-blend-mode: overlay;
+    mask-image: radial-gradient(circle var(--halftone-radius) at var(--mx) var(--my), black 0%, black 55%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle var(--halftone-radius) at var(--mx) var(--my), black 0%, black 55%, transparent 100%);
+  }
+
+  body:has(.halftone-hover:hover) .halftone-spotlight {
+    opacity: 0.55;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .halftone-spotlight {
+      transition: none;
+    }
   }
 </style>
