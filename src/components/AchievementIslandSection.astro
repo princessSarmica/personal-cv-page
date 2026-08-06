@@ -93,35 +93,41 @@
 // transition SNAPS between states instead of smoothly tweening) and a
 // scanline texture overlay that's only present mid-flash.
 //
-// New: an optional `rightImageGlitched` image (your
-// right_achievements_island_glitched.webp) for the TEMPLE island
-// itself. Same cursor-proximity trigger and same glitch flourish as
-// the two chunks, but a different effect — instead of an element
-// popping in/out of existence, this CROSSFADES the temple from its
-// normal `rightImage` to `rightImageGlitched` and back, i.e. the
-// island is always there, only its texture glitches. Implemented as
-// two stacked images inside a new `.achievement-glitch-swap` wrapper
+// Two optional `*Glitched` images — `leftImageGlitched` (your
+// left_achievement_island_glitched.webp) for the statue, and
+// `rightImageGlitched` (your right_achievements_island_glitched.webp)
+// for the temple. Same cursor-proximity trigger and same glitch
+// flourish as the two chunks, but a different effect — instead of an
+// element popping in/out of existence, this CROSSFADES an island from
+// its normal image to its glitched variant and back, i.e. the island
+// is always there, only its texture glitches. Implemented as two
+// stacked images inside a new `.achievement-glitch-swap` wrapper
 // (same nested-stack technique as `.intro-cloud-inner`/`.cloud-smile`
-// in IntroIslandSection.astro): the normal image sits in normal flow
-// and is always visible; the glitched image is absolutely positioned
-// on top of it at `opacity: 0`, and only shows (with the same
-// glitch-pop/glitch-scan animations the chunks use) while
-// `.is-glitched` is applied.
+// in IntroIslandSection.astro), used identically for both islands:
+// the normal image sits in normal flow and is always visible; the
+// glitched image is absolutely positioned on top of it at
+// `opacity: 0`, and only shows (with the same glitch-pop/glitch-scan
+// animations the chunks use) while `.is-glitched` is applied. Either
+// prop can be passed on its own — an island without its `*Glitched`
+// prop just renders its normal image with no swap behavior, same as
+// before this existed.
 //
-// The proximity check that drives all three (both chunks + the
-// temple swap) is one shared `watchGlitchReveal()` helper in the
-// script below, rather than three copies of near-identical logic —
+// The proximity check that drives all of this (both chunks + both
+// island swaps) is one shared `watchGlitchReveal()` helper in the
+// script below, rather than four copies of near-identical logic —
 // they're the same shape (watch a distance, toggle a class, re-glitch
 // on an interval while in range, linger after leaving) and only
 // differ in which element the class goes on and how the reveal radius
-// is computed. For the temple swap specifically: distance is measured
-// from the OUTER `.achievement-island-right` (the whole island's
-// footprint), not the swap wrapper itself, so hovering anywhere near
-// the temple triggers it — and the radius scales with the island's
-// own rendered size (`clamp(320px, 40vw, 560px)` wide) rather than
-// using a fixed px value like the two chunks do, since a fixed radius
-// would feel too tight at the large end of that range or too generous
-// at the small end.
+// is computed. The two island swaps specifically are discovered
+// generically (every `.achievement-glitch-swap` on the page that
+// actually has a `.achievement-glitch-swap-alt` inside it), rather
+// than being wired up by hand per island — distance for each is
+// measured from its own closest `.achievement-island` ancestor (the
+// whole island's footprint, not just the swap wrapper), so hovering
+// anywhere near an island triggers it, and the radius scales with
+// THAT island's own rendered size rather than a shared fixed value,
+// since the statue (`clamp(130px, 12vw, 200px)` wide) and the temple
+// (`clamp(320px, 40vw, 560px)` wide) are very different sizes.
 //
 // `pointer-events: none` stays on `.achievement-glitch`/`.achievement-
 // island` (same as every other island) since these are purely
@@ -173,6 +179,7 @@
 //     title="Do Eiusmod Tempor"
 //     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur..."
 //     leftImage="/images/left_achievement_island.svg"
+//     leftImageGlitched="/images/left_achievement_island_glitched.webp"
 //     rightImage="/images/right_achievement_island.svg"
 //     rightImageGlitched="/images/right_achievements_island_glitched.webp"
 //     rightChunk1Image="/images/right_achievement_island_first_front_chunk.webp"
@@ -186,6 +193,7 @@ interface Props {
   title: string;
   text: string;
   leftImage: string;
+  leftImageGlitched?: string;
   rightImage: string;
   rightImageGlitched?: string;
   rightChunk1Image?: string;
@@ -199,6 +207,7 @@ const {
   title,
   text,
   leftImage,
+  leftImageGlitched,
   rightImage,
   rightImageGlitched,
   rightChunk1Image,
@@ -214,7 +223,14 @@ const {
 >
   <div class="achievement-island achievement-island-left" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
-      <img src={leftImage} alt="" />
+      <div class="achievement-glitch-swap">
+        <img class="achievement-glitch-swap-base" src={leftImage} alt="" />
+        {leftImageGlitched && (
+          <div class="achievement-glitch-swap-alt">
+            <img src={leftImageGlitched} alt="" />
+          </div>
+        )}
+      </div>
     </div>
   </div>
 
@@ -453,38 +469,42 @@ const {
     }
   }
 
-  // Temple island glitch swap (see `.achievement-glitch-swap` in the
-  // <style> below): crossfades from the normal temple image to
-  // `rightImageGlitched` and back, instead of showing/hiding a whole
-  // element like the chunks do. Distance is measured from the OUTER
-  // `.achievement-island-right` (the whole island's footprint), not
-  // the swap wrapper, so hovering anywhere near the temple triggers
-  // it. Radius scales with the island's own rendered size rather than
-  // a fixed px value, since that ranges 320-560px wide across
-  // viewports. No `prefers-reduced-motion` branch needed here — the
-  // swap's default (no `.is-glitched`) already shows the normal
-  // image, so simply not attaching this watcher leaves it that way.
-  const islandSwap = document.querySelector<HTMLElement>(".achievement-glitch-swap");
-  const islandSwapAlt = document.querySelector<HTMLElement>(".achievement-glitch-swap-alt");
-  const islandSwapWatch = document.querySelector<HTMLElement>(".achievement-island-right");
+  // Island glitch swaps (see `.achievement-glitch-swap` in the
+  // <style> below): crossfades an island's normal image to its
+  // glitched variant and back, instead of showing/hiding a whole
+  // element like the chunks do. Handles however many
+  // `.achievement-glitch-swap` instances exist — currently the
+  // statue (`leftImageGlitched`) and the temple
+  // (`rightImageGlitched`) — generically rather than querying each
+  // one by hand, so a third island picking this up later needs no
+  // script changes, only the same markup pattern. Each swap's
+  // distance is measured from its own closest `.achievement-island`
+  // ancestor (the whole island's footprint, not just the swap
+  // wrapper), so hovering anywhere near an island triggers it, and
+  // only swaps that actually have a `.achievement-glitch-swap-alt`
+  // (i.e. a glitched image was actually passed for that island) get a
+  // watcher at all. Radius scales with each island's OWN rendered
+  // size rather than a shared fixed px value, since island sizes vary
+  // a lot in this family (the statue is
+  // `clamp(130px, 12vw, 200px)` wide, the temple
+  // `clamp(320px, 40vw, 560px)`). No `prefers-reduced-motion` branch
+  // needed — every swap's default (no `.is-glitched`) already shows
+  // its normal image, so simply not attaching a watcher leaves it
+  // that way.
+  if (!prefersReducedMotion) {
+    const islandSwapTargets = Array.from(
+      document.querySelectorAll<HTMLElement>(".achievement-glitch-swap")
+    )
+      .filter((swap) => swap.querySelector(".achievement-glitch-swap-alt"))
+      .map((swap) => ({
+        watch: swap.closest<HTMLElement>(".achievement-island") ?? swap,
+        toggle: swap,
+        radius: (rect: DOMRect) => Math.max(rect.width, rect.height) / 2 + 40,
+      }));
 
-  // Gated on `.achievement-glitch-swap-alt` existing (not just the
-  // wrapper), since the wrapper always renders but the alt image only
-  // renders when `rightImageGlitched` was actually passed — no point
-  // attaching a watcher that would toggle a class with nothing to
-  // reveal.
-  if (islandSwap && islandSwapAlt && islandSwapWatch && !prefersReducedMotion) {
-    watchGlitchReveal(
-      [
-        {
-          watch: islandSwapWatch,
-          toggle: islandSwap,
-          radius: (rect) => Math.max(rect.width, rect.height) / 2 + 40,
-        },
-      ],
-      "is-glitched",
-      glitchTiming
-    );
+    if (islandSwapTargets.length) {
+      watchGlitchReveal(islandSwapTargets, "is-glitched", glitchTiming);
+    }
   }
 </script>
 
