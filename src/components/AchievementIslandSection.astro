@@ -63,7 +63,7 @@
 // needed here for it, since `body:has(.halftone-hover:hover)
 // .halftone-spotlight` is what actually turns the spotlight on.
 //
-// New: two optional "front chunk" images — `rightChunk1Image` /
+// Two optional "front chunk" images — `rightChunk1Image` /
 // `rightChunk2Image` (your right_achievement_island_first_front_
 // chunk.webp / right_achievement_island_second_front_chunk.webp) —
 // smaller rock fragments that sit in front of and below the main
@@ -93,52 +93,78 @@
 // transition SNAPS between states instead of smoothly tweening) and a
 // scanline texture overlay that's only present mid-flash.
 //
-// The proximity check is a dedicated `mousemove` listener in the
-// script below (separate from the mouse-repel drift's own listener,
-// even though both read the same cursor position) — it measures the
-// distance from the cursor to each chunk's own static rest position
-// (the OUTER `.achievement-glitch` element's `getBoundingClientRect()`,
-// which doesn't move even while its inner child is actively drifting,
-// since a child's `transform` never affects its parent's layout box)
-// and toggles `.is-visible` once that distance crosses
-// `revealRadius`. The one-shot glitch-pop/glitch-scan CSS animations
-// are restarted on every reveal by removing the `.is-visible` class,
-// forcing a reflow (`void chunk.offsetWidth`), then re-adding it —
-// without the forced reflow, re-adding a class whose animation never
-// really "finished" registering as removed wouldn't reliably restart
-// the animation from frame 0 in every browser.
+// New: an optional `rightImageGlitched` image (your
+// right_achievements_island_glitched.webp) for the TEMPLE island
+// itself. Same cursor-proximity trigger and same glitch flourish as
+// the two chunks, but a different effect — instead of an element
+// popping in/out of existence, this CROSSFADES the temple from its
+// normal `rightImage` to `rightImageGlitched` and back, i.e. the
+// island is always there, only its texture glitches. Implemented as
+// two stacked images inside a new `.achievement-glitch-swap` wrapper
+// (same nested-stack technique as `.intro-cloud-inner`/`.cloud-smile`
+// in IntroIslandSection.astro): the normal image sits in normal flow
+// and is always visible; the glitched image is absolutely positioned
+// on top of it at `opacity: 0`, and only shows (with the same
+// glitch-pop/glitch-scan animations the chunks use) while
+// `.is-glitched` is applied.
 //
-// `pointer-events: none` stays on `.achievement-glitch` (same as
-// every other island) since these are purely decorative and
-// `aria-hidden`, so this can't use native `:hover`/`mouseenter` —
-// those require the element to actually receive pointer events. The
-// distance-based JS check works around that without needing the
-// chunk itself to be interactive.
+// The proximity check that drives all three (both chunks + the
+// temple swap) is one shared `watchGlitchReveal()` helper in the
+// script below, rather than three copies of near-identical logic —
+// they're the same shape (watch a distance, toggle a class, re-glitch
+// on an interval while in range, linger after leaving) and only
+// differ in which element the class goes on and how the reveal radius
+// is computed. For the temple swap specifically: distance is measured
+// from the OUTER `.achievement-island-right` (the whole island's
+// footprint), not the swap wrapper itself, so hovering anywhere near
+// the temple triggers it — and the radius scales with the island's
+// own rendered size (`clamp(320px, 40vw, 560px)` wide) rather than
+// using a fixed px value like the two chunks do, since a fixed radius
+// would feel too tight at the large end of that range or too generous
+// at the small end.
 //
-// Both chunks default to `z-index: 1`, same tier as `.achievement-
-// island` — this matters for the halftone spotlight in Layout.astro:
-// that element sits at `z-index: 0` specifically so everything at
-// `z-index: 1`+ paints over it, untouched by its dot-pattern blend.
-// Keeping the chunks at that same tier means they're excluded from
-// the halftone tint exactly like the other islands are, rather than
-// (accidentally) being treated as part of the background.
+// `pointer-events: none` stays on `.achievement-glitch`/`.achievement-
+// island` (same as every other island) since these are purely
+// decorative and `aria-hidden`, so none of this can use native
+// `:hover`/`mouseenter` — those require the element to actually
+// receive pointer events. The distance-based JS check works around
+// that without needing anything here to be interactive.
 //
-// Under `prefers-reduced-motion: reduce`, both chunks are shown
+// Both chunks and the temple swap default to `z-index: 1` (or inherit
+// the temple island's own z-index 1, in the swap's case), same tier
+// as `.achievement-island` — this matters for the halftone spotlight
+// in Layout.astro: that element sits at `z-index: 0` specifically so
+// everything at `z-index: 1`+ paints over it, untouched by its
+// dot-pattern blend. Keeping everything here at that same tier means
+// it's excluded from the halftone tint exactly like the other islands
+// are, rather than (accidentally) being treated as part of the
+// background.
+//
+// Under `prefers-reduced-motion: reduce`: both chunks are shown
 // statically (no glitch animation, no scanline texture, no
 // proximity-gating) — popping in and out as the cursor moves is
 // exactly the kind of motion that setting is meant to suppress, so
-// this shows them plainly instead of just hiding them outright.
+// this shows them plainly instead of just hiding them outright. The
+// temple swap needs no special handling for this — its default state
+// (no `.is-glitched`) already shows the normal `rightImage`, so
+// simply never attaching its proximity watcher under reduced motion
+// leaves it showing the normal image permanently, which is exactly
+// what's wanted.
 //
 // On narrow screens (`max-width: 640px`) both chunks are hidden
 // entirely rather than repositioned — they're purely decorative
 // flourish, not core content, and there isn't a clean spot for them
 // once the layout collapses to the mobile single-column treatment.
-// Ask if you'd rather they show up (smaller, repositioned) on mobile
-// too.
+// The temple swap stays active on mobile (it doesn't add any new
+// layout footprint, just crossfades in place) — though in practice it
+// won't trigger there anyway, since touch devices have no persistent
+// cursor to be "near" the island in the first place.
+// Ask if you'd rather the chunks show up (smaller, repositioned) on
+// mobile too.
 //
-// NOTE: I still don't have the actual background/chunk image files
-// for this section — this is reasoned from first principles, not
-// measured against the real files.
+// NOTE: I still don't have the actual background/chunk/glitch image
+// files for this section — this is reasoned from first principles,
+// not measured against the real files.
 //
 // Usage:
 //   <AchievementIslandSection
@@ -148,6 +174,7 @@
 //     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur..."
 //     leftImage="/images/left_achievement_island.svg"
 //     rightImage="/images/right_achievement_island.svg"
+//     rightImageGlitched="/images/right_achievements_island_glitched.webp"
 //     rightChunk1Image="/images/right_achievement_island_first_front_chunk.webp"
 //     rightChunk2Image="/images/right_achievement_island_second_front_chunk.webp"
 //     backgroundImage="/images/achievement_island_background.webp"
@@ -160,6 +187,7 @@ interface Props {
   text: string;
   leftImage: string;
   rightImage: string;
+  rightImageGlitched?: string;
   rightChunk1Image?: string;
   rightChunk2Image?: string;
   backgroundImage: string;
@@ -172,6 +200,7 @@ const {
   text,
   leftImage,
   rightImage,
+  rightImageGlitched,
   rightChunk1Image,
   rightChunk2Image,
   backgroundImage,
@@ -197,7 +226,14 @@ const {
 
   <div class="achievement-island achievement-island-right" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
-      <img src={rightImage} alt="" />
+      <div class="achievement-glitch-swap">
+        <img class="achievement-glitch-swap-base" src={rightImage} alt="" />
+        {rightImageGlitched && (
+          <div class="achievement-glitch-swap-alt">
+            <img src={rightImageGlitched} alt="" />
+          </div>
+        )}
+      </div>
     </div>
   </div>
 
@@ -286,111 +322,169 @@ const {
     requestAnimationFrame(tick);
   }
 
-  // Cursor-proximity reveal for the two front rock chunks (see
-  // `.achievement-glitch` in the <style> below). Each chunk is
-  // normally invisible; moving the cursor within `revealRadius` of
-  // where it sits glitches it into view, moving back out hides it
-  // again. Distance is measured against each chunk's own static rest
-  // position — the OUTER `.achievement-glitch` element's
-  // `getBoundingClientRect()`, which stays put regardless of the
-  // mouse-repel `transform` applied to its INNER `.parallax-inner`
-  // child (a transform on a child never affects its parent's layout
-  // box), so this stays accurate even while a chunk is actively
-  // drifting. This is a separate listener from the mouse-repel one
-  // above (even though both read the same cursor position) since the
-  // two do fundamentally different things with it: one eases a
-  // transform every frame, this one just checks a distance and flips
-  // a class.
+  // Shared cursor-proximity "glitch reveal" watcher — used below for
+  // both the two front rock chunks (whole-element show/hide) and the
+  // temple island's normal/glitched image crossfade. Both cases boil
+  // down to the same shape: watch the distance from the cursor to
+  // some element's static rest position, and toggle a class on some
+  // (possibly different) element once that distance crosses a radius
+  // — reveal immediately + keep re-glitching on a random interval
+  // while in range, then linger for `hideDelay` after the cursor
+  // leaves before reverting, cancelling that linger if the cursor
+  // comes back in time. One shared function instead of duplicating
+  // this per use, since the only real differences between the chunks
+  // and the temple swap are WHICH class gets toggled, WHERE the
+  // distance is measured from/to, and the reveal radius.
+  //
+  // `radius` can be a plain number (the two chunks: small, roughly
+  // fixed-size images) or a function of the watched element's own
+  // `DOMRect` (the temple island: its rendered size ranges 320-560px
+  // wide across viewports via its own `clamp()`, so a single fixed px
+  // radius would feel too tight at the large end or too generous at
+  // the small end).
+  function watchGlitchReveal(
+    targets: {
+      watch: HTMLElement; // element whose rest position distance is measured from
+      toggle: HTMLElement; // element the class is actually added/removed on
+      radius: number | ((rect: DOMRect) => number);
+    }[],
+    className: string,
+    options: { hideDelay: number; glitchIntervalMin: number; glitchIntervalMax: number }
+  ) {
+    const state = targets.map((t) => ({
+      ...t,
+      visible: false,
+      hideTimeout: null as ReturnType<typeof setTimeout> | null,
+      glitchTimeout: null as ReturnType<typeof setTimeout> | null,
+    }));
+
+    // Force a reflow before re-adding the class so the one-shot
+    // `glitch-pop`/`glitch-scan` CSS animations restart from frame 0
+    // every time, rather than silently not restarting because the
+    // class never really left the "applied" state from the browser's
+    // point of view. Used both for the initial reveal and for every
+    // re-glitch while something lingers on screen below.
+    function playGlitch(el: HTMLElement) {
+      el.classList.remove(className);
+      void el.offsetWidth;
+      el.classList.add(className);
+    }
+
+    // While something is visible, keep re-triggering the glitch flash
+    // at random intervals — the initial reveal already plays one,
+    // this just keeps it looking "unstable" for as long as it
+    // lingers, instead of the animation playing once and then sitting
+    // there static for the rest of `hideDelay`. Stops rescheduling
+    // itself the moment it's hidden.
+    function scheduleGlitch(s: (typeof state)[number]) {
+      const delay =
+        options.glitchIntervalMin +
+        Math.random() * (options.glitchIntervalMax - options.glitchIntervalMin);
+      s.glitchTimeout = setTimeout(() => {
+        if (s.visible) {
+          playGlitch(s.toggle);
+          scheduleGlitch(s);
+        }
+      }, delay);
+    }
+
+    window.addEventListener("mousemove", (e) => {
+      for (const s of state) {
+        const rect = s.watch.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+        const radius = typeof s.radius === "function" ? s.radius(rect) : s.radius;
+        const shouldShow = dist < radius;
+
+        if (shouldShow) {
+          // Cursor's back in range (or never left) — cancel any
+          // pending hide so a brief dip out of range doesn't cut the
+          // lingering period short.
+          if (s.hideTimeout !== null) {
+            clearTimeout(s.hideTimeout);
+            s.hideTimeout = null;
+          }
+
+          if (!s.visible) {
+            s.visible = true;
+            playGlitch(s.toggle);
+            scheduleGlitch(s);
+          }
+        } else if (s.visible && s.hideTimeout === null) {
+          // Cursor just left range — don't hide immediately, let it
+          // linger for `hideDelay` first. If the cursor comes back
+          // before that fires, the branch above cancels it.
+          s.hideTimeout = setTimeout(() => {
+            s.visible = false;
+            s.hideTimeout = null;
+            if (s.glitchTimeout !== null) {
+              clearTimeout(s.glitchTimeout);
+              s.glitchTimeout = null;
+            }
+            s.toggle.classList.remove(className);
+          }, options.hideDelay);
+        }
+      }
+    });
+  }
+
+  const glitchTiming = { hideDelay: 2500, glitchIntervalMin: 500, glitchIntervalMax: 1400 };
+
+  // Front rock chunks (see `.achievement-glitch` in the <style>
+  // below): whole-element show/hide, `.is-visible` toggled on the
+  // same element the distance is measured from.
   const glitchChunks = document.querySelectorAll<HTMLElement>(".achievement-glitch");
 
   if (glitchChunks.length) {
     if (prefersReducedMotion) {
       // Show plainly, no glitch/texture/proximity-gating — see the
-      // component-level comment for why this shows the chunk instead
-      // of just leaving it hidden.
+      // component-level comment for why this shows the chunks instead
+      // of just leaving them hidden.
       for (const chunk of glitchChunks) {
         chunk.classList.add("is-visible", "no-motion");
       }
     } else {
-      const revealRadius = 180; // px, distance from a chunk's center that reveals it
-      const hideDelay = 2500; // ms, how long a chunk lingers after the cursor leaves
-      const glitchIntervalMin = 500; // ms, shortest gap between re-glitches while visible
-      const glitchIntervalMax = 1400; // ms, longest gap between re-glitches while visible
-
-      const chunkState = Array.from(glitchChunks).map((el) => ({
-        el,
-        visible: false,
-        hideTimeout: null as ReturnType<typeof setTimeout> | null,
-        glitchTimeout: null as ReturnType<typeof setTimeout> | null,
-      }));
-
-      // Force a reflow before re-adding `.is-visible` so the one-shot
-      // `glitch-pop`/`glitch-scan` CSS animations restart from frame 0
-      // every time, rather than silently not restarting because the
-      // class never really left the "applied" state from the
-      // browser's point of view. Used both for the initial reveal and
-      // for every re-glitch while a chunk lingers on screen below.
-      function playGlitch(el: HTMLElement) {
-        el.classList.remove("is-visible");
-        void el.offsetWidth;
-        el.classList.add("is-visible");
-      }
-
-      // While a chunk is visible, keep re-triggering the glitch flash
-      // at random intervals — the initial reveal already plays one,
-      // this just keeps it looking "unstable" for as long as it
-      // lingers, instead of the animation playing once and then
-      // sitting there static for the full 2-3s hideDelay. Stops
-      // rescheduling itself the moment the chunk is hidden.
-      function scheduleGlitch(s: (typeof chunkState)[number]) {
-        const delay = glitchIntervalMin + Math.random() * (glitchIntervalMax - glitchIntervalMin);
-        s.glitchTimeout = setTimeout(() => {
-          if (s.visible) {
-            playGlitch(s.el);
-            scheduleGlitch(s);
-          }
-        }, delay);
-      }
-
-      window.addEventListener("mousemove", (e) => {
-        for (const s of chunkState) {
-          const rect = s.el.getBoundingClientRect();
-          const cx = rect.left + rect.width / 2;
-          const cy = rect.top + rect.height / 2;
-          const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
-          const shouldShow = dist < revealRadius;
-
-          if (shouldShow) {
-            // Cursor's back in range (or never left) — cancel any
-            // pending hide so a brief dip out of range doesn't cut the
-            // lingering period short.
-            if (s.hideTimeout !== null) {
-              clearTimeout(s.hideTimeout);
-              s.hideTimeout = null;
-            }
-
-            if (!s.visible) {
-              s.visible = true;
-              playGlitch(s.el);
-              scheduleGlitch(s);
-            }
-          } else if (s.visible && s.hideTimeout === null) {
-            // Cursor just left range — don't hide immediately, let it
-            // linger for `hideDelay` first. If the cursor comes back
-            // before that fires, the branch above cancels it.
-            s.hideTimeout = setTimeout(() => {
-              s.visible = false;
-              s.hideTimeout = null;
-              if (s.glitchTimeout !== null) {
-                clearTimeout(s.glitchTimeout);
-                s.glitchTimeout = null;
-              }
-              s.el.classList.remove("is-visible");
-            }, hideDelay);
-          }
-        }
-      });
+      watchGlitchReveal(
+        Array.from(glitchChunks).map((el) => ({ watch: el, toggle: el, radius: 180 })),
+        "is-visible",
+        glitchTiming
+      );
     }
+  }
+
+  // Temple island glitch swap (see `.achievement-glitch-swap` in the
+  // <style> below): crossfades from the normal temple image to
+  // `rightImageGlitched` and back, instead of showing/hiding a whole
+  // element like the chunks do. Distance is measured from the OUTER
+  // `.achievement-island-right` (the whole island's footprint), not
+  // the swap wrapper, so hovering anywhere near the temple triggers
+  // it. Radius scales with the island's own rendered size rather than
+  // a fixed px value, since that ranges 320-560px wide across
+  // viewports. No `prefers-reduced-motion` branch needed here — the
+  // swap's default (no `.is-glitched`) already shows the normal
+  // image, so simply not attaching this watcher leaves it that way.
+  const islandSwap = document.querySelector<HTMLElement>(".achievement-glitch-swap");
+  const islandSwapAlt = document.querySelector<HTMLElement>(".achievement-glitch-swap-alt");
+  const islandSwapWatch = document.querySelector<HTMLElement>(".achievement-island-right");
+
+  // Gated on `.achievement-glitch-swap-alt` existing (not just the
+  // wrapper), since the wrapper always renders but the alt image only
+  // renders when `rightImageGlitched` was actually passed — no point
+  // attaching a watcher that would toggle a class with nothing to
+  // reveal.
+  if (islandSwap && islandSwapAlt && islandSwapWatch && !prefersReducedMotion) {
+    watchGlitchReveal(
+      [
+        {
+          watch: islandSwapWatch,
+          toggle: islandSwap,
+          radius: (rect) => Math.max(rect.width, rect.height) / 2 + 40,
+        },
+      ],
+      "is-glitched",
+      glitchTiming
+    );
   }
 </script>
 
@@ -491,6 +585,55 @@ const {
     50% { transform: translateY(-8px); }
   }
 
+  /* Temple glitch swap: the normal and glitched temple images stacked
+     on top of each other, same nested-stack technique as
+     `.intro-cloud-inner`/`.cloud-smile` in IntroIslandSection.astro.
+     `position: relative` so the absolutely positioned alt image lines
+     up exactly over the base one. Sized entirely by the base image
+     (normal document flow, `width: 100%; height: auto` via the
+     existing `.achievement-island-inner img` rule below) — the alt
+     image and its wrapper just stretch to match via `inset: 0`. */
+  .achievement-glitch-swap {
+    position: relative;
+  }
+
+  .achievement-glitch-swap-alt {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .achievement-glitch-swap.is-glitched .achievement-glitch-swap-alt {
+    opacity: 1;
+    animation: glitch-pop 0.45s steps(1, jump-end) both;
+  }
+
+  /* Same scanline texture as the front chunks below, wrapped in its
+     own div (`.achievement-glitch-swap-alt`) rather than a
+     pseudo-element directly on an `<img>` — `<img>` is a replaced
+     element and doesn't reliably support `::before`/`::after` across
+     browsers, unlike the chunks' own outer `<div>` wrapper. */
+  .achievement-glitch-swap-alt::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.4) 0px,
+      rgba(255, 255, 255, 0.4) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .achievement-glitch-swap.is-glitched .achievement-glitch-swap-alt::after {
+    animation: glitch-scan 0.45s steps(1, jump-end) both;
+  }
+
   /* Front rock chunks: same `position: absolute; z-index: 1;
      pointer-events: none;` treatment as `.achievement-island` (see
      the component-level comment above for why z-index 1 specifically
@@ -498,9 +641,9 @@ const {
      spotlight's blend in Layout.astro, same as every other island).
      `opacity: 0` by default — JS toggles `.is-visible` on/off based
      on cursor proximity per chunk (see the <script> above); nothing
-     here shows them permanently. The bob animation still runs continuously
-     underneath regardless of visibility, so a chunk is never caught
-     mid-drift when it pops back in. */
+     here shows them permanently. The bob animation still runs
+     continuously underneath regardless of visibility, so a chunk is
+     never caught mid-drift when it pops back in. */
   .achievement-glitch {
     position: absolute;
     z-index: 1;
@@ -544,15 +687,17 @@ const {
     50% { transform: translateY(-7px); }
   }
 
-  /* One-shot "digital tear" that plays whenever `.is-visible` is
-     freshly (re)applied by the script above: `animation-fill-mode:
-     both` holds the opacity-0 -> 1 handoff cleanly at both ends (no
-     flash of the un-animated state before frame 0, no snap-back after
-     the last frame), and `steps(1, jump-end)` makes the browser HOLD
-     each keyframe's values for its whole segment and then jump
-     straight to the next, rather than smoothly tweening `clip-path`/
-     `filter` between them — that abrupt jump-cut is what actually
-     reads as "glitchy" instead of "fading in oddly." */
+  /* One-shot "digital tear" that plays whenever `.is-visible` (chunks)
+     or `.is-glitched` (temple swap) is freshly (re)applied by the
+     script above: `animation-fill-mode: both` holds the handoff
+     cleanly at both ends (no flash of the un-animated state before
+     frame 0, no snap-back after the last frame), and
+     `steps(1, jump-end)` makes the browser HOLD each keyframe's
+     values for its whole segment and then jump straight to the next,
+     rather than smoothly tweening `clip-path`/`filter` between them —
+     that abrupt jump-cut is what actually reads as "glitchy" instead
+     of "fading in oddly." Shared by both the chunks and the temple
+     swap. */
   .achievement-glitch.is-visible {
     opacity: 1;
     animation: glitch-pop 0.45s steps(1, jump-end) both;
@@ -567,19 +712,20 @@ const {
     68% { clip-path: inset(0 0 0 10%); filter: none; }
     84% { clip-path: inset(4% 0 4% 0); filter: hue-rotate(-8deg); }
     /* `none` here, not `inset(0 0 0 0)` — the two look identical while
-       the chunk is sitting still, but `inset(0 0 0 0)` still
+       the element is sitting still, but `inset(0 0 0 0)` still
        establishes a real clip region exactly at this element's own
        box. `animation-fill-mode: both` locks whatever this 100%
-       keyframe says for as long as `.is-visible` stays applied (most
-       of the 1.4-2.8s a chunk is on screen) — with an actual inset
-       value there, that lingering clip region was cropping the inner
-       image the moment the mouse-repel drift (a `transform` on the
-       CHILD `.achievement-glitch-inner`) pushed it visually past this
+       keyframe says for as long as the class stays applied (most of
+       the time something is on screen) — with an actual inset value
+       there, that lingering clip region was cropping the inner image
+       the moment the mouse-repel drift (a `transform` on the CHILD
+       `.achievement-glitch-inner`) pushed it visually past this
        element's own edges, which is exactly the "looks like it's
-       trapped in a box" cut-off. `none` removes the clip region
-       entirely instead of just visually matching "no clip" at rest,
-       so the drifting image is free to render past this box's edges
-       same as every other island's does. */
+       trapped in a box" cut-off the chunks originally had. `none`
+       removes the clip region entirely instead of just visually
+       matching "no clip" at rest, so the drifting image is free to
+       render past this box's edges same as every other island's
+       does. */
     100% { clip-path: none; filter: none; }
   }
 
@@ -625,7 +771,10 @@ const {
      rather than hiding it outright. The `.no-motion` class is only
      ever added by the script above, and only when
      `prefers-reduced-motion: reduce` is set, so this rule can't
-     accidentally fire for anyone else. */
+     accidentally fire for anyone else. The temple swap needs no
+     equivalent rule — its proximity watcher is simply never attached
+     under reduced motion, so it never leaves its default (normal
+     image showing) state in the first place. */
   .achievement-glitch.no-motion {
     animation: none;
   }
