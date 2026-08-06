@@ -57,14 +57,87 @@
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
 //
-// Now also carries `.halftone-hover`, joining the single, page-wide
-// cursor-spotlight element in Layout.astro (`.halftone-spotlight`,
-// see the comment there) purely by having this class — no markup or
-// script needed here for it, since `body:has(.halftone-hover:hover)
+// Carries `.halftone-hover`, joining the single, page-wide cursor-
+// spotlight element in Layout.astro (`.halftone-spotlight`, see the
+// comment there) purely by having this class — no markup or script
+// needed here for it, since `body:has(.halftone-hover:hover)
 // .halftone-spotlight` is what actually turns the spotlight on.
 //
-// NOTE: I still don't have the actual background image files for
-// either section — this is reasoned from first principles, not
+// New: two optional "front chunk" images — `rightChunk1Image` /
+// `rightChunk2Image` (your right_achievement_island_first_front_
+// chunk.webp / right_achievement_island_second_front_chunk.webp) —
+// smaller rock fragments that sit in front of and below the main
+// temple island, per your reference screenshot: chunk 1 (the bigger
+// one) tucked just under-left of the temple's base, chunk 2 (smaller)
+// further down-left, partly overlapping chunk 1. Positioned with the
+// same plain vw/vh approach as the two main islands, as starting
+// values eyeballed off your screenshot — nudge once it's live, same
+// as everything else in this family.
+//
+// Both chunks get the SAME bob-loop + mouse-repel treatment as
+// `leftImage`/`rightImage` (own `.achievement-glitch` outer wrapper
+// for the CSS bob animation, `.achievement-glitch-inner.parallax-
+// inner` child for the JS drift — the existing script below already
+// picks these up for free, since it queries `.parallax-inner`
+// globally like every other section in this family). What's new is
+// that they're NOT always visible: per your reference (the small
+// symbols/pictures that flicker in and out as you move the cursor on
+// rossdraws.com), each chunk is normally invisible and only glitches
+// into view when the cursor is close to where it sits — moving away
+// lets it linger for a couple seconds before it hides again, rather
+// than vanishing the instant the cursor leaves, and it keeps
+// re-glitching at random intervals for as long as it lingers instead
+// of flashing once and then sitting there static. Each glitch plays a
+// quick "digital tear" flourish (a banded `clip-path` jump-cut plus a
+// brief hue-rotate flash, both using `steps()` easing so the
+// transition SNAPS between states instead of smoothly tweening) and a
+// scanline texture overlay that's only present mid-flash.
+//
+// The proximity check is a dedicated `mousemove` listener in the
+// script below (separate from the mouse-repel drift's own listener,
+// even though both read the same cursor position) — it measures the
+// distance from the cursor to each chunk's own static rest position
+// (the OUTER `.achievement-glitch` element's `getBoundingClientRect()`,
+// which doesn't move even while its inner child is actively drifting,
+// since a child's `transform` never affects its parent's layout box)
+// and toggles `.is-visible` once that distance crosses
+// `revealRadius`. The one-shot glitch-pop/glitch-scan CSS animations
+// are restarted on every reveal by removing the `.is-visible` class,
+// forcing a reflow (`void chunk.offsetWidth`), then re-adding it —
+// without the forced reflow, re-adding a class whose animation never
+// really "finished" registering as removed wouldn't reliably restart
+// the animation from frame 0 in every browser.
+//
+// `pointer-events: none` stays on `.achievement-glitch` (same as
+// every other island) since these are purely decorative and
+// `aria-hidden`, so this can't use native `:hover`/`mouseenter` —
+// those require the element to actually receive pointer events. The
+// distance-based JS check works around that without needing the
+// chunk itself to be interactive.
+//
+// Both chunks default to `z-index: 1`, same tier as `.achievement-
+// island` — this matters for the halftone spotlight in Layout.astro:
+// that element sits at `z-index: 0` specifically so everything at
+// `z-index: 1`+ paints over it, untouched by its dot-pattern blend.
+// Keeping the chunks at that same tier means they're excluded from
+// the halftone tint exactly like the other islands are, rather than
+// (accidentally) being treated as part of the background.
+//
+// Under `prefers-reduced-motion: reduce`, both chunks are shown
+// statically (no glitch animation, no scanline texture, no
+// proximity-gating) — popping in and out as the cursor moves is
+// exactly the kind of motion that setting is meant to suppress, so
+// this shows them plainly instead of just hiding them outright.
+//
+// On narrow screens (`max-width: 640px`) both chunks are hidden
+// entirely rather than repositioned — they're purely decorative
+// flourish, not core content, and there isn't a clean spot for them
+// once the layout collapses to the mobile single-column treatment.
+// Ask if you'd rather they show up (smaller, repositioned) on mobile
+// too.
+//
+// NOTE: I still don't have the actual background/chunk image files
+// for this section — this is reasoned from first principles, not
 // measured against the real files.
 //
 // Usage:
@@ -75,6 +148,8 @@
 //     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur..."
 //     leftImage="/images/left_achievement_island.svg"
 //     rightImage="/images/right_achievement_island.svg"
+//     rightChunk1Image="/images/right_achievement_island_first_front_chunk.webp"
+//     rightChunk2Image="/images/right_achievement_island_second_front_chunk.webp"
 //     backgroundImage="/images/achievement_island_background.webp"
 //   />
 
@@ -85,10 +160,22 @@ interface Props {
   text: string;
   leftImage: string;
   rightImage: string;
+  rightChunk1Image?: string;
+  rightChunk2Image?: string;
   backgroundImage: string;
 }
 
-const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Astro.props;
+const {
+  id,
+  eyebrow,
+  title,
+  text,
+  leftImage,
+  rightImage,
+  rightChunk1Image,
+  rightChunk2Image,
+  backgroundImage,
+} = Astro.props;
 ---
 
 <section
@@ -113,6 +200,22 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
       <img src={rightImage} alt="" />
     </div>
   </div>
+
+  {rightChunk1Image && (
+    <div class="achievement-glitch achievement-glitch-1" aria-hidden="true">
+      <div class="achievement-glitch-inner parallax-inner">
+        <img src={rightChunk1Image} alt="" />
+      </div>
+    </div>
+  )}
+
+  {rightChunk2Image && (
+    <div class="achievement-glitch achievement-glitch-2" aria-hidden="true">
+      <div class="achievement-glitch-inner parallax-inner">
+        <img src={rightChunk2Image} alt="" />
+      </div>
+    </div>
+  )}
 </section>
 
 <script>
@@ -181,6 +284,113 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
     }
 
     requestAnimationFrame(tick);
+  }
+
+  // Cursor-proximity reveal for the two front rock chunks (see
+  // `.achievement-glitch` in the <style> below). Each chunk is
+  // normally invisible; moving the cursor within `revealRadius` of
+  // where it sits glitches it into view, moving back out hides it
+  // again. Distance is measured against each chunk's own static rest
+  // position — the OUTER `.achievement-glitch` element's
+  // `getBoundingClientRect()`, which stays put regardless of the
+  // mouse-repel `transform` applied to its INNER `.parallax-inner`
+  // child (a transform on a child never affects its parent's layout
+  // box), so this stays accurate even while a chunk is actively
+  // drifting. This is a separate listener from the mouse-repel one
+  // above (even though both read the same cursor position) since the
+  // two do fundamentally different things with it: one eases a
+  // transform every frame, this one just checks a distance and flips
+  // a class.
+  const glitchChunks = document.querySelectorAll<HTMLElement>(".achievement-glitch");
+
+  if (glitchChunks.length) {
+    if (prefersReducedMotion) {
+      // Show plainly, no glitch/texture/proximity-gating — see the
+      // component-level comment for why this shows the chunk instead
+      // of just leaving it hidden.
+      for (const chunk of glitchChunks) {
+        chunk.classList.add("is-visible", "no-motion");
+      }
+    } else {
+      const revealRadius = 180; // px, distance from a chunk's center that reveals it
+      const hideDelay = 2500; // ms, how long a chunk lingers after the cursor leaves
+      const glitchIntervalMin = 500; // ms, shortest gap between re-glitches while visible
+      const glitchIntervalMax = 1400; // ms, longest gap between re-glitches while visible
+
+      const chunkState = Array.from(glitchChunks).map((el) => ({
+        el,
+        visible: false,
+        hideTimeout: null as ReturnType<typeof setTimeout> | null,
+        glitchTimeout: null as ReturnType<typeof setTimeout> | null,
+      }));
+
+      // Force a reflow before re-adding `.is-visible` so the one-shot
+      // `glitch-pop`/`glitch-scan` CSS animations restart from frame 0
+      // every time, rather than silently not restarting because the
+      // class never really left the "applied" state from the
+      // browser's point of view. Used both for the initial reveal and
+      // for every re-glitch while a chunk lingers on screen below.
+      function playGlitch(el: HTMLElement) {
+        el.classList.remove("is-visible");
+        void el.offsetWidth;
+        el.classList.add("is-visible");
+      }
+
+      // While a chunk is visible, keep re-triggering the glitch flash
+      // at random intervals — the initial reveal already plays one,
+      // this just keeps it looking "unstable" for as long as it
+      // lingers, instead of the animation playing once and then
+      // sitting there static for the full 2-3s hideDelay. Stops
+      // rescheduling itself the moment the chunk is hidden.
+      function scheduleGlitch(s: (typeof chunkState)[number]) {
+        const delay = glitchIntervalMin + Math.random() * (glitchIntervalMax - glitchIntervalMin);
+        s.glitchTimeout = setTimeout(() => {
+          if (s.visible) {
+            playGlitch(s.el);
+            scheduleGlitch(s);
+          }
+        }, delay);
+      }
+
+      window.addEventListener("mousemove", (e) => {
+        for (const s of chunkState) {
+          const rect = s.el.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+          const shouldShow = dist < revealRadius;
+
+          if (shouldShow) {
+            // Cursor's back in range (or never left) — cancel any
+            // pending hide so a brief dip out of range doesn't cut the
+            // lingering period short.
+            if (s.hideTimeout !== null) {
+              clearTimeout(s.hideTimeout);
+              s.hideTimeout = null;
+            }
+
+            if (!s.visible) {
+              s.visible = true;
+              playGlitch(s.el);
+              scheduleGlitch(s);
+            }
+          } else if (s.visible && s.hideTimeout === null) {
+            // Cursor just left range — don't hide immediately, let it
+            // linger for `hideDelay` first. If the cursor comes back
+            // before that fires, the branch above cancels it.
+            s.hideTimeout = setTimeout(() => {
+              s.visible = false;
+              s.hideTimeout = null;
+              if (s.glitchTimeout !== null) {
+                clearTimeout(s.glitchTimeout);
+                s.glitchTimeout = null;
+              }
+              s.el.classList.remove("is-visible");
+            }, hideDelay);
+          }
+        }
+      });
+    }
   }
 </script>
 
@@ -281,9 +491,154 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
     50% { transform: translateY(-8px); }
   }
 
+  /* Front rock chunks: same `position: absolute; z-index: 1;
+     pointer-events: none;` treatment as `.achievement-island` (see
+     the component-level comment above for why z-index 1 specifically
+     matters — it's what keeps these excluded from the halftone
+     spotlight's blend in Layout.astro, same as every other island).
+     `opacity: 0` by default — JS toggles `.is-visible` on/off based
+     on cursor proximity per chunk (see the <script> above); nothing
+     here shows them permanently. The bob animation still runs continuously
+     underneath regardless of visibility, so a chunk is never caught
+     mid-drift when it pops back in. */
+  .achievement-glitch {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .achievement-glitch-inner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Chunk 1 (bigger, closer to the temple): tucked just under-left of
+     the temple island's base. Eyeballed off your reference screenshot
+     — nudge once it's live. */
+  .achievement-glitch-1 {
+    top: 70vh;
+    right: 24vw;
+    width: clamp(140px, 20vw, 300px);
+    animation: bob-chunk-1 6.2s ease-in-out infinite;
+  }
+
+  /* Chunk 2 (smaller, further down-left): sits lower and further left
+     than chunk 1, partly below it, like it broke off and drifted
+     further from the main island. */
+  .achievement-glitch-2 {
+    top: 81vh;
+    right: 34vw;
+    width: clamp(110px, 17vw, 260px);
+    animation: bob-chunk-2 7s ease-in-out infinite;
+  }
+
+  @keyframes bob-chunk-1 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-9px); }
+  }
+
+  @keyframes bob-chunk-2 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+  }
+
+  /* One-shot "digital tear" that plays whenever `.is-visible` is
+     freshly (re)applied by the script above: `animation-fill-mode:
+     both` holds the opacity-0 -> 1 handoff cleanly at both ends (no
+     flash of the un-animated state before frame 0, no snap-back after
+     the last frame), and `steps(1, jump-end)` makes the browser HOLD
+     each keyframe's values for its whole segment and then jump
+     straight to the next, rather than smoothly tweening `clip-path`/
+     `filter` between them — that abrupt jump-cut is what actually
+     reads as "glitchy" instead of "fading in oddly." */
+  .achievement-glitch.is-visible {
+    opacity: 1;
+    animation: glitch-pop 0.45s steps(1, jump-end) both;
+  }
+
+  @keyframes glitch-pop {
+    0% { clip-path: none; filter: none; }
+    12% { clip-path: inset(8% 0 46% 0); filter: hue-rotate(25deg) saturate(2.2); }
+    24% { clip-path: inset(58% 0 4% 0); filter: hue-rotate(-20deg) saturate(1.6); }
+    38% { clip-path: inset(0 18% 0 0); filter: none; }
+    52% { clip-path: inset(32% 0 28% 0); filter: hue-rotate(12deg); }
+    68% { clip-path: inset(0 0 0 10%); filter: none; }
+    84% { clip-path: inset(4% 0 4% 0); filter: hue-rotate(-8deg); }
+    /* `none` here, not `inset(0 0 0 0)` — the two look identical while
+       the chunk is sitting still, but `inset(0 0 0 0)` still
+       establishes a real clip region exactly at this element's own
+       box. `animation-fill-mode: both` locks whatever this 100%
+       keyframe says for as long as `.is-visible` stays applied (most
+       of the 1.4-2.8s a chunk is on screen) — with an actual inset
+       value there, that lingering clip region was cropping the inner
+       image the moment the mouse-repel drift (a `transform` on the
+       CHILD `.achievement-glitch-inner`) pushed it visually past this
+       element's own edges, which is exactly the "looks like it's
+       trapped in a box" cut-off. `none` removes the clip region
+       entirely instead of just visually matching "no clip" at rest,
+       so the drifting image is free to render past this box's edges
+       same as every other island's does. */
+    100% { clip-path: none; filter: none; }
+  }
+
+  /* Scanline/static texture — plain CSS, no image asset. Only present
+     while a chunk is visible (`.is-visible::after`), faded in via its
+     own one-shot `glitch-scan` animation on the same `steps()` snap
+     timing as `glitch-pop`, so the texture itself flickers in rather
+     than smoothly fading over the image. `mix-blend-mode: overlay`
+     lets it read as a texture ON the chunk rather than a flat
+     translucent sheet sitting on top of it. */
+  .achievement-glitch::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.4) 0px,
+      rgba(255, 255, 255, 0.4) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .achievement-glitch.is-visible::after {
+    animation: glitch-scan 0.45s steps(1, jump-end) both;
+  }
+
+  @keyframes glitch-scan {
+    0% { opacity: 0; }
+    12% { opacity: 0.9; }
+    24% { opacity: 0.2; }
+    38% { opacity: 0.8; }
+    52% { opacity: 0.3; }
+    68% { opacity: 0.7; }
+    100% { opacity: 0.45; }
+  }
+
+  /* Reduced motion: shown plainly, no flicker/glitch/texture — see
+     the component-level comment above for why this shows the chunk
+     rather than hiding it outright. The `.no-motion` class is only
+     ever added by the script above, and only when
+     `prefers-reduced-motion: reduce` is set, so this rule can't
+     accidentally fire for anyone else. */
+  .achievement-glitch.no-motion {
+    animation: none;
+  }
+
+  .achievement-glitch.no-motion::after {
+    display: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .achievement-island-left,
-    .achievement-island-right {
+    .achievement-island-right,
+    .achievement-glitch-1,
+    .achievement-glitch-2 {
       animation: none;
     }
   }
@@ -317,6 +672,14 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
     .achievement-island-right {
       right: -6vw;
       top: 0vh;
+    }
+
+    /* Hidden on mobile — see the component-level comment above for
+       why (purely decorative flourish, no clean spot for them once
+       the layout collapses to single-column). */
+    .achievement-glitch-1,
+    .achievement-glitch-2 {
+      display: none;
     }
   }
 </style>
