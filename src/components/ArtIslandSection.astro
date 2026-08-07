@@ -64,6 +64,77 @@
 // color instead of just a close match — see the shared comment in
 // Layout.astro for how the two half-fades work together.
 //
+// New: optional `topImageLoading` / `bottomImageLoading` props — your
+// left_top_art_island_loading.webp and bottom_right_art_island_loading.webp,
+// red-lined triangulated wireframe / low-poly mesh versions of each
+// island's artwork. The first time EITHER island scrolls into view,
+// that island (independently of the other) plays a one-time two-phase
+// "materialize" animation instead of just appearing:
+//
+//   1. Materialize (~1.2s): the wireframe sweeps into view bottom-to-
+//      top via an animated `clip-path`, with a red glow
+//      (`filter: drop-shadow(...)`) pulsing in and back out — meant to
+//      read as the low-poly mesh "constructing itself" on screen,
+//      matching the wireframe look in the reference image you sent.
+//   2. Deconstruct (~0.9s): the wireframe retreats using the exact
+//      same clip-path sweep + red-glow beats as step 1, just played
+//      backwards, while the final artwork fades in underneath — reads
+//      as the mesh resolving into the real image, mirroring how it
+//      first constructed itself.
+//
+// Each prop is independent — pass one, both, or neither. Whichever
+// island(s) get a `...Loading` image go through the reveal; an island
+// without one just renders its final image plainly, like before.
+//
+// Implemented as two stacked images inside an `.art-island-reveal`
+// wrapper (same nested-stack technique as `.intro-cloud-inner`/
+// `.cloud-smile` in IntroIslandSection.astro, `.achievement-glitch-
+// swap` in AchievementIslandSection.astro, etc.) — the final image
+// sits in normal flow at `opacity: 0` until phase 2, the loading image
+// is absolutely positioned on top of it and animates through phase 1.
+// This wrapper only exists in the markup for an island whose
+// `...Loading` prop is actually passed; without it, that island's
+// image renders exactly as before (no wrapper, no reveal behavior,
+// immediate normal display). Both islands share the exact same
+// `.art-island-reveal*` class names and `@keyframes` — there's nothing
+// image-specific about the animation itself, so nothing needs
+// duplicating per island.
+//
+// Triggering is a one-shot `IntersectionObserver` per `.art-island-
+// reveal` element in the script below (not a scroll listener) — since
+// there can now be up to two of these on the page (top and bottom),
+// the script queries all of them and sets up an independent observer
+// for each, so the top island materializing doesn't have any bearing
+// on when (or whether) the bottom one does, and vice versa.
+// `observer.disconnect()` right after each element's first
+// intersection means it can only ever play once per page load, per
+// your request ("the first time it comes into view"). It only touches
+// `opacity`/`clip-path`/`filter` on that reveal wrapper's own
+// children, so it doesn't interact with (or get overridden by) the
+// bob loop or mouse-repel drift already applied higher up on
+// `.art-island-top`/`.art-island-bottom`/`.art-island-inner` — those
+// keep running throughout, on separate elements, same reasoning as
+// CornerIsland.astro's split.
+//
+// Once an island's entrance sequence has fully played out, hovering
+// over it replays the same wireframe sweep on demand: the mesh sweeps
+// back in for as long as the cursor is over the island's artwork, and
+// sweeps back out the moment it leaves — same `materialize`/
+// `dematerialize` keyframes as the entrance, just retriggered
+// indefinitely by the cursor instead of a one-shot timer. Detection is
+// a point-in-rect check against a shared mousemove position (same
+// proximity-watcher approach as AchievementIslandSection.astro's
+// glitch effects) rather than real `:hover`/`mouseenter`, because
+// these islands are `pointer-events: none` — decorative background
+// art, not meant to intercept clicks — so native hover events never
+// fire on them.
+//
+// Under `prefers-reduced-motion: reduce`, the whole sequence — entrance
+// AND hover — is skipped: each reveal's final image is forced to
+// `opacity: 1` and its loading image to `display: none`
+// unconditionally in CSS, so the final artwork just shows immediately
+// and stays put.
+//
 // NOTE: I don't have the actual background image file yet — this is
 // built off a placeholder path.
 //
@@ -74,7 +145,9 @@
 //     title="Lorem Ipsum Dolor"
 //     text="Lorem ipsum dolor sit amet..."
 //     topImage="/images/left_top_art_island.svg"
+//     topImageLoading="/images/left_top_art_island_loading.webp"
 //     bottomImage="/images/right_bottom_art_island.svg"
+//     bottomImageLoading="/images/bottom_right_art_island_loading.webp"
 //     backgroundImage="/images/art_island_background.webp"
 //   />
 
@@ -84,11 +157,23 @@ interface Props {
   title: string;
   text: string;
   topImage: string;
+  topImageLoading?: string;
   bottomImage: string;
+  bottomImageLoading?: string;
   backgroundImage: string;
 }
 
-const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Astro.props;
+const {
+  id,
+  eyebrow,
+  title,
+  text,
+  topImage,
+  topImageLoading,
+  bottomImage,
+  bottomImageLoading,
+  backgroundImage,
+} = Astro.props;
 ---
 
 <section
@@ -98,7 +183,14 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
 >
   <div class="art-island art-island-top" aria-hidden="true">
     <div class="art-island-inner parallax-inner">
-      <img src={topImage} alt="" />
+      {topImageLoading ? (
+        <div class="art-island-reveal">
+          <img class="art-island-reveal-final" src={topImage} alt="" />
+          <img class="art-island-reveal-loading" src={topImageLoading} alt="" />
+        </div>
+      ) : (
+        <img src={topImage} alt="" />
+      )}
     </div>
   </div>
 
@@ -110,7 +202,14 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
 
   <div class="art-island art-island-bottom" aria-hidden="true">
     <div class="art-island-inner parallax-inner">
-      <img src={bottomImage} alt="" />
+      {bottomImageLoading ? (
+        <div class="art-island-reveal">
+          <img class="art-island-reveal-final" src={bottomImage} alt="" />
+          <img class="art-island-reveal-loading" src={bottomImageLoading} alt="" />
+        </div>
+      ) : (
+        <img src={bottomImage} alt="" />
+      )}
     </div>
   </div>
 </section>
@@ -186,6 +285,128 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
     }
 
     requestAnimationFrame(tick);
+  }
+
+  // Wireframe <-> final-artwork reveal for either island's optional
+  // loading image (see `.art-island-reveal` in the <style> below).
+  // There can be up to two `.art-island-reveal` elements now (top
+  // island, bottom island, depending on which `...Loading` props were
+  // passed in) — everything below operates per-element via a loop, so
+  // the two islands are fully independent of each other.
+  //
+  // Two distinct triggers share the same underlying animation classes
+  // (`is-materializing` / `is-dematerializing`, see the <style>
+  // below):
+  //
+  //   1. Entrance (`watchEntrance`): one-time, timer-driven, fires the
+  //      first time the island scrolls into view. Plays materialize,
+  //      waits for it to finish, then plays dematerialize while
+  //      permanently marking the final artwork visible (`is-revealed`)
+  //      — this is the original "loading -> real image" reveal.
+  //   2. Hover (`watchHoverReveal`): repeatable, cursor-driven, starts
+  //      only once the entrance sequence above has fully settled.
+  //      Materialize plays for as long as the cursor is over the
+  //      island's artwork; the moment it leaves, dematerialize plays.
+  //      Since `is-revealed` is already permanently set by this point,
+  //      the final artwork never actually disappears underneath — the
+  //      wireframe is just sweeping in and out on top of it.
+  //
+  // Detection for the hover watcher is a point-in-rect check against a
+  // shared mousemove position, not real `:hover`/`mouseenter` —
+  // `.art-island` is `pointer-events: none` (this is decorative
+  // background art, not meant to intercept clicks), so native hover
+  // events never fire on it. Same proximity-watcher approach as
+  // AchievementIslandSection.astro's glitch effects.
+  const reveals = document.querySelectorAll<HTMLElement>(".art-island-reveal");
+
+  if (reveals.length && !prefersReducedMotion) {
+    const materializeDuration = 1200; // ms — keep in sync with the `materialize` animation's duration in the <style> below
+    const dematerializeDuration = 900; // ms — keep in sync with the `dematerialize` animation's duration in the <style> below
+
+    let hoverX = -Infinity;
+    let hoverY = -Infinity;
+    window.addEventListener("mousemove", (e) => {
+      hoverX = e.clientX;
+      hoverY = e.clientY;
+    });
+
+    function playMaterialize(reveal: HTMLElement) {
+      reveal.classList.remove("is-dematerializing");
+      reveal.classList.add("is-materializing");
+    }
+
+    function playDematerialize(reveal: HTMLElement) {
+      reveal.classList.remove("is-materializing");
+      reveal.classList.add("is-dematerializing");
+    }
+
+    function watchEntrance(reveal: HTMLElement, onSettled: () => void) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+
+            playMaterialize(reveal);
+            // Phase 2 starts once phase 1's animation has actually
+            // finished playing, not before — a plain `setTimeout`
+            // matching the animation's own duration is simpler and
+            // more robust here than juggling `animationend` across
+            // the multiple properties phase 1 animates.
+            setTimeout(() => {
+              // `is-revealed` is permanent from here on — the final
+              // artwork stays at opacity 1 forever after, regardless
+              // of whatever the wireframe does next (including every
+              // future hover cycle).
+              reveal.classList.add("is-revealed");
+              playDematerialize(reveal);
+
+              setTimeout(() => {
+                // Entrance is fully done. `onSettled` hands control
+                // over to the hover watcher below — nothing here
+                // leaves the loading image `display: none`d anymore
+                // (it used to), since hovering needs to keep reusing
+                // it indefinitely.
+                onSettled();
+              }, dematerializeDuration);
+            }, materializeDuration);
+
+            observer.disconnect();
+          }
+        },
+        { threshold: 0.2 }
+      );
+
+      observer.observe(reveal);
+    }
+
+    function watchHoverReveal(reveal: HTMLElement) {
+      let hovering = false;
+
+      function poll() {
+        const rect = reveal.getBoundingClientRect();
+        const isOver =
+          hoverX >= rect.left &&
+          hoverX <= rect.right &&
+          hoverY >= rect.top &&
+          hoverY <= rect.bottom;
+
+        if (isOver && !hovering) {
+          hovering = true;
+          playMaterialize(reveal);
+        } else if (!isOver && hovering) {
+          hovering = false;
+          playDematerialize(reveal);
+        }
+
+        requestAnimationFrame(poll);
+      }
+
+      requestAnimationFrame(poll);
+    }
+
+    reveals.forEach((reveal) => {
+      watchEntrance(reveal, () => watchHoverReveal(reveal));
+    });
   }
 </script>
 
@@ -284,10 +505,174 @@ const { id, eyebrow, title, text, topImage, bottomImage, backgroundImage } = Ast
     50% { transform: translateY(-8px); }
   }
 
+  /* Either island's wireframe -> final artwork reveal (shared rules —
+     nothing here is specific to the top or bottom island, so one set
+     of classes/keyframes covers up to two `.art-island-reveal`
+     elements on the page). `position: relative` so the absolutely
+     positioned loading image stacks directly on top of the
+     (normal-flow) final one — same technique as every other "two
+     images, one wrapper" case in this codebase. */
+  .art-island-reveal {
+    position: relative;
+  }
+
+  .art-island-reveal-final,
+  .art-island-reveal-loading {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Starting state, before the IntersectionObserver in the <script>
+     above ever fires: final artwork invisible, wireframe invisible AND
+     fully clipped away (nothing has "constructed" yet). */
+  .art-island-reveal-final {
+    opacity: 0;
+  }
+
+  .art-island-reveal-loading {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    clip-path: inset(100% 0 0 0);
+  }
+
+  /* `is-materializing`: the wireframe sweeps up into view (`clip-path`
+     animating from fully clipped to fully revealed, bottom edge first)
+     with a red glow pulsing in and back out via `filter: drop-shadow`
+     — meant to read as the low-poly mesh visibly constructing itself,
+     matching the wireframe reference image. `animation-fill-mode:
+     forwards` (the trailing keyword in the shorthand) holds the
+     animation's final frame (fully visible, unclipped, no glow) once
+     it finishes, rather than snapping back to the 0% state.
+     Retriggerable — this plays both for the one-time entrance sequence
+     AND every time the cursor moves over the island during hover (see
+     the <script> above). */
+  .art-island-reveal.is-materializing .art-island-reveal-loading {
+    animation: materialize 1.2s cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+  }
+
+  @keyframes materialize {
+    0% {
+      opacity: 0;
+      clip-path: inset(100% 0 0 0);
+      filter: drop-shadow(0 0 0 rgba(255, 60, 60, 0));
+    }
+    15% {
+      opacity: 1;
+      clip-path: inset(85% 0 0 0);
+      filter: drop-shadow(0 0 14px rgba(255, 60, 60, 0.55));
+    }
+    45% {
+      clip-path: inset(50% 0 0 0);
+      filter: drop-shadow(0 0 6px rgba(255, 60, 60, 0.3));
+    }
+    65% {
+      clip-path: inset(22% 0 0 0);
+      filter: drop-shadow(0 0 16px rgba(255, 60, 60, 0.6));
+    }
+    85% {
+      clip-path: inset(0 0 0 0);
+      filter: drop-shadow(0 0 5px rgba(255, 60, 60, 0.3));
+    }
+    100% {
+      opacity: 1;
+      clip-path: inset(0 0 0 0);
+      filter: drop-shadow(0 0 0 rgba(255, 60, 60, 0));
+    }
+  }
+
+  /* `is-revealed` is a PERMANENT flag, added once during the entrance
+     sequence and never removed — the final artwork fades in and then
+     stays at opacity 1 forever after, regardless of whatever the
+     wireframe does next (including every future hover cycle). It's
+     deliberately separate from the animation-triggering classes below
+     it, so re-triggering the wireframe animation on hover doesn't also
+     re-run this fade or touch the final artwork's visibility at all. */
+  .art-island-reveal.is-revealed .art-island-reveal-final {
+    opacity: 1;
+    transition: opacity 0.9s ease;
+  }
+
+  /* `is-dematerializing`: the wireframe retreats in the same style it
+     materialized in, rather than a plain fade — `dematerialize` below
+     is `materialize` with every waypoint mirrored in time, so the
+     clip-path sweep retreats back the way it grew and the red glow
+     pulses through the same beats in reverse. Retriggerable — this
+     plays both at the end of the one-time entrance sequence AND every
+     time the cursor leaves the island during hover (see the <script>
+     above).
+
+     This is a SEPARATE `@keyframes` from `materialize` rather than the
+     same one played with `animation-direction: reverse` — that was the
+     first attempt, and it had a real bug: per the CSS Animations spec,
+     changing an element's `animation` properties while `animation-name`
+     stays the same is treated as updating the SAME animation instance
+     in place, not starting a fresh one — and it carries over the
+     elapsed time. Since materialize (1.2s) and the reverse attempt
+     (0.9s, shorter) shared a name, the "animation" was already past its
+     own end the instant it applied, jumping straight to its held end
+     frame with no visible playback. A distinctly-named animation
+     sidesteps that carryover entirely — the browser has no reason to
+     treat it as a continuation of anything, so it always starts fresh
+     at its own 0%. This matters even more now that both animations get
+     retriggered repeatedly on hover, not just once.
+     `fill-mode: forwards` holds the animation's 100% frame once it
+     finishes — fully clipped, invisible, no glow — which happens to
+     already match the wrapper's unanimated resting styles, so nothing
+     snaps or jumps once it finishes (whether that's the one-time
+     entrance settling, or the cursor moving away after a hover). */
+  .art-island-reveal.is-dematerializing .art-island-reveal-loading {
+    animation: dematerialize 0.9s cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+  }
+
+  @keyframes dematerialize {
+    0% {
+      opacity: 1;
+      clip-path: inset(0 0 0 0);
+      filter: drop-shadow(0 0 0 rgba(255, 60, 60, 0));
+    }
+    15% {
+      clip-path: inset(0 0 0 0);
+      filter: drop-shadow(0 0 5px rgba(255, 60, 60, 0.3));
+    }
+    35% {
+      clip-path: inset(22% 0 0 0);
+      filter: drop-shadow(0 0 16px rgba(255, 60, 60, 0.6));
+    }
+    55% {
+      clip-path: inset(50% 0 0 0);
+      filter: drop-shadow(0 0 6px rgba(255, 60, 60, 0.3));
+    }
+    85% {
+      opacity: 1;
+      clip-path: inset(85% 0 0 0);
+      filter: drop-shadow(0 0 14px rgba(255, 60, 60, 0.55));
+    }
+    100% {
+      opacity: 0;
+      clip-path: inset(100% 0 0 0);
+      filter: drop-shadow(0 0 0 rgba(255, 60, 60, 0));
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .art-island-top,
     .art-island-bottom {
       animation: none;
+    }
+
+    /* Skip the whole materialize/settle sequence — show the final
+       artwork immediately and hide the wireframe outright, regardless
+       of whether the IntersectionObserver in the <script> above even
+       runs (it doesn't, under this same media condition, but this
+       covers it unconditionally either way). */
+    .art-island-reveal-final {
+      opacity: 1;
+    }
+
+    .art-island-reveal-loading {
+      display: none;
     }
   }
 
