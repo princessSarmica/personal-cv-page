@@ -55,36 +55,52 @@ const { title = "My CV" } = Astro.props;
     color-scheme: light;
 
     /* Shared boundary colors for the page-wide sky -> sunset -> dusk
-       backdrop across ArtIslandSection -> ComputerIslandSection ->
-       EducationIslandSection -> AchievementIslandSection.
-       Each section's gradient reuses the SAME variable at a shared
-       edge (e.g. --sky-1 is both Art's bottom and Computer's top), so
-       adjacent sections are guaranteed to meet at the exact same
-       color — not just a close visual match — with zero risk of the
-       two ever drifting apart the way hand-picked hex values in two
-       different files could.
-       --dusk-blue is AchievementIslandSection's bottom color, which
-       now needs to match BonusIslandSection's top (BonusIslandSection
-       sits between Achievement and the closing OtherIslandSection).
-       This used to be an eyeballed guess off a screenshot; now that
-       you've uploaded the actual bonus_island_background.png, it's
-       been updated to the real sampled top-row color of that image
-       (#0cd4ee) instead. */
-    --sky-0: #dcf3fc; /* page top: ArtIslandSection top */
-    --sky-1: #3a6ef5; /* Art bottom / Computer top seam-blend target — set to rgb(58, 110, 245) per your request */
-    --sky-2: #14e5fb; /* Computer bottom / Education top seam-blend target — set to rgb(20, 229, 251) per your request */
-    --sky-3: #1dedfa; /* Education bottom / Achievement top seam-blend target — set to rgb(29, 237, 250) per your request */
-    --dusk-blue: #00d4f4; /* Achievement bottom / Bonus top seam-blend target — set to rgb(0, 212, 244) per your request */
-    --sky-4: #04c9d1; /* Bonus bottom / Other top seam-blend target — set to rgb(4, 201, 209) per your request */
+       backdrop across the whole `.sky-chain` run. Each section's
+       gradient reuses the SAME variable at a shared edge, so adjacent
+       sections are guaranteed to meet at the exact same color — not
+       just a close visual match — with zero risk of the two ever
+       drifting apart the way hand-picked hex values in two different
+       files could.
 
-    /* IntroIslandSection bottom / ArtIslandSection top seam-blend
-       target — the newest link in the chain, added ahead of
-       everything above (Intro is now the very first section on the
-       page, sitting before Art). Set to rgb(0, 191, 237) per your
-       request. Named descriptively rather than continuing the
-       `--sky-N` numbering, same reasoning as `--dusk-blue`: it sits
-       outside that sequential run rather than as its next member. */
-    --intro-seam: #00bfed;
+       Current page order (after you moved EducationIslandSection to
+       sit right after IntroIslandSection, ahead of Art/Computer) is:
+       Intro -> Education -> Art -> Computer -> Achievement -> Bonus ->
+       Other. The variable NAMES below still reflect the ORIGINAL order
+       they were introduced in (e.g. `--sky-2` was first picked to
+       match Computer/Education, back when that was their pairing) —
+       reordering the sections didn't rename these, it just changed
+       WHICH pair of `--seam-target-top`/`--seam-target-bottom`
+       declarations (in each section's own file) reference which
+       variable, same way you'd move furniture around a room without
+       repainting it. See each section's own top-of-file comment for
+       which variable it currently uses on which edge — that's the
+       up-to-date source of truth for the CURRENT chain order; the
+       list below just documents what each variable's color value is
+       and where it originally came from.
+
+       --dusk-blue is AchievementIslandSection's bottom color, which
+       matches BonusIslandSection's top (BonusIslandSection sits
+       between Achievement and the closing OtherIslandSection). This
+       used to be an eyeballed guess off a screenshot; once you
+       uploaded the actual bonus_island_background.png, it was updated
+       to the real sampled top-row color of that image (#0cd4ee)
+       instead. */
+    --sky-0: #dcf3fc; /* unused placeholder from before IntroIslandSection existed — kept only so removing it doesn't need to be a separate cleanup pass */
+    --sky-1: #3a6ef5; /* Art bottom / Computer top seam-blend target — set to rgb(58, 110, 245) per your request; this pairing is unchanged by the reorder */
+    --sky-2: #14e5fb; /* Computer bottom / Achievement top seam-blend target — set to rgb(20, 229, 251) per your request; originally Computer bottom / Education top, reassigned to Computer bottom / Achievement top now that Education no longer sits between them */
+    --sky-3: #00CDF2; /* Education bottom / Art top seam-blend target — set to rgb(29, 237, 250) per your request; originally Education bottom / Achievement top, reassigned to Education bottom / Art top now that Art sits right after Education instead */
+    --dusk-blue: #00d4f4; /* Achievement bottom / Bonus top seam-blend target — set to rgb(0, 212, 244) per your request; this pairing is unchanged by the reorder */
+    --sky-4: #04c9d1; /* Bonus bottom / Other top seam-blend target — set to rgb(4, 201, 209) per your request; this pairing is unchanged by the reorder */
+
+    /* Now IntroIslandSection bottom / EducationIslandSection top
+       seam-blend target — originally Intro bottom / Art top, back
+       when Art was the section directly after Intro. Reassigned to
+       Intro bottom / Education top now that Education sits there
+       instead. Set to rgb(0, 221, 249) per your request. Named
+       descriptively rather than continuing the `--sky-N` numbering,
+       same reasoning as `--dusk-blue`: it sits outside that sequential
+       run rather than as its next member. */
+    --intro-seam: #00DDF9;
 
     /* --sunset-mid / --sunset-deep are no longer used — they backed
        AchievementIslandSection's old 4-stop gradient, which is now a

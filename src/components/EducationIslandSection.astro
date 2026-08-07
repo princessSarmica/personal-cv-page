@@ -29,16 +29,25 @@
 // one that has to match AchievementIslandSection's top — from ever
 // being cropped; `cover` is free to crop the top and the sides.
 //
-// Carries `seam-fade-top` (blending into var(--sky-2)) against
-// ComputerIslandSection's bottom — that seam has zero real edge
-// protection on either side (both sections protect their OTHER
-// edge), so the fade masks whatever mismatch shows up there.
+// Carries `seam-fade-top` (blending into var(--intro-seam)) against
+// IntroIslandSection's bottom — updated after you moved this section
+// to sit right after Intro instead of after Computer. This used to
+// target var(--sky-2) (matching ComputerIslandSection's bottom, back
+// when Computer was this section's neighbor); with the new order that
+// pairing no longer exists, so the two sides disagreed on a color and
+// the seam showed as a hard line instead of a blend. Retargeting to
+// var(--intro-seam) matches what's now actually above this section
+// (the same variable IntroIslandSection's own seam-fade-bottom uses).
 //
 // Also carries `seam-fade-bottom` (blending into var(--sky-3)) against
-// AchievementIslandSection's top. This seam looked right on the
-// screens tested earlier, but turned out to still break on some wide/
-// short viewports too — same class of issue as the others, just not
-// caught until later. Same fix applied here for consistency.
+// ArtIslandSection's top — unchanged variable, but now blending
+// against a DIFFERENT section than before (Art used to sit right after
+// Intro; now it sits right after Education instead). Confirmed via
+// sampling the actual rendered screenshot that var(--sky-3) is still a
+// solid match for this new pairing — very close to both Education's
+// real bottom-edge color and Art's real top-edge color — so no change
+// was needed here; only the top side broke. ArtIslandSection's own
+// `--seam-target-top` was updated to match (see the comment there).
 //
 // Positioning: `.education-island-stack`'s `top`/`right` use the
 // clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
@@ -216,10 +225,11 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
     background-repeat: no-repeat;
     /* Seam-blend targets (see the shared comment in Layout.astro) —
        one variable per edge since this section needs two different
-       colors. Top softens into var(--sky-2) (ComputerIslandSection's
-       bottom); bottom softens into var(--sky-3)
-       (AchievementIslandSection's top). */
-    --seam-target-top: var(--sky-2);
+       colors. Top softens into var(--intro-seam) (IntroIslandSection's
+       bottom, now that this section sits right after Intro); bottom
+       softens into var(--sky-3) (ArtIslandSection's top, now that Art
+       sits right after this section instead of Achievement). */
+    --seam-target-top: var(--intro-seam);
     --seam-target-bottom: var(--sky-3);
   }
 

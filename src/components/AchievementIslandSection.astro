@@ -38,9 +38,11 @@
 // edges cropped as needed to make that happen.
 //
 // `background-position: top` protects the true top edge — the one
-// that has to match EducationIslandSection's bottom — from ever being
-// cropped. The bottom edge (against BonusIslandSection) is the
-// lower-priority side here.
+// that has to match ComputerIslandSection's bottom, now that
+// EducationIslandSection has moved earlier in the page (it used to sit
+// directly before this section; ComputerIslandSection does now) —
+// from ever being cropped. The bottom edge (against BonusIslandSection)
+// is the lower-priority side here.
 //
 // Carries `seam-fade-bottom` (blending into var(--dusk-blue)) against
 // BonusIslandSection's top. Pixel-sampling your screenshots showed
@@ -49,10 +51,14 @@
 // deliberate mask rather than a precision fix (see the shared comment
 // in Layout.astro).
 //
-// Also carries `seam-fade-top` (blending into var(--sky-3)) against
-// EducationIslandSection's bottom. That transition looked fine on the
-// screens tested earlier, but broke too on some wide/short viewports
-// — same fade treatment applied here now for consistency.
+// Also carries `seam-fade-top` (blending into var(--sky-2)) against
+// ComputerIslandSection's bottom — retargeted from var(--sky-3)
+// (EducationIslandSection's old bottom-seam variable) now that
+// ComputerIslandSection is this section's actual neighbor.
+// var(--sky-2) is the same variable ComputerIslandSection's own
+// `--seam-target-bottom` already uses (unchanged there, since Art
+// still sits directly before Computer either way), so the two fades
+// meet at an identical color again.
 //
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
@@ -524,10 +530,10 @@ const {
     background-repeat: no-repeat;
     /* Seam-blend targets (see the shared comment in Layout.astro) —
        one variable per edge since this section needs two different
-       colors. Top softens into var(--sky-3)
-       (EducationIslandSection's bottom); bottom softens into
-       var(--dusk-blue) (BonusIslandSection's top). */
-    --seam-target-top: var(--sky-3);
+       colors. Top softens into var(--sky-2) (ComputerIslandSection's
+       bottom, now that Education no longer sits between them); bottom
+       softens into var(--dusk-blue) (BonusIslandSection's top). */
+    --seam-target-top: var(--sky-2);
     --seam-target-bottom: var(--dusk-blue);
   }
 

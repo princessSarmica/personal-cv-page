@@ -54,15 +54,20 @@
 // `background-position: bottom` protects the true bottom edge — the
 // one that has to match ComputerIslandSection's top.
 //
-// Carries `.sky-chain` on both sides now: `.seam-fade-bottom` (against
-// ComputerIslandSection's top, unchanged) AND `.seam-fade-top`
-// (against IntroIslandSection's bottom, new — this used to be the
-// first section on the page with nothing above it to blend into, but
-// IntroIslandSection now sits before it). `--seam-target-top` is set
-// to the same `--intro-seam` variable IntroIslandSection uses for its
-// own `--seam-target-bottom`, so the two fades meet at an identical
-// color instead of just a close match — see the shared comment in
-// Layout.astro for how the two half-fades work together.
+// Carries `.sky-chain` on both sides: `.seam-fade-bottom` (against
+// ComputerIslandSection's top, unchanged) AND `.seam-fade-top` (against
+// EducationIslandSection's bottom — updated after you moved
+// EducationIslandSection to sit right before this one instead of
+// IntroIslandSection). `--seam-target-top` used to be set to the same
+// `--intro-seam` variable IntroIslandSection's own `--seam-target-
+// bottom` uses, back when Art was the section directly after Intro;
+// with EducationIslandSection now sitting between them, that pairing
+// broke (confirmed by sampling the actual rendered screenshot — a hard
+// color jump right at this seam) and has been retargeted to
+// var(--sky-3), the same variable EducationIslandSection's own
+// `--seam-target-bottom` uses, so the two fades meet at an identical
+// color again — see the shared comment in Layout.astro for how the two
+// half-fades work together.
 //
 // New: optional `topImageLoading` / `bottomImageLoading` props — your
 // left_top_art_island_loading.webp and bottom_right_art_island_loading.webp,
@@ -427,11 +432,11 @@ const {
     background-repeat: no-repeat;
     /* Seam-blend targets (see the shared comment in Layout.astro):
        bottom softens into var(--sky-1) against ComputerIslandSection's
-       top; top softens into var(--intro-seam) against
-       IntroIslandSection's bottom — both regardless of what this
+       top; top softens into var(--sky-3) against
+       EducationIslandSection's bottom — both regardless of what this
        section's own background image shows right at those edges. */
     --seam-target-bottom: var(--sky-1);
-    --seam-target-top: var(--intro-seam);
+    --seam-target-top: var(--sky-3);
   }
 
   .content {
