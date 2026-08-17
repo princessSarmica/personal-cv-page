@@ -150,6 +150,41 @@
 // component (stacking, independent drift, bob, sizing) stays exactly
 // as it was.
 //
+// v7 — added an optional `backIslandFrozenImage` layer that overlays
+// the back island and periodically "reveals" itself (spreads out from
+// its own center, holds for a few seconds, then withdraws back to the
+// center the same way) at random intervals, fully hands-off once it's
+// on the page. Three implementation notes:
+//
+//   1. Alignment: this overlay lives INSIDE the back island's own
+//      `.hobby-layer-drift` wrapper (not a sibling slot like Joy-Con/
+//      front island), stacked directly on top of `backIslandImage`
+//      with `position: absolute; inset: 0`. That means it moves and
+//      bobs together with the back island as one piece (correct — it's
+//      frost ON the island, not a separate floating object), and it
+//      only lines up correctly if it's exported at the exact same
+//      canvas size as the rest (see v6) — confirmed your upload is
+//      3840x2160, matching.
+//
+//   2. The "spreads out from the center, holds, withdraws" motion is a
+//      `clip-path: circle()` reveal, not a scale/opacity transform —
+//      animating the circle's radius from 0% to comfortably past the
+//      image's farthest corner (150%, overshooting on purpose so the
+//      exact aspect ratio doesn't matter) and back reads as the frost
+//      actually spreading across the existing artwork, rather than the
+//      whole overlay image growing/fading in place.
+//
+//   3. "From time to time (randomly)" is handled entirely in the
+//      script below with `setTimeout` + `Math.random()` — no fixed
+//      loop/interval, so appearances don't fall into a predictable
+//      rhythm. Each cycle: wait a random 8-22s, play the ~6.5s reveal-
+//      hold-withdraw animation once, then pick a new random wait and
+//      repeat, forever, starting from when the page loads. Skipped
+//      entirely under `prefers-reduced-motion: reduce`, consistent
+//      with how the bob/drift are already handled elsewhere in this
+//      file. Omit the prop and nothing changes — no overlay element is
+//      even rendered.
+//
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
 // element from Layout.astro) — same as every other section in the
@@ -169,6 +204,7 @@
 //     joyconImage="/personal-cv-page/images/joycon.webp"
 //     frontIslandImage="/personal-cv-page/images/hobby_front_island.webp"
 //     backgroundImage="/personal-cv-page/images/hobby_island_background.webp"
+//     backIslandFrozenImage="/personal-cv-page/images/hobby_back_island_frozen.webp"
 //     canvasWidth={3840}
 //     canvasHeight={2160}
 //   />
@@ -182,6 +218,11 @@ interface Props {
   joyconImage?: string;
   frontIslandImage: string;
   backgroundImage: string;
+  /** Optional overlay that periodically reveals itself on top of the
+   *  back island (see the v7 comment above). Must be exported at the
+   *  same canvas size as the other layers to line up. Omit it and no
+   *  overlay element is rendered at all. */
+  backIslandFrozenImage?: string;
   /** Your CSP document's canvas size in px — every layer export must
    *  share this exact size (see the v6 comment above). Defaults to
    *  3840x2160; override only if your actual CSP canvas differs. */
@@ -198,6 +239,7 @@ const {
   joyconImage,
   frontIslandImage,
   backgroundImage,
+  backIslandFrozenImage,
   canvasWidth = 3840,
   canvasHeight = 2160,
 } = Astro.props;
@@ -223,6 +265,14 @@ const {
         <div class="hobby-layer-bob hobby-layer-bob-back">
           <div class="hobby-layer-drift parallax-inner" data-depth="0.55">
             <img class="hobby-layer" src={backIslandImage} alt="" />
+            {backIslandFrozenImage && (
+              <img
+                class="hobby-layer hobby-frozen-overlay"
+                src={backIslandFrozenImage}
+                alt=""
+                data-frozen-overlay
+              />
+            )}
           </div>
         </div>
       </div>
@@ -320,6 +370,37 @@ const {
     }
 
     requestAnimationFrame(tick);
+  }
+
+  // Random "frozen" reveal on the back island (see the v7 comment at
+  // the top of the file). Self-contained: no-ops entirely if the
+  // overlay prop wasn't passed (no `[data-frozen-overlay]` element on
+  // the page) or under `prefers-reduced-motion: reduce`.
+  const frozenOverlay = document.querySelector<HTMLElement>(
+    "[data-frozen-overlay]"
+  );
+
+  if (frozenOverlay && !prefersReducedMotion) {
+    const minDelay = 8000; // ms, shortest gap between appearances
+    const maxDelay = 12000; // ms, longest gap between appearances
+
+    const scheduleNext = () => {
+      const delay = minDelay + Math.random() * (maxDelay - minDelay);
+      setTimeout(() => {
+        frozenOverlay.classList.add("is-active");
+      }, delay);
+    };
+
+    // `animationend` fires once the reveal-hold-withdraw cycle
+    // finishes (back at an invisible `circle(0%)` state) — remove the
+    // class so `.is-active` can be re-added later to replay it, then
+    // roll the next random wait.
+    frozenOverlay.addEventListener("animationend", () => {
+      frozenOverlay.classList.remove("is-active");
+      scheduleNext();
+    });
+
+    scheduleNext();
   }
 </script>
 
@@ -480,6 +561,38 @@ const {
     width: 100%;
   }
 
+  /* Sits on top of `backIslandImage` inside the SAME
+     `.hobby-layer-drift` (see the v7 comment) via `position: absolute`
+     — the sibling `backIslandImage` stays in normal flow and is what
+     actually gives `.hobby-layer-drift` its height, so this overlay's
+     `inset: 0` box always matches it exactly. Starts fully clipped
+     down to a point at its own center; `.is-active` (toggled by the
+     script above) plays the reveal-hold-withdraw animation once and
+     then gets removed again so it can replay later. */
+  .hobby-frozen-overlay {
+    position: absolute;
+    inset: 0;
+    clip-path: circle(0% at 50% 50%);
+  }
+
+  .hobby-frozen-overlay.is-active {
+    animation: hobby-frozen-reveal 6.5s ease-in-out;
+  }
+
+  /* 150% deliberately overshoots — for a `circle()` radius without a
+     `farthest-corner` keyword, 100% doesn't reliably reach the corners
+     of a non-square box, and overshooting costs nothing here since a
+     circle bigger than the image just means "fully visible," same as
+     any other value past full coverage. Holds fully visible from ~18%
+     to ~72% of the 6.5s duration (a little over 3.5s) before
+     withdrawing back to the same center point it grew from. */
+  @keyframes hobby-frozen-reveal {
+    0% { clip-path: circle(0% at 50% 50%); }
+    18% { clip-path: circle(150% at 50% 50%); }
+    72% { clip-path: circle(150% at 50% 50%); }
+    100% { clip-path: circle(0% at 50% 50%); }
+  }
+
   @keyframes hobby-bob {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
@@ -499,6 +612,14 @@ const {
     .hobby-layer-bob-joycon,
     .hobby-layer-bob-front {
       animation: none;
+    }
+
+    /* Script-side already skips scheduling `.is-active` under reduced
+       motion, so this is belt-and-suspenders: guarantees the overlay
+       stays fully hidden even if the class ever ends up on the element
+       some other way. */
+    .hobby-frozen-overlay {
+      display: none;
     }
   }
 
