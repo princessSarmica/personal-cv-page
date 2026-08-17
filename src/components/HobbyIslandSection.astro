@@ -1,0 +1,515 @@
+---
+// src/components/HobbyIslandSection.astro
+//
+// New section in the `.sky-chain` run, sitting between
+// AchievementIslandSection and BonusIslandSection (update the import +
+// insertion in index.astro — see the usage example at the bottom of
+// this comment).
+//
+// v2 — reworked after seeing your layered mockup. The three artworks
+// (`backIslandImage`, `joyconImage`, `frontIslandImage`) are NOT three
+// independent, independently-positioned islands like
+// AchievementIslandSection's statue/temple — they're one single
+// island illustration split across three files that only line up
+// correctly when stacked directly on top of each other, back to
+// front, with no relative offset between them.
+//
+// I confirmed this by feature-matching each of your three original
+// uploads against your mockup image (AKAZE + RANSAC homography): all
+// three map onto it with the SAME scale (~0.446x) and effectively
+// zero relative translation — i.e. your mockup is just "take each
+// full original canvas, scale it down by the same amount, lay them
+// directly on top of each other." So rather than eyeballing three
+// separate `top`/`left` positions (which is what v1 of this file did,
+// and why the pieces looked scattered instead of interlocked), the
+// three delivered images this time are all cropped from the exact
+// SAME rectangle of their original canvases and share IDENTICAL
+// pixel dimensions (1900x1028) — stack them with `inset: 0` and they
+// land in register automatically, the same way your mockup does:
+//
+//   1. `backIslandImage`  (bed, first-aid kit, board game, campfire) — bottom layer
+//   2. `joyconImage`      (the pink Joy-Con)                          — middle layer
+//   3. `frontIslandImage` (fountain, pool, piano, palm tree, ...)     — top layer
+//
+// IMPORTANT for future edits: if any of these three files ever gets
+// re-cropped or re-exported, it has to be cropped from that same
+// shared rectangle (or just re-derived from the original uncropped
+// canvas at the same scale) — cropping one independently of the
+// other two will shift it relative to the others and the island will
+// visibly come apart at the seams. There's no per-image `top`/`left`
+// tuning in the CSS below to compensate with; alignment is baked into
+// the image files themselves, not the layout.
+//
+// v4 — per your request, the three layers now drift INDEPENDENTLY on
+// cursor proximity instead of moving as one rigid unit. Worth calling
+// out plainly: this trades away the pixel-perfect interlock from v2/
+// v3. At rest (cursor far away, or `prefers-reduced-motion`) all
+// three still line up exactly, since every layer's drift settles back
+// to `translate(0, 0)` — the seams only start to show once the cursor
+// is close enough to actually push them apart. Kept the push small
+// (see `data-depth` below) specifically to keep that gap subtle
+// rather than letting the artwork visibly tear; turn the depth
+// numbers down further (or back to identical) if it reads as too much
+// once you see it live.
+//
+// Each layer gets its own two-level wrapper, same reasoning as v3 for
+// why bob and drift can't share an element (a running CSS animation
+// silently wins over a JS-set inline `transform` on the same
+// property): a `.hobby-layer-bob` wrapper (own bob timing) around a
+// `.hobby-layer-drift.parallax-inner` wrapper (own mouse-repel
+// strength via `data-depth`). `data-depth` is read by the shared
+// script below as a multiplier on the base push distance — back
+// island 0.55x (subtle, reads as "further away"), Joy-Con 0.85x,
+// front island 1.2x (strongest, reads as "closest to the viewer") —
+// a small depth-of-field cue on top of the independence you asked
+// for, rather than three identical pushes that just happen to be
+// computed separately. Bob timing is also offset per layer (different
+// duration + a negative `animation-delay` to start mid-cycle) so they
+// don't bob in lockstep either. `joyconImage` is still optional (omit
+// it and the other two layers still render/drift fine on their own).
+//
+// v5 — per your request the island is now A LOT bigger. The previous
+// approach (v3/v4) kept the island absolutely positioned, bottom-
+// anchored inside a fixed `100vh` section, with `.content` pinned to
+// the top — which meant the island's size was always fighting the
+// text for a slice of one fixed-height box, and capping it by
+// viewport height (`min(..., 86vh)`) to avoid that fight quietly
+// capped it fairly small on ordinary monitors too (that's why the
+// previous bump barely read as bigger). This version removes that
+// fight instead of continuing to referee it: the island is back in
+// NORMAL DOCUMENT FLOW, stacked below `.content` (both centered via
+// `display: flex; flex-direction: column; align-items: center` on
+// `.hobby-section`) rather than absolutely positioned over it. With
+// `min-height: 100vh` (not a fixed `height`), the section is simply
+// as tall as it needs to be to fit both comfortably — on most screens
+// that's now taller than one viewport, so the very bottom of the
+// island sits slightly below the fold, which is the expected trade
+// for "a lot bigger" rather than a bug. No vh-based caps or
+// short-viewport media queries are needed anymore — normal flow can't
+// overlap by construction, at any viewport size, so `width` is just a
+// plain `clamp()` now.
+//
+// Background: `hobby_island_background.webp` is a FLAT fill (sampled
+// at ≈#01d4f3), close enough to identical to `--dusk-blue` (defined
+// in Layout.astro; AchievementIslandSection's bottom edge and
+// BonusIslandSection's top edge both already use it) that this
+// section's seam-fades reuse `--dusk-blue` on BOTH edges. That means
+// NEITHER Layout.astro NOR AchievementIslandSection.astro NOR
+// BonusIslandSection.astro need any changes — all three already
+// agree on this exact color at the seam.
+//
+// v6 — you swapped in your own re-exported CSP layers and the layout
+// broke ("look size and position of the site completely changes").
+// I checked the three files you sent: back island came in at
+// 2002x1035, front island at 3192x1942, Joy-Con at 513x931 — three
+// completely different aspect ratios, each unrelated to the other two
+// and to the 1900x1028 shared canvas this component was built around.
+//
+// Root cause: CSP's "export selected layer" trims each layer to its
+// own visible-content bounding box before saving. That's exactly what
+// v2's top comment warned about — cropping one layer independently of
+// the others destroys the relative positioning between them — except
+// now it's happening on every export instead of once. Once a layer is
+// trimmed, the empty space that encoded "this layer sits 400px lower
+// and 200px right of that layer" is just gone from the file. There's
+// no metadata recording the trim offset either (checked — none of the
+// three files carry it), so there's no way for CODE to reconstruct
+// where the layers should sit relative to each other after the fact.
+// This genuinely can't be fixed by changing CSS/JS; it has to be fixed
+// at export time, by not trimming in the first place.
+//
+// THE FIX (do this in Clip Studio Paint, takes effect on every future
+// export, no code changes ever needed again):
+//   Don't use "Export Selected Layer" — that's the command that trims.
+//   Instead, for each of the three layers: hide every OTHER layer
+//   (toggle their eye icons off) so only the one you want is visible,
+//   then use the regular whole-image export you'd use for finished art
+//   (File > Export > PNG/JPEG/... — NOT the per-layer export command).
+//   That command always exports the full canvas size, transparent
+//   wherever nothing's drawn — so if your canvas is 3840x2160, all
+//   three exports come out 3840x2160 every time, in the same
+//   coordinate system, no matter how much you keep editing the art
+//   inside them. Repeat for the other two layers. Drop the three
+//   resulting files in as backIslandImage/joyconImage/frontIslandImage
+//   — same filenames is fine, no code change needed on your end.
+//
+// To make THIS FILE robust to that workflow going forward (so if your
+// canvas size ever changes — e.g. you resize the CSP document — it's
+// a two-number prop edit instead of another round-trip with me), the
+// hardcoded `aspect-ratio: 3840 / 2079` is now driven by two new
+// OPTIONAL props, `canvasWidth` / `canvasHeight`, defaulting to
+// 3840 / 2160 (a plain, untrimmed canvas — no "-79" fudge, since that
+// number only existed to match the old, already-cropped 1900x1028
+// deliverables). If your actual CSP canvas is a different size, pass
+// it in; otherwise leave the props off and the defaults apply.
+//
+// I can't repair the three files you just sent — the alignment info
+// they'd need is already gone from the trimmed images themselves, not
+// just missing from the code — so please re-export following the
+// steps above and drop the new files in; everything else about this
+// component (stacking, independent drift, bob, sizing) stays exactly
+// as it was.
+//
+// Carries `.sky-chain` (collapses the gap on both sides) and
+// `.halftone-hover` (opts into the single page-wide cursor-spotlight
+// element from Layout.astro) — same as every other section in the
+// chain, no extra markup/script needed for either.
+//
+// Usage — insert in src/pages/index.astro between
+// AchievementIslandSection and BonusIslandSection:
+//
+//   import HobbyIslandSection from '../components/HobbyIslandSection.astro';
+//
+//   <HobbyIslandSection
+//     id="section-hobbies"
+//     eyebrow="Island 05"
+//     title="Ut Labore Et Dolore"
+//     text="Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam."
+//     backIslandImage="/personal-cv-page/images/hobby_back_island.webp"
+//     joyconImage="/personal-cv-page/images/joycon.webp"
+//     frontIslandImage="/personal-cv-page/images/hobby_front_island.webp"
+//     backgroundImage="/personal-cv-page/images/hobby_island_background.webp"
+//     canvasWidth={3840}
+//     canvasHeight={2160}
+//   />
+
+interface Props {
+  id: string;
+  eyebrow?: string;
+  title: string;
+  text: string;
+  backIslandImage: string;
+  joyconImage?: string;
+  frontIslandImage: string;
+  backgroundImage: string;
+  /** Your CSP document's canvas size in px — every layer export must
+   *  share this exact size (see the v6 comment above). Defaults to
+   *  3840x2160; override only if your actual CSP canvas differs. */
+  canvasWidth?: number;
+  canvasHeight?: number;
+}
+
+const {
+  id,
+  eyebrow,
+  title,
+  text,
+  backIslandImage,
+  joyconImage,
+  frontIslandImage,
+  backgroundImage,
+  canvasWidth = 3840,
+  canvasHeight = 2160,
+} = Astro.props;
+---
+
+<section
+  class="hobby-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
+  id={id}
+  style={`background-image: url(${backgroundImage});`}
+>
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="hobby-island-group" aria-hidden="true">
+    <div
+      class="hobby-island-group-inner"
+      style={`aspect-ratio: ${canvasWidth} / ${canvasHeight};`}
+    >
+      <div class="hobby-layer-slot hobby-layer-slot-back">
+        <div class="hobby-layer-bob hobby-layer-bob-back">
+          <div class="hobby-layer-drift parallax-inner" data-depth="0.55">
+            <img class="hobby-layer" src={backIslandImage} alt="" />
+          </div>
+        </div>
+      </div>
+
+      {joyconImage && (
+        <div class="hobby-layer-slot hobby-layer-slot-joycon">
+          <div class="hobby-layer-bob hobby-layer-bob-joycon">
+            <div class="hobby-layer-drift parallax-inner" data-depth="0.85">
+              <img class="hobby-layer" src={joyconImage} alt="" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div class="hobby-layer-slot hobby-layer-slot-front">
+        <div class="hobby-layer-bob hobby-layer-bob-front">
+          <div class="hobby-layer-drift parallax-inner" data-depth="1.2">
+            <img class="hobby-layer" src={frontIslandImage} alt="" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Same proximity-free mouse-repel drift as the rest of this family
+  // (see AchievementIslandSection.astro / ComputerIslandSection.astro
+  // for the original) — every `.parallax-inner` element on the page
+  // eases toward a small offset away from the cursor, falling off
+  // with distance. Copied verbatim rather than shared, matching how
+  // every other section in this family ships its own copy. Extended
+  // with one thing the original didn't need: an optional `data-depth`
+  // attribute (see the markup above) that scales `maxOffset` per
+  // element, so the three layers here each get a different push
+  // strength instead of all three computing the exact same offset —
+  // reading `data-depth` and defaulting to `1` when it's absent means
+  // this still behaves identically to the original for every plain
+  // `.parallax-inner` element elsewhere on the page.
+  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  if (islands.length && !prefersReducedMotion) {
+    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+    const influenceRadius = 500; // px, push fades to 0 beyond this distance
+    const ease = 0.08;
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let hasMouse = false;
+
+    const state = Array.from(islands).map((el) => ({
+      el,
+      depth: parseFloat(el.dataset.depth ?? "1"),
+      currentX: 0,
+      currentY: 0,
+    }));
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      hasMouse = true;
+    });
+
+    function tick() {
+      for (const s of state) {
+        let targetX = 0;
+        let targetY = 0;
+
+        if (hasMouse) {
+          const rect = s.el.getBoundingClientRect();
+          const restX = rect.left + rect.width / 2 - s.currentX;
+          const restY = rect.top + rect.height / 2 - s.currentY;
+
+          const dx = restX - mouseX;
+          const dy = restY - mouseY;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist < influenceRadius) {
+            const falloff = 1 - dist / influenceRadius;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            targetX = nx * maxOffset * s.depth * falloff;
+            targetY = ny * maxOffset * s.depth * falloff;
+          }
+        }
+
+        s.currentX += (targetX - s.currentX) * ease;
+        s.currentY += (targetY - s.currentY) * ease;
+        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+</script>
+
+<style>
+  .hobby-section {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    /* No `overflow: hidden` here — see the comment on `overflow-x:
+       hidden` on `html` in Layout.astro. That handles horizontal
+       clipping page-wide, so the island group is free to sit taller
+       than this section's own box without being hard-clipped. */
+    background-size: cover;
+    background-position: top;
+    background-repeat: no-repeat;
+    /* Seam-blend targets (see the shared comment in Layout.astro).
+       Both edges target `--dusk-blue` — see the top-of-file comment
+       above for why that's correct even though this section sits
+       between two different neighbors: the actual background is a
+       flat fill equal to that color, so it already matches
+       AchievementIslandSection's bottom on this section's top edge,
+       and already matches BonusIslandSection's top on this section's
+       bottom edge, with no new variable needed. */
+    --seam-target-top: var(--dusk-blue);
+    --seam-target-bottom: var(--dusk-blue);
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(32ch, 100%);
+    text-align: left;
+  }
+
+  .eyebrow {
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: #1a1a1a;
+  }
+
+  .body-text {
+    font-size: 1.05rem;
+    color: #444;
+    margin: 0;
+  }
+
+  /* The whole island — one graphic made of 3 stacked layers, sized
+     and positioned as a single unit. Normal flow (not absolutely
+     positioned — see the v5 note at the top of the file), centered
+     horizontally via the section's own `align-items: center`, with a
+     little breathing room above it separating it from `.content`.
+     `clamp()` keeps it readable on narrow screens without letting it
+     dwarf the viewport on very wide ones — there's no viewport-HEIGHT
+     term anywhere in this rule anymore, on purpose: normal flow means
+     there's nothing below `.content` for the island to collide with,
+     so nothing here needs to reason about how tall the viewport is. */
+  .hobby-island-group {
+    position: relative;
+    z-index: 1;
+    width: clamp(700px, 82vw, 1600px);
+    max-width: 100%;
+    margin: clamp(1.5rem, 5vh, 4rem) auto 0;
+    pointer-events: none;
+  }
+
+  /* Fixes the group's proportions to your CSP canvas size (passed in
+     via the `canvasWidth`/`canvasHeight` props, inline `style` above —
+     see the v6 top-of-file comment) so every layer slot below always
+     has a well-defined box to fill with `inset: 0`, regardless of how
+     `width` above resolves at a given viewport size. All three
+     `.hobby-layer-slot`s share this exact box at rest — it's only the
+     drift/bob transforms further in that ever move a layer away from
+     it. The `aspect-ratio: 3840 / 2160` here is just a fallback for
+     the (non-Astro) preview harness / in case the inline style is ever
+     stripped — the props above are the real source of truth. */
+  .hobby-island-group-inner {
+    position: relative;
+    aspect-ratio: 3840 / 2160;
+  }
+
+  /* One slot per layer, all stacked on the exact same box via
+     `inset: 0`. Stacking order is plain DOM order (back island first,
+     Joy-Con second, front island last), so no explicit `z-index` is
+     needed between them. */
+  .hobby-layer-slot {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Bob loop lives on ITS OWN wrapper, one level up from the
+     `.parallax-inner` element inside it — NOT on the same element as
+     the mouse-repel drift. Both a CSS animation and the JS drift
+     script ultimately set `transform` on whatever element they're
+     attached to, and a running CSS animation wins that fight every
+     frame (animations take precedence over inline styles for the
+     animated property), which would silently make the JS-driven
+     translate invisible even though the script keeps computing and
+     setting it. Splitting them onto two nested elements — this one
+     bobs via keyframes, the child below drifts via JS — is exactly
+     how AchievementIslandSection avoids the same collision (its bob
+     is on `.achievement-island-left`/`-right`, the drift is on the
+     nested `.achievement-island-inner`). Each layer gets its own
+     duration + a negative `animation-delay` (starts the loop already
+     partway through) so the three don't bob in lockstep. */
+  .hobby-layer-bob-back {
+    animation: hobby-bob 6.4s ease-in-out infinite;
+  }
+
+  .hobby-layer-bob-joycon {
+    animation: hobby-bob-joycon 5s ease-in-out -1.5s infinite;
+  }
+
+  .hobby-layer-bob-front {
+    animation: hobby-bob 7.2s ease-in-out -3s infinite;
+  }
+
+  /* `.hobby-layer-bob-*` and `.hobby-layer-drift` are plain block
+     divs with no explicit height — that's deliberate. Block elements
+     already fill their parent's width by default, and each image's
+     own intrinsic aspect ratio (all three source files share the same
+     untrimmed CSP canvas size — see the v6 comment on `canvasWidth`/
+     `canvasHeight` at the top of the file — matching
+     `.hobby-island-group-inner`'s `aspect-ratio` above) takes care of
+     height on its own once width is set — explicit height would just
+     be indeterminate/ignored here anyway, since none of these three
+     elements have a definite height to resolve a percentage against.
+     `.hobby-layer-drift` is the mouse-repel target — see the
+     `data-depth` attribute in the markup and the script above for how
+     the three layers get different push strengths instead of moving
+     as one unit. */
+  .hobby-layer-bob-back,
+  .hobby-layer-bob-joycon,
+  .hobby-layer-bob-front,
+  .hobby-layer-drift {
+    width: 100%;
+  }
+
+  .hobby-layer-drift {
+    position: relative;
+  }
+
+  .hobby-layer {
+    display: block;
+    width: 100%;
+  }
+
+  @keyframes hobby-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Joy-Con gets a little extra character (a slight rotate along with
+     the bob) since it's independent again anyway — same idea as the
+     standalone accent treatment from v1, before it became one rigid
+     piece with the islands in v2/v3. */
+  @keyframes hobby-bob-joycon {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-12px) rotate(-3deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hobby-layer-bob-back,
+    .hobby-layer-bob-joycon,
+    .hobby-layer-bob-front {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .content {
+      width: min(32ch, 100%);
+      padding-inline: 1.5rem;
+    }
+
+    .hobby-island-group {
+      width: min(100vw, 720px);
+    }
+  }
+</style>
