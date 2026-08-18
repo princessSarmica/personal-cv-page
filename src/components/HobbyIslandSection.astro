@@ -185,6 +185,99 @@
 //      file. Omit the prop and nothing changes — no overlay element is
 //      even rendered.
 //
+// v8 — added a hover swap on the palm tree: `palmTreeImage` (pulled
+// out of `frontIslandImage` into its own layer) is the default, and
+// hovering it cross-fades in `palmTree80sImage` with a top-to-bottom
+// wipe, reversing the same way on mouse-out. A few things worth
+// calling out:
+//
+//   - Both new images are OPTIONAL and layer inside the FRONT island's
+//     existing `.hobby-layer-drift` (same reasoning as the v7 frozen
+//     overlay on the back island: it needs to bob/drift together with
+//     the rest of that island, not move independently), stacked in
+//     this order: `frontIslandImage`, then `palmTreeImage`, then the
+//     hover hotspot, then `palmTree80sImage`. Both tree images must be
+//     exported at the same canvas size as everything else (see v6) —
+//     confirmed your two uploads are both 3840x2160.
+//
+//   - The reveal itself is a plain CSS `clip-path: inset()` transition
+//     driven by `:hover` — no JS state machine needed. At rest,
+//     `palmTree80sImage` is clipped away entirely except a 0px sliver
+//     at its own top edge (`inset(0 0 100% 0)`); hovering animates
+//     that to `inset(0 0 0% 0)`, i.e. the clipped-away region shrinks
+//     from the bottom up, which reads as the 80s art wiping DOWN over
+//     the normal tree. Un-hovering just transitions back, so the wipe
+//     reverses on its own — no separate "hide" animation to maintain.
+//
+//   - The trickier part: `.hobby-island-group` has `pointer-events:
+//     none` on it (so none of this artwork ever intercepts clicks on
+//     the page, and so the mouse-repel drift's own `mousemove`
+//     listener — which reads plain viewport coordinates, not real
+//     hover state — isn't affected). Naively adding `:hover` to one of
+//     the tree images directly wouldn't fire at all because of that.
+//     Also, using the tree's full layer box (the whole `inset: 0` slot
+//     — mostly transparent canvas padding) as the hover target would
+//     trigger from anywhere near the front island, not just "when you
+//     moved over" the tree itself. Both problems are solved by one
+//     small invisible `.hobby-palm-hotspot` div, explicitly opted back
+//     into `pointer-events: auto` (an element CAN re-enable pointer
+//     events even under an ancestor's `pointer-events: none` — it's
+//     not inherited as a hard block, just a default), sized to the
+//     tree's actual painted pixels rather than its canvas-sized
+//     bounding box.
+//
+//   - That sizing is computed at runtime, not hardcoded: the script
+//     below draws `palmTreeImage` to an offscreen canvas once it's
+//     loaded, scans its alpha channel for the real ink bounding box,
+//     and positions the hotspot from that (as percentages, so it still
+//     tracks correctly at any rendered size). Given how often you're
+//     re-exporting these layers, hand-picked percentages would've gone
+//     stale the next time the tree moves or resizes within the canvas
+//     — this way there's nothing to keep in sync by hand, ever, same
+//     spirit as v6/v7. Needs `palmTreeImage` to be same-origin (true
+//     for your site's own `/images/` assets) since cross-origin canvas
+//     pixel reads throw; that's caught, and the hotspot just falls
+//     back to covering the whole slot rather than breaking anything.
+//
+// v9 — v8's reveal was a pure overlay: `palmTree80sImage` wiped in on
+// TOP of `palmTreeImage`, which stayed fully opaque underneath the
+// whole time. Since the 80s art isn't the same silhouette as the
+// normal tree (different fronds, no Kirby, wider canopy), the two
+// don't mask each other pixel-for-pixel, so bits of the normal tree
+// showed through wherever the 80s layer above it was transparent —
+// exactly what you flagged. Fixed by making `.hobby-palm-base` clip
+// itself away in lockstep with `.hobby-palm-80s` revealing, using the
+// same `inset()` property, direction, duration, and easing on both —
+// so the region the 80s tree has revealed so far is ALWAYS exactly
+// the region the normal tree has just clipped away, with the boundary
+// itself moving as one edge instead of two independent wipes that
+// happen to overlap. At any instant exactly one image is visible at
+// each point on the tree; never both, never neither. Also added a
+// thin synthwave-gradient "scanline" that sweeps down with it (a
+// one-shot `animation`, not a `transition`, since it needs to fade in
+// AND back out rather than settle at an end state) — the glowing
+// leading edge is what pushes this from "wipe" to "80s computery
+// digitizing effect," which is what you asked for instead of a plain
+// cross-fade/reveal.
+//
+// v10 — two fixes to that scanline, per your feedback (full reasoning
+// is inline as a comment right above `.hobby-palm-scanline` below):
+// it was spanning the whole front island instead of just the tree
+// (moved it from a sibling of the hotspot to a CHILD of it, so it
+// inherits the hotspot's already-correct tree-sized box for free), and
+// it's now a thinner cyan/magenta hairline pair with a stepped
+// (not smooth) sweep for a more "electronic" feel, per your request.
+//
+// v11 — pushed "more electronic" further with two additions, both
+// full reasoning inline near the relevant rules below: a brightness/
+// hue flicker on `palmTree80sImage` itself as it locks in (a signal-
+// settling stutter, only on the way in — the normal tree still just
+// clips cleanly away), and an irregular horizontal jitter on the scan
+// line as it sweeps down (signal noise, not a deliberate wobble). Both
+// ride on top of the existing v9/v10 mechanics rather than replacing
+// anything — the clip-path sync that guarantees no double-exposure
+// and the tree-scoped hotspot positioning are untouched.
+//
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
 // element from Layout.astro) — same as every other section in the
@@ -205,6 +298,8 @@
 //     frontIslandImage="/personal-cv-page/images/hobby_front_island.webp"
 //     backgroundImage="/personal-cv-page/images/hobby_island_background.webp"
 //     backIslandFrozenImage="/personal-cv-page/images/hobby_back_island_frozen.webp"
+//     palmTreeImage="/personal-cv-page/images/palm_tree.webp"
+//     palmTree80sImage="/personal-cv-page/images/palm_tree_80s.webp"
 //     canvasWidth={3840}
 //     canvasHeight={2160}
 //   />
@@ -223,6 +318,15 @@ interface Props {
    *  same canvas size as the other layers to line up. Omit it and no
    *  overlay element is rendered at all. */
   backIslandFrozenImage?: string;
+  /** Optional palm tree layer, pulled out of `frontIslandImage` (see
+   *  the v8 comment above). Renders as a normal part of the front
+   *  island if `palmTree80sImage` is omitted; pass both to enable the
+   *  hover swap. Same canvas-size requirement as every other layer. */
+  palmTreeImage?: string;
+  /** Optional hover-alternate for `palmTreeImage` — wipes in top-to-
+   *  bottom on hover, reverses on mouse-out. Ignored if `palmTreeImage`
+   *  isn't also provided. */
+  palmTree80sImage?: string;
   /** Your CSP document's canvas size in px — every layer export must
    *  share this exact size (see the v6 comment above). Defaults to
    *  3840x2160; override only if your actual CSP canvas differs. */
@@ -240,6 +344,8 @@ const {
   frontIslandImage,
   backgroundImage,
   backIslandFrozenImage,
+  palmTreeImage,
+  palmTree80sImage,
   canvasWidth = 3840,
   canvasHeight = 2160,
 } = Astro.props;
@@ -291,6 +397,26 @@ const {
         <div class="hobby-layer-bob hobby-layer-bob-front">
           <div class="hobby-layer-drift parallax-inner" data-depth="1.2">
             <img class="hobby-layer" src={frontIslandImage} alt="" />
+            {palmTreeImage && palmTree80sImage && (
+              <div class="hobby-palm-hotspot" data-palm-hotspot>
+                <div class="hobby-palm-scanline" aria-hidden="true"></div>
+              </div>
+            )}
+            {palmTreeImage && (
+              <img
+                class="hobby-layer hobby-palm-base"
+                src={palmTreeImage}
+                alt=""
+                data-palm-base
+              />
+            )}
+            {palmTreeImage && palmTree80sImage && (
+              <img
+                class="hobby-layer hobby-palm-80s"
+                src={palmTree80sImage}
+                alt=""
+              />
+            )}
           </div>
         </div>
       </div>
@@ -382,7 +508,7 @@ const {
 
   if (frozenOverlay && !prefersReducedMotion) {
     const minDelay = 8000; // ms, shortest gap between appearances
-    const maxDelay = 12000; // ms, longest gap between appearances
+    const maxDelay = 22000; // ms, longest gap between appearances
 
     const scheduleNext = () => {
       const delay = minDelay + Math.random() * (maxDelay - minDelay);
@@ -401,6 +527,91 @@ const {
     });
 
     scheduleNext();
+  }
+
+  // Palm tree hover hotspot (see the v8 comment at the top of the
+  // file). Sizes an invisible `pointer-events: auto` div to the ACTUAL
+  // painted pixels of `palmTreeImage`, not its full (mostly
+  // transparent) canvas-sized layer box — otherwise hovering anywhere
+  // near the front island would trigger the swap, not just the tree
+  // itself. Computed once from the image's alpha channel via an
+  // offscreen canvas rather than hardcoded, so re-exporting the tree
+  // at a different position/size later doesn't require touching this
+  // file again. No-ops entirely if `palmTreeImage` wasn't passed (no
+  // `[data-palm-base]` element on the page); the hover/reveal itself
+  // is plain CSS (`:hover` + `clip-path` transition, see the
+  // stylesheet), so there's nothing else to wire up here even when
+  // `palmTree80sImage` IS present.
+  const palmBase = document.querySelector<HTMLImageElement>(
+    "[data-palm-base]"
+  );
+  const palmHotspot = document.querySelector<HTMLElement>(
+    "[data-palm-hotspot]"
+  );
+
+  if (palmBase && palmHotspot) {
+    const computeHotspot = () => {
+      try {
+        const w = palmBase.naturalWidth;
+        const h = palmBase.naturalHeight;
+        if (!w || !h) return;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        ctx.drawImage(palmBase, 0, 0);
+        const { data } = ctx.getImageData(0, 0, w, h);
+
+        let minX = w;
+        let minY = h;
+        let maxX = 0;
+        let maxY = 0;
+        let found = false;
+        const step = 2; // sample every other pixel on both axes — 4x fewer reads, plenty precise for a hover zone
+
+        for (let y = 0; y < h; y += step) {
+          for (let x = 0; x < w; x += step) {
+            const alpha = data[(y * w + x) * 4 + 3];
+            if (alpha > 10) {
+              found = true;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (!found) return;
+
+        // Small padding so the hotspot isn't pixel-tight against the
+        // artwork's edge — makes it a little more forgiving to hover.
+        const padX = (maxX - minX) * 0.05;
+        const padY = (maxY - minY) * 0.05;
+        const left = Math.max(0, minX - padX);
+        const top = Math.max(0, minY - padY);
+        const right = Math.min(w, maxX + padX);
+        const bottom = Math.min(h, maxY + padY);
+
+        palmHotspot.style.left = `${(left / w) * 100}%`;
+        palmHotspot.style.top = `${(top / h) * 100}%`;
+        palmHotspot.style.width = `${((right - left) / w) * 100}%`;
+        palmHotspot.style.height = `${((bottom - top) / h) * 100}%`;
+      } catch {
+        // Cross-origin (or other) canvas read failure — leave the
+        // hotspot at its CSS default (the full layer box) rather than
+        // breaking the hover entirely.
+      }
+    };
+
+    if (palmBase.complete) {
+      computeHotspot();
+    } else {
+      palmBase.addEventListener("load", computeHotspot, { once: true });
+    }
   }
 </script>
 
@@ -593,6 +804,154 @@ const {
     100% { clip-path: circle(0% at 50% 50%); }
   }
 
+  /* Palm tree hover swap (see the v8/v9 comments at the top of the
+     file). `.hobby-palm-base` (`palmTreeImage`) and `.hobby-palm-80s`
+     (`palmTree80sImage`) occupy the exact same box and use MATCHING
+     `inset()` clip-paths run over the same duration/easing, moving in
+     the same direction (top → bottom) — that's deliberate, not just
+     two independent wipes. At any instant during the transition, the
+     region `.hobby-palm-80s` has revealed so far is EXACTLY the region
+     `.hobby-palm-base` has clipped away so far, so exactly one of the
+     two is ever visible at a given point on the tree — no gap, and
+     critically (per your feedback) no double-exposure where bits of
+     the normal tree's silhouette peek out from behind the
+     differently-shaped 80s art. It reads as a single scanning
+     replacement sweeping down, not a cross-fade. */
+  .hobby-palm-base,
+  .hobby-palm-80s {
+    position: absolute;
+    inset: 0;
+    transition: clip-path 0.6s ease;
+  }
+
+  .hobby-palm-base {
+    clip-path: inset(0 0 0 0);
+  }
+
+  .hobby-palm-80s {
+    clip-path: inset(0 0 100% 0);
+  }
+
+  /* Invisible, positioned at runtime by the script above (via inline
+     `left`/`top`/`width`/`height`) to the real painted pixels of the
+     palm tree — `inset: 0` here is only the fallback used until that
+     script runs (or if it can't, e.g. a cross-origin image). Opts
+     back into `pointer-events: auto` despite `.hobby-island-group`
+     setting `pointer-events: none` on everything else in this
+     section, which is what makes it hoverable at all. Also doubles as
+     `.hobby-palm-scanline`'s positioning parent now (v10) — see below. */
+  .hobby-palm-hotspot {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+  }
+
+  /* `~` reaches forward from the hotspot to these two — this only
+     works because the hotspot comes FIRST in the markup (general
+     sibling combinators can't look backwards; it's ahead of
+     `.hobby-palm-base` specifically so it could reach that one too).
+     Un-hovering just transitions everything back to its rest state
+     above, so the whole swap reverses on its own with no extra rule
+     needed. */
+  .hobby-palm-hotspot:hover ~ .hobby-palm-base {
+    clip-path: inset(100% 0 0 0);
+  }
+
+  /* v11 — layered a `filter` flicker on TOP of the clip-path
+     transition (an `animation` running alongside it, not replacing
+     it — they're independent properties, so this doesn't touch the
+     v9 sync guarantee at all). Only on the way IN: the 80s art
+     stutters through a couple of brightness/hue spikes as it locks
+     in, like a signal settling, rather than smoothly brightening in —
+     the normal tree still just clips cleanly away with no flicker of
+     its own, so the "electronic" cue reads as the new image arriving
+     rather than the old one glitching out. */
+  .hobby-palm-hotspot:hover ~ .hobby-palm-80s {
+    clip-path: inset(0 0 0% 0);
+    animation: hobby-palm-glitch 0.6s steps(14, end);
+  }
+
+  @keyframes hobby-palm-glitch {
+    0%, 100% { filter: none; }
+    10% { filter: brightness(1.7) saturate(1.5); }
+    18% { filter: none; }
+    34% { filter: brightness(0.6) hue-rotate(12deg); }
+    42% { filter: none; }
+    68% { filter: brightness(1.35); }
+    78% { filter: none; }
+  }
+
+  /* v10 — per your feedback: (1) the line was rendering across the
+     hotspot's OLD position, `.hobby-layer-drift`'s full `inset: 0` box
+     (the whole front island, mostly empty canvas around the actual
+     tree) instead of just the tree — fixed by making the scanline a
+     CHILD of `.hobby-palm-hotspot` instead of a sibling reached via
+     `~`. The hotspot is the element the script above already resizes
+     to the tree's real painted bounding box, so nesting the scanline
+     inside it for free makes `left/right: 0` and `top: 0%..100%`
+     resolve against that same tight box instead of the whole slot —
+     no separate coordinates to compute or keep in sync. (`:hover` here
+     is a plain descendant combinator, not `~`, since it's a child now.)
+     (2) thinned it from a soft 0.6%-tall gradient bar down to two
+     crisp 1.5px hairlines. (3) "more electronic": split it into an
+     offset cyan/magenta pair (RGB channels visibly mis-registered by a
+     couple pixels — the CRT/VHS chromatic-aberration cue) and swapped
+     the smooth `linear` sweep for `steps()`, so it jumps down in
+     discrete increments like a hardware scanner or LED readout instead
+     of gliding like a physical object. */
+  .hobby-palm-scanline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1.5px;
+    background: #ff2fd6;
+    box-shadow: 0 0 0.3em 0 rgba(255, 47, 214, 0.85);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* The cyan "ghost" channel, offset a couple pixels above the magenta
+     line above — together they read as one RGB-fringed scan line
+     rather than two, without needing a second real element in the
+     markup. */
+  .hobby-palm-scanline::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -2px;
+    height: 1.5px;
+    background: #00f6ff;
+    box-shadow: 0 0 0.3em 0 rgba(0, 246, 255, 0.85);
+  }
+
+  .hobby-palm-hotspot:hover .hobby-palm-scanline {
+    animation: hobby-palm-scan 0.6s steps(14, end);
+  }
+
+  /* v11: added a horizontal `translateX` jitter on top of the vertical
+     sweep — small, irregularly-spaced left/right kicks rather than a
+     steady wobble, closer to signal noise/interference than a
+     deliberate side-to-side motion. Still driven by the same
+     `steps()` timing as the vertical movement, so the jitter jumps
+     between fixed offsets exactly like the sweep jumps between
+     positions, instead of smoothly sliding — keeps the whole thing
+     reading as one consistently "digital" motion instead of a smooth
+     wobble bolted onto a stepped sweep. */
+  @keyframes hobby-palm-scan {
+    0% { top: 0%; opacity: 0; transform: translateX(0); }
+    8% { opacity: 1; }
+    14% { transform: translateX(-3px); }
+    27% { transform: translateX(2px); }
+    41% { transform: translateX(-2px); }
+    56% { transform: translateX(3px); }
+    63% { transform: translateX(0); }
+    79% { transform: translateX(-2px); }
+    92% { opacity: 1; transform: translateX(0); }
+    100% { top: 100%; opacity: 0; }
+  }
+
   @keyframes hobby-bob {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
@@ -619,6 +978,22 @@ const {
        stays fully hidden even if the class ever ends up on the element
        some other way. */
     .hobby-frozen-overlay {
+      display: none;
+    }
+
+    /* Keep the hover swap itself (it's a direct response to the
+       visitor's own cursor, not ambient motion) but drop the sweep —
+       it just snaps between states instantly instead. The scanline
+       and glitch flicker (v11) are pure ambient flourish with no
+       state to preserve, so both are cut entirely rather than
+       snapped. */
+    .hobby-palm-base,
+    .hobby-palm-80s {
+      transition: none;
+      animation: none;
+    }
+
+    .hobby-palm-scanline {
       display: none;
     }
   }
