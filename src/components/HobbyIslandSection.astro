@@ -301,6 +301,8 @@
 //
 // v13 — slowed the frost hover transition from 0.6s to 1.1s, per your
 // feedback. Only the frost — the palm tree hover swap stays at 0.6s.
+// Slowed again in v16, from 1.1s to 1.8s, per further feedback (see the
+// `.hobby-frozen-overlay` comment below).
 //
 // v14 — added the Monado sword: `monadoImage` is a plain new layer,
 // LAST in the front island's stack so it renders in front of
@@ -315,6 +317,72 @@
 // swap (and why the outgoing symbol gets a hard cut instead of a
 // fade, to avoid the same double-exposure problem v9 solved for the
 // palm tree) is inline near `.hobby-monado-symbol` below.
+//
+// v15 — split the single shared `.hobby-island-group` into two
+// INDEPENDENTLY positioned groups (back-group, front-group) that flank
+// `.content`, per your mockup screenshots — closer to how
+// AchievementIslandSection's statue/temple work, and a deliberate walk
+// -back of the v2/v3 rule that back/joycon/front had to share one box
+// and could never move independently. You're now explicitly asking for
+// two separate islands with their own position rather than one artwork
+// that happens to be split across three files, so that constraint no
+// longer applies. This needed no new image exports: every layer is
+// already exported at the full, untrimmed, IDENTICAL canvas size (see
+// v6), so each group just gets its own full `canvasWidth`/
+// `canvasHeight` box (same aspect-ratio math as before) instead of
+// sharing one — no cropping, no new coordinates to compute.
+//
+//   - `joyconImage` went into the back-group. Judgment call: your
+//     mockup screenshots don't show it distinctly, so there was nothing
+//     to match against — but thematically the Joy-Con reads closer to
+//     the back island's "games night" set (bed, board game, campfire)
+//     than the front island's fountain/pool/piano, so it stays there.
+//     Easy to move to the front-group instead if that guess is wrong —
+//     it's just the `hobby-layer-slot-joycon` block moving from one
+//     group's markup to the other's.
+//
+//   - Desktop (the default, no media query): both groups are pulled out
+//     of `.hobby-section`'s flex flow with `position: absolute` and
+//     anchored to opposite corners (back-group upper-left, front-group
+//     lower-right — matching the mockup) with a small negative offset
+//     so they hang slightly off the section's edge rather than sitting
+//     fully inside it, similar to the wave/shape bleeding off-frame in
+//     your screenshots. With both islands out of flow, `.content`
+//     becomes the ONLY normal-flow child left in the flex column, so it
+//     just centers itself with nothing above/below pushing it around
+//     anymore — that's what closes up the empty space you flagged,
+//     no manual repositioning of `.content` itself needed.
+//
+//   - Mobile (`max-width: 640px`): both groups go back to NORMAL FLOW
+//     instead of `position: absolute`. The markup below is already in
+//     back-group → content → front-group order specifically so this
+//     falls out for free — one island above the text, one below, no
+//     `order` property needed. Both groups also go oversized
+//     (`min(150vw, 900px)`, centered with `margin-inline: auto`), which
+//     is what makes them "cut off on the left/right sides" like you
+//     asked — the same horizontal-bleed trick already relied on
+//     elsewhere in this file (see the `overflow-x: hidden` note on
+//     `html` in Layout.astro, referenced in the `.hobby-section`
+//     comment below), just applied per-island now instead of to one
+//     shared group.
+//
+//   - First pass at this shrank each group's `width` down to roughly a
+//     third of the original combined size, which read as "the islands
+//     got tiny" — not what you asked for. Fixed: each group's `width`
+//     is now the exact same `clamp(700px, 82vw, 1600px)` the single
+//     shared box used before v15, so the on-screen size of each island
+//     is back to what it was — only its POSITION changed (corner-
+//     anchored instead of centered/stacked). Worth flagging since it
+//     falls out of keeping that size at this width: on shorter desktop
+//     viewports the two corner-anchored boxes can now reach far enough
+//     toward the middle to sit close behind (or slightly under)
+//     `.content` — `.content`'s `z-index: 2` keeps the text itself
+//     always readable on top, but if that closeness reads as too much
+//     once you see it with your real art (which likely has different
+//     padding around the painted pixels than my placeholder test
+//     images), let me know and I can pull the anchors further out or
+//     give the section more vertical room, rather than shrinking the
+//     islands again.
 //
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
@@ -414,13 +482,7 @@ const {
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
-  <div class="content">
-    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
-    <h2>{title}</h2>
-    <p class="body-text">{text}</p>
-  </div>
-
-  <div class="hobby-island-group" aria-hidden="true">
+  <div class="hobby-island-group hobby-island-group-back" aria-hidden="true">
     <div
       class="hobby-island-group-inner"
       style={`aspect-ratio: ${canvasWidth} / ${canvasHeight};`}
@@ -453,7 +515,20 @@ const {
           </div>
         </div>
       )}
+    </div>
+  </div>
 
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="hobby-island-group hobby-island-group-front" aria-hidden="true">
+    <div
+      class="hobby-island-group-inner"
+      style={`aspect-ratio: ${canvasWidth} / ${canvasHeight};`}
+    >
       <div class="hobby-layer-slot hobby-layer-slot-front">
         <div class="hobby-layer-bob hobby-layer-bob-front">
           <div class="hobby-layer-drift parallax-inner" data-depth="1.2">
@@ -805,35 +880,63 @@ const {
     margin: 0;
   }
 
-  /* The whole island — one graphic made of 3 stacked layers, sized
-     and positioned as a single unit. Normal flow (not absolutely
-     positioned — see the v5 note at the top of the file), centered
-     horizontally via the section's own `align-items: center`, with a
-     little breathing room above it separating it from `.content`.
-     `clamp()` keeps it readable on narrow screens without letting it
-     dwarf the viewport on very wide ones — there's no viewport-HEIGHT
-     term anywhere in this rule anymore, on purpose: normal flow means
-     there's nothing below `.content` for the island to collide with,
-     so nothing here needs to reason about how tall the viewport is. */
+  /* v15 — two independent groups instead of one shared box (full
+     reasoning in the top-of-file comment). Desktop default here:
+     pulled out of `.hobby-section`'s flex flow with `position:
+     absolute` so each can anchor to its own corner instead of both
+     stacking as one centered unit. `.hobby-island-group-inner` below
+     still fixes each group's own proportions to your CSP canvas size
+     (`canvasWidth`/`canvasHeight` — see v6) so its layer slots have a
+     well-defined `inset: 0` box to fill, exactly as before — that part
+     didn't change, just now there are two of these boxes instead of
+     one. Mobile (`max-width: 640px` below) overrides `position` back
+     to normal flow. */
   .hobby-island-group {
-    position: relative;
+    position: absolute;
     z-index: 1;
     width: clamp(700px, 82vw, 1600px);
-    max-width: 100%;
-    margin: clamp(1.5rem, 5vh, 4rem) auto 0;
     pointer-events: none;
+  }
+
+  /* Anchored to opposite corners, each with a small negative offset so
+     it hangs slightly off the section's own edge (matching the bleed
+     in your mockup) instead of sitting fully tucked inside it. Page-
+     wide `overflow-x: hidden` (see the note on `html` in Layout.astro)
+     is what actually crops that overhang rather than letting it force
+     a horizontal scrollbar.
+
+     Per your feedback: back-group (+ Joy-Con) nudged right (`left`
+     raised from a negative clamp to a small positive one — less
+     hanging off the left edge, more pulled in toward center), and
+     front-group nudged down and then further down + left again (
+     `bottom` lowered further into negative territory each round —
+     more of it now hangs below the section's bottom edge — and
+     `right` raised toward/into positive territory — less hanging off
+     the right edge, more pulled in toward center/under the text).
+     Only these `left`/`bottom`/`right` values have moved across all
+     three rounds of feedback; width, `top`, and everything else about
+     the corner-anchor approach stays exactly as it was. */
+  .hobby-island-group-back {
+    top: clamp(-2rem, 1vh, 3rem);
+    left: clamp(-3rem, 0vw, 3rem);
+  }
+
+  .hobby-island-group-front {
+    bottom: clamp(-11rem, -7vh, -5rem);
+    right: clamp(-3rem, 0vw, 3rem);
   }
 
   /* Fixes the group's proportions to your CSP canvas size (passed in
      via the `canvasWidth`/`canvasHeight` props, inline `style` above —
      see the v6 top-of-file comment) so every layer slot below always
      has a well-defined box to fill with `inset: 0`, regardless of how
-     `width` above resolves at a given viewport size. All three
-     `.hobby-layer-slot`s share this exact box at rest — it's only the
-     drift/bob transforms further in that ever move a layer away from
-     it. The `aspect-ratio: 3840 / 2160` here is just a fallback for
-     the (non-Astro) preview harness / in case the inline style is ever
-     stripped — the props above are the real source of truth. */
+     `width` above resolves at a given viewport size. The
+     `.hobby-layer-slot`s in a given group share this exact box at
+     rest — it's only the drift/bob transforms further in that ever
+     move a layer away from it. The `aspect-ratio: 3840 / 2160` here is
+     just a fallback for the (non-Astro) preview harness / in case the
+     inline style is ever stripped — the props above are the real
+     source of truth. */
   .hobby-island-group-inner {
     position: relative;
     aspect-ratio: 3840 / 2160;
@@ -927,11 +1030,12 @@ const {
     /* v13: slowed from 0.6s (the palm tree's speed, which this
        borrowed at first) to 1.1s, per your feedback — reads more like
        frost actually spreading/withdrawing rather than a quick UI
-       swap. Deliberately NOT touching `.hobby-palm-base`/
+       swap. v16: slowed again, from 1.1s to 1.8s, per further
+       feedback. Deliberately NOT touching `.hobby-palm-base`/
        `.hobby-palm-80s`'s 0.6s — you didn't ask to slow those down,
        and they're a different kind of effect (a tree swap, not a
        spreading texture) where the quicker pace still fits. */
-    transition: clip-path 1.1s ease;
+    transition: clip-path 1.8s ease;
   }
 
   /* Same reasoning as `.hobby-palm-hotspot` (v8): opts back into
@@ -1205,14 +1309,58 @@ const {
     }
   }
 
+  /* v15 — mobile stacking: back-group / `.content` / front-group go
+     back to NORMAL FLOW (overriding the desktop `position: absolute`
+     above) instead of corner-anchoring. The markup is already in
+     back-group → content → front-group DOM order specifically so this
+     falls out for free from `.hobby-section`'s existing `flex-
+     direction: column` — one island above the text, one below, no
+     `order` property needed. Both groups also go oversized
+     (`min(150vw, 900px)`) and centered with `margin-inline: auto`,
+     which is what makes them "cut off on the left/right sides" per
+     your request — same page-wide horizontal-bleed trick referenced
+     above, just applied per-island now. */
   @media (max-width: 640px) {
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
     }
 
+    /* Deliberately no `margin-inline: auto` here — auto margins on a
+       flex item can't go negative to center something WIDER than its
+       container (they just resolve to 0, per the flexbox spec), which
+       left this box hugging the padding edge instead of bleeding
+       evenly on both sides. `.hobby-section`'s own `align-items:
+       center` (see above) doesn't have that restriction — it centers
+       the item's margin box even when it overflows the line on both
+       sides — so leaving margin alone and just relying on that gives
+       the symmetric edge-bleed you asked for. */
     .hobby-island-group {
-      width: min(100vw, 720px);
+      position: relative;
+      top: auto;
+      left: auto;
+      right: auto;
+      bottom: auto;
+      width: min(150vw, 900px);
+    }
+
+    .hobby-island-group-back {
+      margin-top: 0;
+      margin-bottom: clamp(1rem, 5vh, 2.5rem);
+    }
+
+    /* Shifted left (per your feedback) so the palm tree — which sits
+       toward the RIGHT side of `frontIslandImage`'s own painted
+       content — moves further into view instead of being the part
+       that gets cropped off by the oversized-width bleed above.
+       `transform` rather than `margin`/`left`, since this box is
+       already centered by `.hobby-section`'s `align-items: center`
+       (see the comment above) — this just nudges that centered
+       position, it doesn't fight it. */
+    .hobby-island-group-front {
+      margin-top: clamp(1rem, 5vh, 2.5rem);
+      margin-bottom: 0;
+      transform: translateX(-14%);
     }
   }
 </style>
