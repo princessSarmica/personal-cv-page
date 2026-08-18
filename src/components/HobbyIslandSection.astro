@@ -1344,9 +1344,28 @@ const {
       width: min(150vw, 900px);
     }
 
+    /* Shifted right and down, per your feedback: `backIslandImage`'s
+       painted content sits toward the LEFT side of its own canvas
+       (opposite of the palm tree/front island situation below), so a
+       positive `translateX` is what brings it toward the middle of
+       the viewport instead of hugging the left edge. For "lower,
+       closer to the text": shrinking `margin-bottom` alone barely
+       moved the VISIBLE art, because most of this box's height below
+       the actual bed/campfire artwork is transparent canvas padding
+       (checked your art: the painted content only fills roughly the
+       top half of the box) — the margin was already only closing the
+       gap between the boxes, not the gap between the ART and the
+       text. `translateY` moves the visible art itself, not just the
+       box, so it's what actually pulls it closer. 45% is tuned against
+       my own placeholder test image's content position, not yours —
+       if the gap still isn't quite right once you see it with your
+       real art (which likely has the content sized/placed a bit
+       differently), tell me and I'll adjust the percentage rather
+       than guessing further. */
     .hobby-island-group-back {
       margin-top: 0;
-      margin-bottom: clamp(1rem, 5vh, 2.5rem);
+      margin-bottom: clamp(0.25rem, 1.5vh, 1rem);
+      transform: translate(14%, 45%);
     }
 
     /* Shifted left (per your feedback) so the palm tree — which sits
