@@ -299,8 +299,22 @@
 // tree, just de-duplicated rather than copy-pasted a second time for
 // the frost hotspot.
 //
-// v13 — slowed the frost hover transition from 0.6s to 2s, per your
+// v13 — slowed the frost hover transition from 0.6s to 1.1s, per your
 // feedback. Only the frost — the palm tree hover swap stays at 0.6s.
+//
+// v14 — added the Monado sword: `monadoImage` is a plain new layer,
+// LAST in the front island's stack so it renders in front of
+// everything else there (per "part of the front island in the front
+// of it"). `monadoSymbolImages` is an array of interchangeable symbol
+// images for the sword's gem — I checked your five uploads and they
+// all share the identical painted bounding box, so this needed no
+// hotspot/alignment work at all (unlike palm tree/frost): just one
+// `.is-active` symbol shown at a time, swapping to a different random
+// one at a random 3-7s interval, forever, starting immediately on
+// load so the gem is never empty. Full reasoning for the flicker-in
+// swap (and why the outgoing symbol gets a hard cut instead of a
+// fade, to avoid the same double-exposure problem v9 solved for the
+// palm tree) is inline near `.hobby-monado-symbol` below.
 //
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
@@ -324,6 +338,14 @@
 //     backIslandFrozenImage="/personal-cv-page/images/hobby_back_island_frozen.webp"
 //     palmTreeImage="/personal-cv-page/images/palm_tree.webp"
 //     palmTree80sImage="/personal-cv-page/images/palm_tree_80s.webp"
+//     monadoImage="/personal-cv-page/images/monado.webp"
+//     monadoSymbolImages={[
+//       "/personal-cv-page/images/monado_symbol_1.webp",
+//       "/personal-cv-page/images/monado_symbol_2.webp",
+//       "/personal-cv-page/images/monado_symbol_3.webp",
+//       "/personal-cv-page/images/monado_symbol_4.webp",
+//       "/personal-cv-page/images/monado_symbol_5.webp",
+//     ]}
 //     canvasWidth={3840}
 //     canvasHeight={2160}
 //   />
@@ -351,6 +373,16 @@ interface Props {
    *  bottom on hover, reverses on mouse-out. Ignored if `palmTreeImage`
    *  isn't also provided. */
   palmTree80sImage?: string;
+  /** Optional Monado sword layer, sitting in FRONT of the rest of the
+   *  front island (see the v14 comment above). Same canvas-size
+   *  requirement as every other layer. */
+  monadoImage?: string;
+  /** Optional array of symbol images for the sword's gem — one is
+   *  shown at a time, swapping to a random different one at random
+   *  intervals for as long as the page is open. All must share the
+   *  exact same painted position (yours do — same bounding box on all
+   *  five). Ignored if `monadoImage` isn't also provided. */
+  monadoSymbolImages?: string[];
   /** Your CSP document's canvas size in px — every layer export must
    *  share this exact size (see the v6 comment above). Defaults to
    *  3840x2160; override only if your actual CSP canvas differs. */
@@ -370,6 +402,8 @@ const {
   backIslandFrozenImage,
   palmTreeImage,
   palmTree80sImage,
+  monadoImage,
+  monadoSymbolImages,
   canvasWidth = 3840,
   canvasHeight = 2160,
 } = Astro.props;
@@ -444,6 +478,19 @@ const {
                 alt=""
               />
             )}
+            {monadoImage && (
+              <img class="hobby-layer hobby-monado" src={monadoImage} alt="" />
+            )}
+            {monadoImage &&
+              monadoSymbolImages &&
+              monadoSymbolImages.map((src) => (
+                <img
+                  class="hobby-layer hobby-monado-symbol"
+                  src={src}
+                  alt=""
+                  data-monado-symbol
+                />
+              ))}
           </div>
         </div>
       </div>
@@ -642,6 +689,63 @@ const {
   if (frozenOverlay && frostHotspot) {
     fitHotspotToAlpha(frozenOverlay, frostHotspot);
   }
+
+  // Monado sword symbol cycling (see the v14 comment at the top of
+  // the file). All symbol images share the same painted position (an
+  // `inset: 0` layer like every other artwork here — see v6), so this
+  // is pure show/hide bookkeeping, no positioning math needed: exactly
+  // one `.hobby-monado-symbol` carries `.is-active` at a time, which
+  // is what triggers its CSS flicker-in animation (see the
+  // stylesheet). No-ops if `monadoImage`/`monadoSymbolImages` weren't
+  // passed (no `[data-monado-symbol]` elements on the page).
+  const monadoSymbols = document.querySelectorAll<HTMLElement>(
+    "[data-monado-symbol]"
+  );
+
+  if (monadoSymbols.length) {
+    const symbols = Array.from(monadoSymbols);
+    let currentIndex = -1;
+
+    const pickNextIndex = () => {
+      if (symbols.length === 1) return 0;
+      let next = currentIndex;
+      while (next === currentIndex) {
+        next = Math.floor(Math.random() * symbols.length);
+      }
+      return next;
+    };
+
+    const showSymbol = (index: number) => {
+      if (currentIndex >= 0) {
+        symbols[currentIndex].classList.remove("is-active");
+      }
+      currentIndex = index;
+      symbols[currentIndex].classList.add("is-active");
+    };
+
+    // Show one immediately (rather than waiting for the first random
+    // delay) so the sword's gem is never empty on page load — reduced
+    // motion also relies on this: it never reschedules below, so this
+    // first call is the ONLY thing that ever sets a symbol for those
+    // visitors, and `.is-active`'s animation is disabled entirely in
+    // that case (see the stylesheet), so it just appears, no flicker.
+    showSymbol(pickNextIndex());
+
+    if (!prefersReducedMotion) {
+      const minDelay = 3000; // ms, shortest gap between symbol changes
+      const maxDelay = 7000; // ms, longest gap between symbol changes
+
+      const scheduleNext = () => {
+        const delay = minDelay + Math.random() * (maxDelay - minDelay);
+        setTimeout(() => {
+          showSymbol(pickNextIndex());
+          scheduleNext();
+        }, delay);
+      };
+
+      scheduleNext();
+    }
+  }
 </script>
 
 <style>
@@ -821,13 +925,13 @@ const {
     inset: 0;
     clip-path: circle(0% at 50% 50%);
     /* v13: slowed from 0.6s (the palm tree's speed, which this
-       borrowed at first) to 8s, per your feedback — reads more like
+       borrowed at first) to 1.1s, per your feedback — reads more like
        frost actually spreading/withdrawing rather than a quick UI
        swap. Deliberately NOT touching `.hobby-palm-base`/
        `.hobby-palm-80s`'s 0.6s — you didn't ask to slow those down,
        and they're a different kind of effect (a tree swap, not a
        spreading texture) where the quicker pace still fits. */
-    transition: clip-path 2s ease;
+    transition: clip-path 1.1s ease;
   }
 
   /* Same reasoning as `.hobby-palm-hotspot` (v8): opts back into
@@ -999,6 +1103,52 @@ const {
     100% { top: 100%; opacity: 0; }
   }
 
+  /* v14 — Monado sword: `.hobby-monado` is just another plain stacked
+     layer, no special behavior (it's LAST among the front island's
+     children, i.e. on TOP of `frontIslandImage`/the palm tree, per
+     "in front of it"). The symbols are the interesting part: all five
+     of yours share the exact same painted position (checked — same
+     bounding box on every file), so unlike the palm tree/frost this
+     needed no hotspot or alignment math, just show/hide bookkeeping —
+     exactly one `.hobby-monado-symbol` has `.is-active` at a time
+     (script above), everything else stays at `opacity: 0`. */
+  .hobby-monado,
+  .hobby-monado-symbol {
+    position: absolute;
+    inset: 0;
+  }
+
+  .hobby-monado-symbol {
+    opacity: 0;
+  }
+
+  /* A quick flicker-in rather than a plain cross-fade — matches the
+     "electronic" language established for the palm tree (v10/v11):
+     `steps()` instead of a smooth curve, and the opacity/brightness
+     bouncing partway through rather than rising in one motion, so it
+     reads as the gem re-igniting with the new symbol rather than
+     smoothly dissolving into it. The OUTGOING symbol isn't animated at
+     all — the script removes its `.is-active` class in the same tick
+     it adds the new one's, so it snaps to `opacity: 0` instantly with
+     no `transition` declared here to soften that. That's deliberate:
+     softening the outgoing symbol would mean two symbols visibly
+     overlapping mid-swap, the same double-exposure problem solved for
+     the palm tree in v9 — instant-out + flicker-in avoids it without
+     needing any clip-path sync trick this time, since a hard cut on
+     the way out never overlaps the incoming animation at all. */
+  .hobby-monado-symbol.is-active {
+    animation: hobby-monado-symbol-in 0.5s steps(8, end) forwards;
+  }
+
+  @keyframes hobby-monado-symbol-in {
+    0% { opacity: 0; filter: brightness(2) saturate(1.6); }
+    20% { opacity: 1; }
+    35% { opacity: 0.2; filter: brightness(0.6); }
+    50% { opacity: 1; filter: brightness(1.8); }
+    65% { opacity: 0.3; }
+    100% { opacity: 1; filter: none; }
+  }
+
   @keyframes hobby-bob {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
@@ -1042,6 +1192,16 @@ const {
 
     .hobby-palm-scanline {
       display: none;
+    }
+
+    /* Ambient/random like the old v7 frost timer, so treated the same
+       way: script-side already never reschedules further changes
+       under reduced motion (see the script above), and this
+       guarantees whichever symbol that first, only call landed on
+       just appears rather than flickering in. */
+    .hobby-monado-symbol.is-active {
+      animation: none;
+      opacity: 1;
     }
   }
 
