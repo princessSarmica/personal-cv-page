@@ -154,7 +154,12 @@
 // the back island and periodically "reveals" itself (spreads out from
 // its own center, holds for a few seconds, then withdraws back to the
 // center the same way) at random intervals, fully hands-off once it's
-// on the page. Three implementation notes:
+// on the page. SUPERSEDED BY v12 BELOW: the random-timer trigger
+// described in point 3 is gone — it's a hover reveal now. Points 1 and
+// 2 (alignment, the circle-reveal mechanic) still apply as-is; left
+// this section intact rather than rewriting it, same as how v2/v3
+// stay in place after later versions changed that behavior too. Three
+// implementation notes (again, point 3 is historical):
 //
 //   1. Alignment: this overlay lives INSIDE the back island's own
 //      `.hobby-layer-drift` wrapper (not a sibling slot like Joy-Con/
@@ -278,6 +283,25 @@
 // anything — the clip-path sync that guarantees no double-exposure
 // and the tree-scoped hotspot positioning are untouched.
 //
+// v12 — the back island frost (v7) used to appear on a random timer;
+// now it's a hover reveal instead, matching the palm tree pattern
+// (v8): a `.hobby-frost-hotspot` div, alpha-scanned to the frost art's
+// own painted pixels (not the whole back island), and
+// `.hobby-frozen-overlay` transitions its `clip-path` on `:hover`
+// instead of running a fixed 6.5s keyframe loop — it grows while
+// you're over the hotspot and withdraws the moment you leave, for as
+// long as the hover lasts, rather than a timed appear-hold-withdraw
+// cycle running on its own. The random-interval `setTimeout` scheduler
+// from v7 is gone entirely. Along the way, refactored the alpha-scan
+// logic (used to size the palm tree's hotspot) into a shared
+// `fitHotspotToAlpha()` helper in the script below, since it's now
+// doing the same job twice — same behavior as before for the palm
+// tree, just de-duplicated rather than copy-pasted a second time for
+// the frost hotspot.
+//
+// v13 — slowed the frost hover transition from 0.6s to 2s, per your
+// feedback. Only the frost — the palm tree hover swap stays at 0.6s.
+//
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
 // element from Layout.astro) — same as every other section in the
@@ -372,12 +396,15 @@ const {
           <div class="hobby-layer-drift parallax-inner" data-depth="0.55">
             <img class="hobby-layer" src={backIslandImage} alt="" />
             {backIslandFrozenImage && (
-              <img
-                class="hobby-layer hobby-frozen-overlay"
-                src={backIslandFrozenImage}
-                alt=""
-                data-frozen-overlay
-              />
+              <>
+                <div class="hobby-frost-hotspot" data-frost-hotspot></div>
+                <img
+                  class="hobby-layer hobby-frozen-overlay"
+                  src={backIslandFrozenImage}
+                  alt=""
+                  data-frozen-overlay
+                />
+              </>
             )}
           </div>
         </div>
@@ -498,62 +525,27 @@ const {
     requestAnimationFrame(tick);
   }
 
-  // Random "frozen" reveal on the back island (see the v7 comment at
-  // the top of the file). Self-contained: no-ops entirely if the
-  // overlay prop wasn't passed (no `[data-frozen-overlay]` element on
-  // the page) or under `prefers-reduced-motion: reduce`.
-  const frozenOverlay = document.querySelector<HTMLElement>(
-    "[data-frozen-overlay]"
-  );
-
-  if (frozenOverlay && !prefersReducedMotion) {
-    const minDelay = 8000; // ms, shortest gap between appearances
-    const maxDelay = 22000; // ms, longest gap between appearances
-
-    const scheduleNext = () => {
-      const delay = minDelay + Math.random() * (maxDelay - minDelay);
-      setTimeout(() => {
-        frozenOverlay.classList.add("is-active");
-      }, delay);
-    };
-
-    // `animationend` fires once the reveal-hold-withdraw cycle
-    // finishes (back at an invisible `circle(0%)` state) — remove the
-    // class so `.is-active` can be re-added later to replay it, then
-    // roll the next random wait.
-    frozenOverlay.addEventListener("animationend", () => {
-      frozenOverlay.classList.remove("is-active");
-      scheduleNext();
-    });
-
-    scheduleNext();
-  }
-
-  // Palm tree hover hotspot (see the v8 comment at the top of the
-  // file). Sizes an invisible `pointer-events: auto` div to the ACTUAL
-  // painted pixels of `palmTreeImage`, not its full (mostly
-  // transparent) canvas-sized layer box — otherwise hovering anywhere
-  // near the front island would trigger the swap, not just the tree
-  // itself. Computed once from the image's alpha channel via an
-  // offscreen canvas rather than hardcoded, so re-exporting the tree
-  // at a different position/size later doesn't require touching this
-  // file again. No-ops entirely if `palmTreeImage` wasn't passed (no
-  // `[data-palm-base]` element on the page); the hover/reveal itself
-  // is plain CSS (`:hover` + `clip-path` transition, see the
-  // stylesheet), so there's nothing else to wire up here even when
-  // `palmTree80sImage` IS present.
-  const palmBase = document.querySelector<HTMLImageElement>(
-    "[data-palm-base]"
-  );
-  const palmHotspot = document.querySelector<HTMLElement>(
-    "[data-palm-hotspot]"
-  );
-
-  if (palmBase && palmHotspot) {
-    const computeHotspot = () => {
+  // Shared by both hover hotspots below (palm tree, frost — v8 and
+  // v12 respectively): sizes `hotspotEl` (an invisible
+  // `pointer-events: auto` div) to the ACTUAL painted pixels of
+  // `sourceImg`, not its full (mostly transparent) canvas-sized layer
+  // box — otherwise hovering anywhere on that island would trigger the
+  // effect, not just the specific artwork it belongs to. Computed once
+  // from the image's alpha channel via an offscreen canvas rather than
+  // hardcoded, so re-exporting either layer at a different position/
+  // size later doesn't require touching this file again. Needs
+  // `sourceImg` to be same-origin (true for your site's own `/images/`
+  // assets) since cross-origin canvas pixel reads throw; that's
+  // caught, and the hotspot just falls back to covering the whole slot
+  // (its CSS default) rather than breaking anything.
+  function fitHotspotToAlpha(
+    sourceImg: HTMLImageElement,
+    hotspotEl: HTMLElement
+  ) {
+    const run = () => {
       try {
-        const w = palmBase.naturalWidth;
-        const h = palmBase.naturalHeight;
+        const w = sourceImg.naturalWidth;
+        const h = sourceImg.naturalHeight;
         if (!w || !h) return;
 
         const canvas = document.createElement("canvas");
@@ -562,7 +554,7 @@ const {
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
-        ctx.drawImage(palmBase, 0, 0);
+        ctx.drawImage(sourceImg, 0, 0);
         const { data } = ctx.getImageData(0, 0, w, h);
 
         let minX = w;
@@ -596,10 +588,10 @@ const {
         const right = Math.min(w, maxX + padX);
         const bottom = Math.min(h, maxY + padY);
 
-        palmHotspot.style.left = `${(left / w) * 100}%`;
-        palmHotspot.style.top = `${(top / h) * 100}%`;
-        palmHotspot.style.width = `${((right - left) / w) * 100}%`;
-        palmHotspot.style.height = `${((bottom - top) / h) * 100}%`;
+        hotspotEl.style.left = `${(left / w) * 100}%`;
+        hotspotEl.style.top = `${(top / h) * 100}%`;
+        hotspotEl.style.width = `${((right - left) / w) * 100}%`;
+        hotspotEl.style.height = `${((bottom - top) / h) * 100}%`;
       } catch {
         // Cross-origin (or other) canvas read failure — leave the
         // hotspot at its CSS default (the full layer box) rather than
@@ -607,11 +599,48 @@ const {
       }
     };
 
-    if (palmBase.complete) {
-      computeHotspot();
+    if (sourceImg.complete) {
+      run();
     } else {
-      palmBase.addEventListener("load", computeHotspot, { once: true });
+      sourceImg.addEventListener("load", run, { once: true });
     }
+  }
+
+  // Palm tree hover swap (see the v8 comment at the top of the file).
+  // No-ops entirely if `palmTreeImage` wasn't passed (no
+  // `[data-palm-base]` element on the page); the hover/reveal itself
+  // is plain CSS (`:hover` + `clip-path` transition, see the
+  // stylesheet), so there's nothing else to wire up here even when
+  // `palmTree80sImage` IS present.
+  const palmBase = document.querySelector<HTMLImageElement>(
+    "[data-palm-base]"
+  );
+  const palmHotspot = document.querySelector<HTMLElement>(
+    "[data-palm-hotspot]"
+  );
+
+  if (palmBase && palmHotspot) {
+    fitHotspotToAlpha(palmBase, palmHotspot);
+  }
+
+  // Back island frost hover reveal (see the v12 comment at the top of
+  // the file). Same mechanism as the palm tree above, just scanning
+  // `backIslandFrozenImage` itself instead of a separate "base" layer,
+  // since the frost art IS the thing you're hovering to reveal — the
+  // hotspot ends up sized to wherever the frost actually paints, not
+  // the whole back island. No-ops if `backIslandFrozenImage` wasn't
+  // passed (no `[data-frozen-overlay]` element on the page); like the
+  // palm tree, the reveal itself is plain CSS now, nothing further to
+  // wire up here.
+  const frozenOverlay = document.querySelector<HTMLImageElement>(
+    "[data-frozen-overlay]"
+  );
+  const frostHotspot = document.querySelector<HTMLElement>(
+    "[data-frost-hotspot]"
+  );
+
+  if (frozenOverlay && frostHotspot) {
+    fitHotspotToAlpha(frozenOverlay, frostHotspot);
   }
 </script>
 
@@ -772,36 +801,54 @@ const {
     width: 100%;
   }
 
-  /* Sits on top of `backIslandImage` inside the SAME
+  /* v12 — was a randomly-timed `.is-active` animation (see the removed
+     v7 mechanism); now a hover reveal instead, same pattern as the
+     palm tree's `.hobby-palm-hotspot` (v8): `.hobby-frost-hotspot` is
+     an invisible `pointer-events: auto` div, alpha-scanned by the
+     script above to the frost art's own painted pixels (not the whole
+     back island), and `.hobby-frozen-overlay` transitions its
+     `clip-path` on hover instead of running a fixed-length keyframe
+     loop — grows while the cursor is over the hotspot, withdraws the
+     moment it leaves, for as long or short as the hover lasts, rather
+     than a fixed 6.5s cycle that used to run on its own schedule.
+     Sits on top of `backIslandImage` inside the SAME
      `.hobby-layer-drift` (see the v7 comment) via `position: absolute`
      — the sibling `backIslandImage` stays in normal flow and is what
      actually gives `.hobby-layer-drift` its height, so this overlay's
-     `inset: 0` box always matches it exactly. Starts fully clipped
-     down to a point at its own center; `.is-active` (toggled by the
-     script above) plays the reveal-hold-withdraw animation once and
-     then gets removed again so it can replay later. */
+     `inset: 0` box always matches it exactly. */
   .hobby-frozen-overlay {
     position: absolute;
     inset: 0;
     clip-path: circle(0% at 50% 50%);
+    /* v13: slowed from 0.6s (the palm tree's speed, which this
+       borrowed at first) to 8s, per your feedback — reads more like
+       frost actually spreading/withdrawing rather than a quick UI
+       swap. Deliberately NOT touching `.hobby-palm-base`/
+       `.hobby-palm-80s`'s 0.6s — you didn't ask to slow those down,
+       and they're a different kind of effect (a tree swap, not a
+       spreading texture) where the quicker pace still fits. */
+    transition: clip-path 2s ease;
   }
 
-  .hobby-frozen-overlay.is-active {
-    animation: hobby-frozen-reveal 6.5s ease-in-out;
+  /* Same reasoning as `.hobby-palm-hotspot` (v8): opts back into
+     `pointer-events: auto` despite `.hobby-island-group`'s blanket
+     `pointer-events: none`, which is what makes it hoverable at all.
+     `inset: 0` is only the fallback until the script above sizes it to
+     the frost art's real bounding box. Needs to come BEFORE
+     `.hobby-frozen-overlay` in the markup for `~` below to reach it. */
+  .hobby-frost-hotspot {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
   }
 
   /* 150% deliberately overshoots — for a `circle()` radius without a
      `farthest-corner` keyword, 100% doesn't reliably reach the corners
      of a non-square box, and overshooting costs nothing here since a
      circle bigger than the image just means "fully visible," same as
-     any other value past full coverage. Holds fully visible from ~18%
-     to ~72% of the 6.5s duration (a little over 3.5s) before
-     withdrawing back to the same center point it grew from. */
-  @keyframes hobby-frozen-reveal {
-    0% { clip-path: circle(0% at 50% 50%); }
-    18% { clip-path: circle(150% at 50% 50%); }
-    72% { clip-path: circle(150% at 50% 50%); }
-    100% { clip-path: circle(0% at 50% 50%); }
+     any other value past full coverage. */
+  .hobby-frost-hotspot:hover ~ .hobby-frozen-overlay {
+    clip-path: circle(150% at 50% 50%);
   }
 
   /* Palm tree hover swap (see the v8/v9 comments at the top of the
@@ -973,12 +1020,12 @@ const {
       animation: none;
     }
 
-    /* Script-side already skips scheduling `.is-active` under reduced
-       motion, so this is belt-and-suspenders: guarantees the overlay
-       stays fully hidden even if the class ever ends up on the element
-       some other way. */
+    /* v12: now a direct hover response like the palm tree swap below,
+       not ambient/random motion, so it stays interactive here too —
+       just snaps instantly between clipped/revealed instead of
+       transitioning. */
     .hobby-frozen-overlay {
-      display: none;
+      transition: none;
     }
 
     /* Keep the hover swap itself (it's a direct response to the
