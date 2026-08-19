@@ -1110,11 +1110,15 @@ const {
      to normal flow. */
   /* v17: shrunk from `clamp(700px, 82vw, 1600px)` (~25-30% smaller at
      every width), per your feedback that both islands read too big on
-     wide screens. */
+     wide screens. v18: bumped back up slightly, per further feedback
+     that they should be a bit bigger — still well short of the
+     original v15 size, just not as small as the v17 cut. Desktop only;
+     mobile's separate `width` (below, under `max-width: 640px`) is
+     unaffected. */
   .hobby-island-group {
     position: absolute;
     z-index: 1;
-    width: clamp(560px, 60vw, 1150px);
+    width: clamp(640px, 68vw, 1300px);
     pointer-events: none;
   }
 
