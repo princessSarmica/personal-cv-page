@@ -384,6 +384,59 @@
 //     give the section more vertical room, rather than shrinking the
 //     islands again.
 //
+// v17 — exactly that flagged risk happened once you tried it on real
+// screens: both islands read as too big on wide viewports, and the
+// front island was sitting behind `.content`, making the text harder
+// to read. Two changes, desktop only (`min-width: 641px`) — mobile is
+// untouched:
+//
+//   1. Both groups' `width` shrunk from `clamp(700px, 82vw, 1600px)`
+//      to `clamp(560px, 60vw, 1150px)` — roughly a 25-30% reduction at
+//      every viewport width, not just the extremes.
+//
+//   2. The front island now sits BELOW `.content` instead of corner-
+//      anchored near it. Getting this right needed more than a
+//      hardcoded position, though: `.content`'s height isn't fixed —
+//      it changes with your actual title/body copy length, viewport
+//      width (line-wrapping), and font-size `clamp()`s — so any fixed
+//      percentage I picked would only be correct for THIS placeholder
+//      copy at THIS viewport, and drift out of sync (overlapping again)
+//      the moment either changes. Same reasoning as `fitHotspotToAlpha`
+//      elsewhere in this file: measure the real thing at runtime rather
+//      than hardcode a guess. New script logic (see
+//      `positionFrontGroupBelowContent()` below) measures `.content`'s
+//      actual rendered bottom edge and sets the front island's `top`
+//      that many px below it plus a fixed gap, clearing the old
+//      `bottom` anchor so the two don't fight (an absolutely positioned
+//      box with BOTH `top` and `bottom` set and no explicit height
+//      stretches to fill the space between them, which would have
+//      broken the aspect-ratio-driven sizing). Re-runs on resize, on
+//      the mobile/desktop breakpoint changing, and once web fonts
+//      finish loading (text can reflow taller/shorter right after fonts
+//      swap in). On mobile, or if this script fails for any reason, it
+//      falls back to the plain CSS position below `.content` in normal
+//      flow (mobile) — nothing breaks, it just stops being able to
+//      track `.content`'s exact height on desktop specifically.
+//
+// v18 — the "closer to the text" fix from the previous round barely
+// read as a change once you tried it, even after shrinking the fixed
+// gap from 32px down to 4px. Root cause: `frontIslandImage`'s canvas has
+// its own chunk of transparent padding above the actual painted art
+// (same kind of thing `fitHotspotToAlpha` already accounts for on the
+// palm tree/frost hotspots, just never applied to this particular
+// measurement) — the OLD math was positioning the top of that mostly-
+// invisible BOX a fixed gap below the text, so shrinking the gap was
+// mostly closing empty space nobody could see, not moving the actual
+// fountain/stairs artwork closer. Fixed by alpha-scanning
+// `frontIslandBaseImg` once (reusing the same scan now shared with
+// `fitHotspotToAlpha` — see `scanAlphaBBoxFraction` in the script
+// below) to find exactly how much of the box's top is transparent, and
+// subtracting that from the computed position — so "4px gap" now means
+// 4px below the VISIBLE art, not 4px below the box. Also updated
+// `showFrontGroupOnceReady()` to wait for this scan too (alongside web
+// fonts) before its first reveal, so the v17 anti-jump fix still holds:
+// nothing appears until the FINAL, fully-corrected position is known.
+//
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
 // element from Layout.astro) — same as every other section in the
@@ -532,7 +585,12 @@ const {
       <div class="hobby-layer-slot hobby-layer-slot-front">
         <div class="hobby-layer-bob hobby-layer-bob-front">
           <div class="hobby-layer-drift parallax-inner" data-depth="1.2">
-            <img class="hobby-layer" src={frontIslandImage} alt="" />
+            <img
+              class="hobby-layer"
+              src={frontIslandImage}
+              alt=""
+              data-front-island-base
+            />
             {palmTreeImage && palmTree80sImage && (
               <div class="hobby-palm-hotspot" data-palm-hotspot>
                 <div class="hobby-palm-scanline" aria-hidden="true"></div>
@@ -647,85 +705,244 @@ const {
     requestAnimationFrame(tick);
   }
 
+  // v18 — shared low-level alpha-channel scan, factored out of what
+  // used to be `fitHotspotToAlpha`'s own inline pixel walk (see that
+  // function further below — it's now a thin wrapper around this).
+  // Returns a Promise of the image's real painted bounding box as 0-1
+  // FRACTIONS of its own width/height (not pixels, not a DOM position),
+  // or `null` if the image has no visible pixels or the scan can't run
+  // (cross-origin canvas reads throw; caught below). Needed by TWO
+  // different features now — hotspot sizing (below) and the front-
+  // island top-padding compensation (v18, right after this) — so it's
+  // shared instead of duplicated a third time, same reasoning as the
+  // v12 refactor that first pulled this out of the palm tree code.
+  function scanAlphaBBoxFraction(
+    sourceImg: HTMLImageElement
+  ): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+    return new Promise((resolve) => {
+      const run = () => {
+        try {
+          const w = sourceImg.naturalWidth;
+          const h = sourceImg.naturalHeight;
+          if (!w || !h) {
+            resolve(null);
+            return;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+
+          ctx.drawImage(sourceImg, 0, 0);
+          const { data } = ctx.getImageData(0, 0, w, h);
+
+          let minX = w;
+          let minY = h;
+          let maxX = 0;
+          let maxY = 0;
+          let found = false;
+          const step = 2; // sample every other pixel on both axes — 4x fewer reads, plenty precise here
+
+          for (let y = 0; y < h; y += step) {
+            for (let x = 0; x < w; x += step) {
+              const alpha = data[(y * w + x) * 4 + 3];
+              if (alpha > 10) {
+                found = true;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+            }
+          }
+
+          if (!found) {
+            resolve(null);
+            return;
+          }
+
+          resolve({
+            left: minX / w,
+            top: minY / h,
+            right: maxX / w,
+            bottom: maxY / h,
+          });
+        } catch {
+          // Cross-origin (or other) canvas read failure — resolve null
+          // so callers fall back to their own CSS default rather than
+          // breaking anything.
+          resolve(null);
+        }
+      };
+
+      if (sourceImg.complete) {
+        run();
+      } else {
+        sourceImg.addEventListener("load", run, { once: true });
+      }
+    });
+  }
+
+  // v17 — keeps the front island clear of `.content` on desktop
+  // (`min-width: 641px`), instead of the old fixed corner anchor that
+  // could sit behind the text. `.content`'s height isn't fixed — it
+  // moves with your actual title/body copy, viewport width (line-
+  // wrapping), and the font-size `clamp()`s in the stylesheet — so a
+  // hardcoded position would only be correct for one specific length
+  // of text at one specific viewport, same problem `fitHotspotToAlpha`
+  // below solves for image alignment, just for layout instead. Measures
+  // `.content`'s real rendered bottom edge (relative to `.hobby-
+  // section`) and positions `.hobby-island-group-front` a fixed gap
+  // below that, clearing the CSS `bottom` anchor at the same time —
+  // leaving both `top` and `bottom` set with no explicit height would
+  // stretch the box to fill the space between them, breaking the
+  // aspect-ratio-driven sizing on `.hobby-island-group-inner`. No-op
+  // (and clears any inline styles from a previous wider viewport) below
+  // the `min-width: 641px` breakpoint, where the mobile stylesheet
+  // already stacks the front island below `.content` in normal flow —
+  // nothing to compute there.
+  //
+  // v18 — "closer to the text" turned out to still barely move once you
+  // saw it live, even after shrinking the gap from 32px to 4px. Cause:
+  // `frontIslandImage`'s canvas has its own transparent padding above
+  // the actual painted art (fountain/stairs/etc.) — the OLD math
+  // positioned the top of that mostly-invisible BOX a fixed gap below
+  // the text, so most of the "closer" from shrinking the gap was
+  // closing empty space nobody could see, not moving the visible art.
+  // Now `frontIslandBaseImg` gets alpha-scanned once (via
+  // `scanAlphaBBoxFraction` above) to find exactly how much of the top
+  // of its box is transparent padding, and that amount gets subtracted
+  // from the computed `top` — so the position is based on where the
+  // ART actually starts, not where its canvas happens to start. Same
+  // "measure the real thing instead of guessing a percentage" reasoning
+  // as v17 and every alpha-scan hotspot in this file.
+  const hobbySection = document.querySelector<HTMLElement>(".hobby-section");
+  const hobbyContent = document.querySelector<HTMLElement>(
+    ".hobby-section > .content"
+  );
+  const frontGroup = document.querySelector<HTMLElement>(
+    ".hobby-island-group-front"
+  );
+  const frontIslandBaseImg = document.querySelector<HTMLImageElement>(
+    "[data-front-island-base]"
+  );
+  const desktopQuery = window.matchMedia("(min-width: 641px)");
+
+  let frontIslandTopFraction = 0;
+  const frontIslandAlphaReady = frontIslandBaseImg
+    ? scanAlphaBBoxFraction(frontIslandBaseImg).then((bbox) => {
+        if (bbox) frontIslandTopFraction = bbox.top;
+      })
+    : Promise.resolve();
+
+  function positionFrontGroupBelowContent() {
+    if (!hobbySection || !hobbyContent || !frontGroup) return;
+
+    if (!desktopQuery.matches) {
+      frontGroup.style.top = "";
+      frontGroup.style.bottom = "";
+      frontGroup.style.visibility = "";
+      return;
+    }
+
+    const sectionRect = hobbySection.getBoundingClientRect();
+    const contentRect = hobbyContent.getBoundingClientRect();
+    // `frontGroup`'s own height comes from its `width` + the
+    // `aspect-ratio` on `.hobby-island-group-inner` — reading it here
+    // is safe regardless of the `top`/`bottom` this function is about
+    // to set, since neither affects the box's own size.
+    const groupHeight = frontGroup.getBoundingClientRect().height;
+    const gap = -10; // px, breathing room between the text and the VISIBLE art below it — negative per your feedback, for a bit of intentional tuck rather than a visible gap
+    const topPaddingPx = frontIslandTopFraction * groupHeight;
+
+    frontGroup.style.top = `${
+      contentRect.bottom - sectionRect.top + gap - topPaddingPx
+    }px`;
+    frontGroup.style.bottom = "auto";
+    frontGroup.style.visibility = "visible";
+  }
+
+  // Fixed a visible "jumps lower right after load" glitch: the CSS
+  // fallback position (`.hobby-island-group-front`'s plain `bottom`
+  // rule, still in the stylesheet as a no-JS/no-op safety net) sits
+  // noticeably higher than where this script ends up placing it, and
+  // module scripts like this one run AFTER the browser has already
+  // parsed/painted the initial HTML+CSS — so there was a real gap
+  // between "page paints with the old corner-anchored position" and
+  // "script runs and snaps it down to the new below-text position,"
+  // which is exactly the jump you saw. The stylesheet now hides this
+  // group by default on desktop (`visibility: hidden` under
+  // `min-width: 641px`) so nothing paints there until this script has
+  // actually measured and positioned it — `positionFrontGroupBelowContent`
+  // sets `visibility: visible` itself once it runs, as the last step of
+  // placing it correctly, so the FIRST thing ever shown is the right
+  // position, not a flash of the old one. Also waits for
+  // `document.fonts.ready` before that very first call (when the API is
+  // available) — web fonts swapping in can change `.content`'s height
+  // right after paint too, which would've caused this exact same kind
+  // of jump a second time, just from a different cause. Subsequent
+  // resizes/breakpoint changes call it directly (no need to wait for
+  // fonts again) since the group is already visible by then and a
+  // reposition while visible just tracks the text like it's meant to,
+  // it doesn't "jump" from a stale spot the visitor never saw. v18: also
+  // waits for `frontIslandAlphaReady` now, for the same reason — reveal
+  // only once the top-padding compensation is known too, so the FIRST
+  // visible position already accounts for it instead of jumping again
+  // once the scan resolves a moment later.
+  function showFrontGroupOnceReady() {
+    const fontsReady = document.fonts?.ready
+      ? document.fonts.ready.catch(() => {})
+      : Promise.resolve();
+
+    Promise.all([fontsReady, frontIslandAlphaReady]).then(
+      positionFrontGroupBelowContent
+    );
+  }
+
+  showFrontGroupOnceReady();
+  window.addEventListener("resize", positionFrontGroupBelowContent);
+  desktopQuery.addEventListener("change", positionFrontGroupBelowContent);
+
   // Shared by both hover hotspots below (palm tree, frost — v8 and
   // v12 respectively): sizes `hotspotEl` (an invisible
   // `pointer-events: auto` div) to the ACTUAL painted pixels of
   // `sourceImg`, not its full (mostly transparent) canvas-sized layer
   // box — otherwise hovering anywhere on that island would trigger the
-  // effect, not just the specific artwork it belongs to. Computed once
-  // from the image's alpha channel via an offscreen canvas rather than
-  // hardcoded, so re-exporting either layer at a different position/
-  // size later doesn't require touching this file again. Needs
+  // effect, not just the specific artwork it belongs to. Needs
   // `sourceImg` to be same-origin (true for your site's own `/images/`
-  // assets) since cross-origin canvas pixel reads throw; that's
-  // caught, and the hotspot just falls back to covering the whole slot
-  // (its CSS default) rather than breaking anything.
+  // assets) since cross-origin canvas pixel reads throw; that's caught
+  // inside `scanAlphaBBoxFraction` above, and the hotspot just falls
+  // back to covering the whole slot (its CSS default) rather than
+  // breaking anything. v18: now a thin wrapper around
+  // `scanAlphaBBoxFraction` (see above) instead of its own copy of the
+  // pixel-walk — same behavior/output as before, just de-duplicated
+  // since that scan is now used in two places.
   function fitHotspotToAlpha(
     sourceImg: HTMLImageElement,
     hotspotEl: HTMLElement
   ) {
-    const run = () => {
-      try {
-        const w = sourceImg.naturalWidth;
-        const h = sourceImg.naturalHeight;
-        if (!w || !h) return;
+    scanAlphaBBoxFraction(sourceImg).then((bbox) => {
+      if (!bbox) return;
 
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+      // Small padding so the hotspot isn't pixel-tight against the
+      // artwork's edge — makes it a little more forgiving to hover.
+      const padX = (bbox.right - bbox.left) * 0.05;
+      const padY = (bbox.bottom - bbox.top) * 0.05;
+      const left = Math.max(0, bbox.left - padX);
+      const top = Math.max(0, bbox.top - padY);
+      const right = Math.min(1, bbox.right + padX);
+      const bottom = Math.min(1, bbox.bottom + padY);
 
-        ctx.drawImage(sourceImg, 0, 0);
-        const { data } = ctx.getImageData(0, 0, w, h);
-
-        let minX = w;
-        let minY = h;
-        let maxX = 0;
-        let maxY = 0;
-        let found = false;
-        const step = 2; // sample every other pixel on both axes — 4x fewer reads, plenty precise for a hover zone
-
-        for (let y = 0; y < h; y += step) {
-          for (let x = 0; x < w; x += step) {
-            const alpha = data[(y * w + x) * 4 + 3];
-            if (alpha > 10) {
-              found = true;
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
-            }
-          }
-        }
-
-        if (!found) return;
-
-        // Small padding so the hotspot isn't pixel-tight against the
-        // artwork's edge — makes it a little more forgiving to hover.
-        const padX = (maxX - minX) * 0.05;
-        const padY = (maxY - minY) * 0.05;
-        const left = Math.max(0, minX - padX);
-        const top = Math.max(0, minY - padY);
-        const right = Math.min(w, maxX + padX);
-        const bottom = Math.min(h, maxY + padY);
-
-        hotspotEl.style.left = `${(left / w) * 100}%`;
-        hotspotEl.style.top = `${(top / h) * 100}%`;
-        hotspotEl.style.width = `${((right - left) / w) * 100}%`;
-        hotspotEl.style.height = `${((bottom - top) / h) * 100}%`;
-      } catch {
-        // Cross-origin (or other) canvas read failure — leave the
-        // hotspot at its CSS default (the full layer box) rather than
-        // breaking the hover entirely.
-      }
-    };
-
-    if (sourceImg.complete) {
-      run();
-    } else {
-      sourceImg.addEventListener("load", run, { once: true });
-    }
+      hotspotEl.style.left = `${left * 100}%`;
+      hotspotEl.style.top = `${top * 100}%`;
+      hotspotEl.style.width = `${(right - left) * 100}%`;
+      hotspotEl.style.height = `${(bottom - top) * 100}%`;
+    });
   }
 
   // Palm tree hover swap (see the v8 comment at the top of the file).
@@ -891,10 +1108,13 @@ const {
      didn't change, just now there are two of these boxes instead of
      one. Mobile (`max-width: 640px` below) overrides `position` back
      to normal flow. */
+  /* v17: shrunk from `clamp(700px, 82vw, 1600px)` (~25-30% smaller at
+     every width), per your feedback that both islands read too big on
+     wide screens. */
   .hobby-island-group {
     position: absolute;
     z-index: 1;
-    width: clamp(700px, 82vw, 1600px);
+    width: clamp(560px, 60vw, 1150px);
     pointer-events: none;
   }
 
@@ -913,17 +1133,51 @@ const {
      more of it now hangs below the section's bottom edge — and
      `right` raised toward/into positive territory — less hanging off
      the right edge, more pulled in toward center/under the text).
-     Only these `left`/`bottom`/`right` values have moved across all
-     three rounds of feedback; width, `top`, and everything else about
-     the corner-anchor approach stays exactly as it was. */
+     Only these `left`/`bottom`/`right` values moved across these
+     rounds of feedback; width, `top`, and everything else about the
+     corner-anchor approach stays exactly as it was.
+
+     v17 follow-up: now that both islands are smaller (see the v17
+     top-of-file comment), back-group's `left` pushed further right
+     again, and the front-group's below-`.content` `gap` (in the
+     script below — `bottom` here is unused once that script runs, see
+     the comment on `.hobby-island-group-front`) shrunk from 32px to
+     4px so it sits noticeably closer/higher, right under the text
+     instead of with a visible gap.
+
+     v18 follow-up: back-group's `top` raised further, per your
+     feedback, so it sits lower/further down from the section's top
+     edge — and raised again just after that, per further feedback. */
   .hobby-island-group-back {
-    top: clamp(-2rem, 1vh, 3rem);
-    left: clamp(-3rem, 0vw, 3rem);
+    top: clamp(3rem, 8vh, 11rem);
+    left: clamp(1rem, 5vw, 8rem);
   }
 
+  /* v17: `bottom` here is now only the FALLBACK position — used before
+     the script below measures `.content` and sets an inline `top`
+     (clearing this `bottom` at the same time), or if that script can't
+     run at all. On a normal render it's immediately overridden so the
+     front island sits below `.content` instead of corner-anchored near
+     it — see the v17 top-of-file comment and
+     `positionFrontGroupBelowContent()` in the script below for why a
+     runtime measurement instead of a fixed value. */
   .hobby-island-group-front {
     bottom: clamp(-11rem, -7vh, -5rem);
     right: clamp(-3rem, 0vw, 3rem);
+  }
+
+  /* Hidden by default ONLY at desktop widths, until the script above
+     has actually measured `.content` and placed this group below it —
+     see `positionFrontGroupBelowContent()`/`showFrontGroupOnceReady()`
+     for the full reasoning. Scoped to this media query specifically
+     (rather than hiding it unconditionally and clearing that via JS on
+     mobile too) so mobile — which never runs this positioning script —
+     is completely unaffected and shows the front island immediately,
+     same as always. */
+  @media (min-width: 641px) {
+    .hobby-island-group-front {
+      visibility: hidden;
+    }
   }
 
   /* Fixes the group's proportions to your CSP canvas size (passed in
