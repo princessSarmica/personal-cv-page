@@ -6,20 +6,47 @@
 // per-section illustrations in Section.astro, which come and go with
 // each section.
 //
-// The image itself lives in public/images/front-island.svg (drop a
-// replacement in there with the same filename to swap it later, e.g.
-// once a version with the sitting figure is ready).
+// Two images now live stacked on top of each other inside
+// `.corner-island-inner`:
+//   - front-island.svg               (default, shown everywhere)
+//   - front_island_cartoon_version.webp  (shown only while the user is
+//     over HobbyIslandSection, id="section-hobbies")
+// An IntersectionObserver (bottom of this file) watches that section
+// and toggles the `.is-hobby` class on `.corner-island`, which
+// crossfades between the two via opacity transitions. Swap either
+// image file in public/images/ with the same filename to update the
+// art later; nothing else needs to change.
 //
-// Two nested layers on purpose:
+// Three nested layers on purpose:
 //   .corner-island        — fixed position + the constant CSS bob loop
-//   .corner-island-inner  — the mouse-follow offset, set via JS below
-// Keeping them on separate elements means the CSS animation and the
-// JS-driven transform don't fight over the same `transform` property.
+//   .corner-island-inner  — the mouse-follow offset (see note below),
+//                            and now also the crossfade's positioning
+//                            context (position: relative)
+//   .corner-island-img*   — the two stacked images themselves
+// Keeping these transforms on separate elements from the crossfade
+// means none of these animations fight over the same CSS property.
+//
+// Note: the original file's comment for `.corner-island-inner`
+// referenced a mouse-follow script "below" that isn't actually present
+// in this file (likely lives elsewhere in the build, or was removed
+// before this snippet was captured) — left as-is rather than guessed
+// at. The <script> actually at the bottom of this file is new: it's
+// the IntersectionObserver that drives the hobby-section image swap
+// described above.
 ---
 
 <div class="corner-island" aria-hidden="true">
   <div class="corner-island-inner">
-    <img src="/personal-cv-page/images/front-island.svg" alt="" />
+    <img
+      class="corner-island-img corner-island-img--default"
+      src="/personal-cv-page/images/front-island.svg"
+      alt=""
+    />
+    <img
+      class="corner-island-img corner-island-img--hobby"
+      src="/personal-cv-page/images/front_island_cartoon_version.webp"
+      alt=""
+    />
   </div>
 </div>
 
@@ -36,12 +63,40 @@
 
   .corner-island-inner {
     width: 100%;
+    /* Positioning context for the absolutely-positioned hobby image
+       below — the default image stays in normal flow and is what
+       actually gives this element its height. */
+    position: relative;
   }
 
-  .corner-island img {
+  .corner-island-img {
     display: block;
     width: 100%;
     height: auto;
+    transition: opacity 0.6s ease;
+  }
+
+  /* The default (svg) image drives layout as normal. The hobby (webp)
+     image is laid on top of it via absolute positioning so the two
+     occupy the exact same box and can crossfade without any layout
+     shift. Both start at their "not hobby section" opacity; the
+     `.is-hobby` toggle below flips them. */
+  .corner-island-img--default {
+    opacity: 1;
+  }
+
+  .corner-island-img--hobby {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+  }
+
+  .corner-island.is-hobby .corner-island-img--default {
+    opacity: 0;
+  }
+
+  .corner-island.is-hobby .corner-island-img--hobby {
+    opacity: 1;
   }
 
   @keyframes bob {
@@ -61,5 +116,37 @@
     .corner-island {
       animation: none;
     }
+
+    /* Still swap images when the hobby section is reached, just
+       instantly instead of via an animated fade. */
+    .corner-island-img {
+      transition: none;
+    }
   }
 </style>
+
+<script>
+  // Swaps the front island's artwork for the cartoon version while the
+  // user is scrolled into HobbyIslandSection (id="section-hobbies" in
+  // src/pages/index.astro), and swaps it back once they scroll past it
+  // in either direction. Purely a class toggle — all the actual visual
+  // work (crossfade) is the CSS above.
+  //
+  // rootMargin trims the observer's trigger zone to the vertical
+  // center third of the viewport, so the swap happens once the hobby
+  // section is meaningfully in view rather than the instant a single
+  // pixel of it appears at the very edge of the screen.
+  const hobbySection = document.querySelector("#section-hobbies");
+  const cornerIsland = document.querySelector<HTMLElement>(".corner-island");
+
+  if (hobbySection && cornerIsland) {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        cornerIsland.classList.toggle("is-hobby", entry.isIntersecting);
+      },
+      { rootMargin: "-33% 0px -33% 0px" }
+    );
+
+    observer.observe(hobbySection);
+  }
+</script>

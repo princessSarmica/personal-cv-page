@@ -437,10 +437,191 @@
 // fonts) before its first reveal, so the v17 anti-jump fix still holds:
 // nothing appears until the FINAL, fully-corrected position is known.
 //
+// v19 — added an optional `fountainImage` layer (part of the front
+// island) with an animated "water flowing" effect: thin streaks that
+// loop continuously downward, giving the still artwork the look of
+// moving water. `fountainImage` itself renders as a normal stacked
+// layer (same pattern as every other optional layer here), and a
+// second element, `.hobby-fountain-flow`, sits on top of it as a
+// repeating gradient animated via `background-position`. The part that
+// makes this work cleanly: that overlay is `mask-image`'d to
+// `fountainImage`'s OWN alpha shape (via the `--fountain-mask` custom
+// property, set inline per-instance in the markup) — so the streaks
+// are clipped to exactly where the water is, never bleeding onto the
+// surrounding island art, regardless of how the fountain's shape
+// changes if you re-export it. `mix-blend-mode: screen` lightens
+// rather than painting flat white bars, so it reads as light moving
+// across water rather than stripes overlaid on top. Purely ambient/
+// decorative — no hover, no interaction — so like the palm tree
+// scanline it's cut entirely under `prefers-reduced-motion: reduce`
+// rather than frozen mid-animation. Optional: omit the prop and
+// nothing extra renders.
+//
 // Carries `.sky-chain` (collapses the gap on both sides) and
 // `.halftone-hover` (opts into the single page-wide cursor-spotlight
 // element from Layout.astro) — same as every other section in the
 // chain, no extra markup/script needed for either.
+//
+// v19 fix — `.hobby-fountain-image` (the `fountainImage` `<img>` itself)
+// was missing `position: absolute; inset: 0`, so it stayed in normal
+// document flow and stacked BELOW `frontIslandImage` instead of
+// overlaying it, adding a second full-canvas-height box under the front
+// island. Fixed to match `.hobby-palm-base`/`.hobby-monado`'s treatment.
+//
+// v19 tweak — water darker/more saturated via a `filter` on
+// `.hobby-fountain-image` (no re-export of the art needed), and the
+// streak gradient's soft-fade stops swapped for hard-edged stop pairs
+// so the lines read as crisp bands instead of a blurred glow.
+//
+// v20 — the streaks were still perfectly straight bands; per your
+// feedback ("a bit curved... more realistic"), `.hobby-fountain-flow`'s
+// background swapped from a `repeating-linear-gradient` to a small
+// tiling SVG data-URI containing one gentle wave-shaped stroke per
+// tile (`background-repeat: repeat`, fixed px tile size so the wave
+// period stays consistent regardless of the fountain's rendered size).
+// Same masking/animation approach as before (`mask-image` to the
+// fountain's own alpha shape, `background-position` looping downward)
+// — only the shape of the line itself changed, from ruler-straight to
+// a soft S-curve, which reads more like light bending across a curved
+// water surface.
+//
+// v20 tweak — per your reference image, that S-curve tiled several
+// small ripples across the width; you wanted ONE wide, shallow arc
+// instead (like the smile-shaped curve in your screenshot), echoing
+// the fountain rim's own curve. First attempt stretched a single arc
+// across the full front-island box (`background-size: 100%` +
+// `repeat-y`) — but the fountain's visible area is only a small slice
+// of that box, so the arc was barely visible through the mask. Fixed
+// by sizing the tile in real pixels close to the fountain's typical
+// rendered width instead, tiling both axes so a full "smile"
+// consistently lands within the visible water. Same looping
+// `background-position` animation as before.
+//
+// v21 — the aligned single arc (v20 tweak) STILL didn't read right to
+// you, and at that point we'd tried three different "line" shapes
+// (straight bands, small ripples, one wide arc) without landing on
+// something that actually looked good — a sign the "draw a line that
+// traces the water's edge" idea itself was the wrong direction, not
+// just its execution. Replaced entirely with a different effect:
+// several soft, blurred highlights (plain CSS `radial-gradient`s, no
+// SVG this time) that drift and re-overlap in a loose, non-repeating-
+// feeling loop, like light dancing on moving water (real water doesn't
+// have "lines" so much as shifting patches of brightness). This also
+// meant the v20 alpha-scan sizing script (`sizeFountainFlowToAlpha()`,
+// `--fountain-arc-width`/`--fountain-arc-left`) is gone — the whole
+// point of that machinery was aligning a line's shape/position to the
+// water's geometry, which a soft drifting blob doesn't need: it looks
+// right at any size/position within the mask, no measurement required.
+// Masking (`--fountain-mask`, unchanged since v19) still confines it to
+// exactly the water's own alpha shape.
+//
+// v21 tweak / tweak 2 — softened the drifting highlights (lower peak
+// opacity, a `blur`, drift keyframes pulled off the mask's edges) after
+// an occasional hard-looking cutoff, then switched `mix-blend-mode`
+// from `screen` to `color` after picking more distinct hues still
+// wasn't a "major" enough difference — `screen` only brightens, which
+// converges any highlight color toward the same pale result on an
+// already-saturated backdrop, so `color` (recolors the backdrop's
+// hue/saturation, keeps its shading) was the actual fix, not the color
+// choices themselves.
+//
+// v22 — per your ask for something more creative, first tried
+// concentric ripple rings (`.hobby-fountain-ripple` × 3, masked +
+// recolored like v21). Properly diagnosed this time by pausing every
+// other animation and diffing a frame with/without it — genuinely zero
+// pixel difference, not just subtle. Rather than keep guessing at
+// numbers against a mask I can't see for real, switched to a different
+// KIND of effect entirely: an SVG `feTurbulence`/`feDisplacementMap`
+// filter that visibly warps `fountainImage`'s own pixels (a "wobbling
+// water" distortion, not a color overlay on top) — see the CSS comment
+// near `.hobby-fountain-image` for the full reasoning. This can't miss
+// the water the way an overlay can, since it distorts the water's own
+// already-correctly-placed pixels directly, no separate positioning or
+// masking involved. `--fountain-mask` (still used by nothing now that
+// there's no separate overlay layer) and the alpha-scan sizing script
+// were removed as dead weight.
+//
+// v23 — the wobble "didn't work that well" either, and you asked for a
+// specifically DIGITAL/glitch look rather than another organic-water
+// attempt: horizontal clip-path "tear" slices + red/cyan chromatic-
+// aberration ghost layers, same visual language as the palm tree's
+// existing 80s glitch swap (v10/v11), applied to the water.
+//
+// v24 — you correctly flagged that v23 read as the water's SHAPE
+// moving around rather than a digital effect confined inside it —
+// clip-path-slicing the whole water layer and shifting it sideways
+// moves its silhouette, not just its content. Back to `mask-image`
+// (`--fountain-mask`) so the effect's outer edge is pinned exactly to
+// the water's real boundary and never moves, with a tiling pattern of
+// short vertical ticks (per your ask for "lines going top to bottom")
+// in three accent colors, scrolling downward on a `steps()` timing so
+// it reads as jerky/digital rather than smooth-flowing water — see the
+// CSS comment near `.hobby-fountain-digital` for the full design.
+//
+// v25 — per your feedback, the ticks are now horizontal (not vertical)
+// and three shades of BLUE rather than cyan/pink/mint — picked to
+// differ in hue specifically, not just lightness, since `mix-blend-
+// mode: color` doesn't carry lightness differences through the way it
+// does hue (see the CSS comment near `.hobby-fountain-digital`).
+//
+// v26 — per your ask for "full long lines, maybe glitchy, something
+// similar to the glitch effect in achievement island" (with the full
+// `AchievementIslandSection.astro` source pasted as reference): the
+// tick pattern is now full-width `repeating-linear-gradient` bands
+// (genuinely full-length lines, not short dashes), and a second
+// animation layered on top applies `AchievementIslandSection.astro`'s
+// own `clip-path`-banding + `filter: hue-rotate()/saturate()` jump-cut
+// technique (`steps(1, jump-end)`, same keyframe shape as its
+// `glitch-pop`), plus a scanline `::after` flicker mirroring its
+// `glitch-scan`. `mask-image` (`--fountain-mask`, unchanged since v19)
+// still pins the effect strictly inside the water's own silhouette —
+// see the CSS comment near `.hobby-fountain-digital` for why this
+// avoids v23's "shape moves" regression.
+//
+// v27 — the v26 glitch read "a bit weird" per your feedback; per your
+// new reference image, replaced it with small white sparkle/glint
+// highlights that twinkle on and off across the water's surface,
+// dropping the line/band/glitch concept entirely. `.hobby-fountain-
+// digital` (and its whole v24-v26 lineage) is gone; `.hobby-fountain-
+// sparkle` (still masked to `--fountain-mask`, unchanged since v19)
+// now wraps several `.hobby-fountain-sparkle-dot` spans — each a small
+// glow + crossed-bar "flare" shape that fades in/out independently on
+// its own timing — see the CSS comment near `.hobby-fountain-sparkle`
+// for the full design.
+//
+// v28 — per your feedback, added a small drift to each sparkle so the
+// highlights genuinely move ("white dots moving a bit around"),
+// suggesting light glinting on FLOWING water rather than fixed
+// twinkling points. Folded into the same `hobby-fountain-sparkle-
+// twinkle` keyframe via two new per-dot custom properties, `--dx`/
+// `--dy` — see the CSS comment near `.hobby-fountain-sparkle` for the
+// full reasoning.
+//
+// v29 — per your feedback, it "still looks like stars": the four-
+// pointed crossed-bar flare shape on each dot (v27) was the actual
+// culprit, not the color or motion. Removed the rays entirely and
+// swapped the perfect circle for an irregular blurred blob (asymmetric
+// `border-radius`) — see the CSS comment near `.hobby-fountain-
+// sparkle-dot` for the full reasoning.
+//
+// v30 — per your feedback, the highlights should be CRISP, not soft:
+// dropped v29's `blur` and tightened the gradient falloff so each blob
+// has a short, defined edge rather than a long soft fade — see the CSS
+// comment near `.hobby-fountain-sparkle-dot` for the full reasoning.
+//
+// v31 — per your reference screenshot of the actual fountain art (with
+// its own painted highlight shapes visible), redesigned to match that
+// style directly: two round-dot-plus-oval pairs on one side of the
+// water (not nine scattered blobs), flat solid white capsules instead
+// of gradient-glow blobs, and pure up/down `translateY` bobbing instead
+// of the old diagonal drift + fade — see the CSS comment near `.hobby-
+// fountain-sparkle-dot` for the full reasoning.
+//
+// v32 — per your feedback, removed the two small round dots (keeping
+// just the two wider ovals) and moved the top oval further left/inward
+// so it renders fully within the fountain's silhouette instead of
+// getting clipped at the mask's edge — see the CSS comment near
+// `.hobby-fountain-sparkle-dot` for the full reasoning.
 //
 // Usage — insert in src/pages/index.astro between
 // AchievementIslandSection and BonusIslandSection:
@@ -467,6 +648,7 @@
 //       "/personal-cv-page/images/monado_symbol_4.webp",
 //       "/personal-cv-page/images/monado_symbol_5.webp",
 //     ]}
+//     fountainImage="/personal-cv-page/images/fountain.webp"
 //     canvasWidth={3840}
 //     canvasHeight={2160}
 //   />
@@ -504,6 +686,12 @@ interface Props {
    *  exact same painted position (yours do — same bounding box on all
    *  five). Ignored if `monadoImage` isn't also provided. */
   monadoSymbolImages?: string[];
+  /** Optional fountain/water layer, part of the front island (see the
+   *  v19 comment above) — gets an animated "flowing water" effect
+   *  (looping streaks masked to this image's own alpha shape, so they
+   *  never spill outside the water). Same canvas-size requirement as
+   *  every other layer. */
+  fountainImage?: string;
   /** Your CSP document's canvas size in px — every layer export must
    *  share this exact size (see the v6 comment above). Defaults to
    *  3840x2160; override only if your actual CSP canvas differs. */
@@ -525,6 +713,7 @@ const {
   palmTree80sImage,
   monadoImage,
   monadoSymbolImages,
+  fountainImage,
   canvasWidth = 3840,
   canvasHeight = 2160,
 } = Astro.props;
@@ -591,6 +780,25 @@ const {
               alt=""
               data-front-island-base
             />
+            {fountainImage && (
+              <>
+                <img
+                  class="hobby-layer hobby-fountain-image"
+                  src={fountainImage}
+                  alt=""
+                  data-fountain-image
+                />
+                <div
+                  class="hobby-fountain-sparkle"
+                  aria-hidden="true"
+                  style={`--fountain-mask: url(${fountainImage});`}
+                  data-fountain-sparkle
+                >
+                  <span class="hobby-fountain-sparkle-dot" data-fx="0.62" data-fy="0.17" style="--sd: 0.5s; --sdur: 3.4s; --sw: 34px; --sh: 15px; --by: 4px;"></span>
+                  <span class="hobby-fountain-sparkle-dot" data-fx="0.68" data-fy="0.56" style="--sd: 0.3s; --sdur: 3.2s; --sw: 38px; --sh: 16px; --by: 4px;"></span>
+                </div>
+              </>
+            )}
             {palmTreeImage && palmTree80sImage && (
               <div class="hobby-palm-hotspot" data-palm-hotspot>
                 <div class="hobby-palm-scanline" aria-hidden="true"></div>
@@ -942,6 +1150,47 @@ const {
       hotspotEl.style.top = `${top * 100}%`;
       hotspotEl.style.width = `${(right - left) * 100}%`;
       hotspotEl.style.height = `${(bottom - top) * 100}%`;
+    });
+  }
+
+  // v27 — fountain sparkle-highlight positioning (see the v27 comment
+  // near `.hobby-fountain-sparkle` in the stylesheet for the visual
+  // design). Each `.hobby-fountain-sparkle-dot` carries `data-fx`/
+  // `data-fy`, a hand-picked position as a fraction (0-1) of the
+  // fountain's OWN painted area — "20% across, 25% down the water",
+  // not "20% across the whole padded canvas". First attempt at this
+  // used flat canvas-fraction percentages directly and genuinely
+  // reproduced v22's "zero pixel difference" mistake: nearly every dot
+  // landed in the transparent padding around the small fountain
+  // artwork, not on the water itself, since the shared canvas is
+  // mostly empty space (same convention noted throughout this file).
+  // Fixed the same way v18's front-island padding and both hover
+  // hotspots were: alpha-scan the actual art (`scanAlphaBBoxFraction`
+  // above) to find its real bounding box as a fraction of the canvas,
+  // then map each dot's fountain-relative fraction into that box
+  // before setting real `top`/`left` percentages. Runs once
+  // `fountainImg` has loaded; no-ops (dots stay at their CSS default,
+  // dead center) if the scan can't run at all.
+  const fountainImg = document.querySelector<HTMLImageElement>(
+    "[data-fountain-image]"
+  );
+  const fountainSparkleDots = document.querySelectorAll<HTMLElement>(
+    "[data-fountain-sparkle] .hobby-fountain-sparkle-dot"
+  );
+
+  if (fountainImg && fountainSparkleDots.length) {
+    scanAlphaBBoxFraction(fountainImg).then((bbox) => {
+      if (!bbox) return;
+
+      const width = bbox.right - bbox.left;
+      const height = bbox.bottom - bbox.top;
+
+      fountainSparkleDots.forEach((dot) => {
+        const fx = parseFloat(dot.dataset.fx || "0.5");
+        const fy = parseFloat(dot.dataset.fy || "0.5");
+        dot.style.left = `${(bbox.left + fx * width) * 100}%`;
+        dot.style.top = `${(bbox.top + fy * height) * 100}%`;
+      });
     });
   }
 
@@ -1511,6 +1760,406 @@ const {
     100% { opacity: 1; filter: none; }
   }
 
+  /* v19 — fountain water-flow effect: `fountainImage` renders as a
+     stacked layer on top of `frontIslandImage`, and `.hobby-fountain-
+     flow` is a SEPARATE overlay on top of THAT — a repeating pattern of
+     streaks whose `background-position` loops downward, giving the
+     "lines flowing down" look you asked for. The key trick is `mask-
+     image` (with the `-webkit-` prefix for Safari): set to the SAME
+     `fountainImage` URL via the `--fountain-mask` custom property (set
+     inline per-instance in the markup, so this rule doesn't need to
+     know the actual path), it clips this overlay to exactly the
+     water's own alpha shape — so the streaks only ever appear ON the
+     water, never spilling onto the surrounding island art, no matter
+     how the fountain is shaped or re-exported. `mix-blend-mode: screen`
+     lightens rather than flatly overlaying, so it reads as light
+     catching moving water rather than opaque white bars painted on
+     top. Purely decorative/ambient (see the `prefers-reduced-motion`
+     block further down), same treatment as the palm tree scanline.
+
+     v19 fix — `.hobby-fountain-image` needs `position: absolute; inset:
+     0` explicitly, same as `.hobby-palm-base`/`.hobby-monado` above:
+     without it, the plain `.hobby-layer` class only sets `display:
+     block; width: 100%`, so the fountain `<img>` stayed in NORMAL FLOW
+     and stacked below `frontIslandImage` instead of overlaying it. Now
+     fixed, so it overlays exactly on top like every other layer here.
+
+     v19 tweak — darker/more saturated water, sharper streaks, per your
+     feedback: `.hobby-fountain-image` gets a `filter` (`saturate` +
+     `brightness` down a touch) applied directly to your art, no re-
+     export needed.
+
+     v20 — the streaks were still ruler-straight bands; per your
+     feedback ("a bit curved... more realistic"), the background is no
+     longer a `repeating-linear-gradient` at all — it's a small tiling
+     SVG (inlined as a data URI, one gentle wave-shaped stroke per
+     tile). The stroke itself is crisp/vector (no blur, keeping the v19
+     "sharp lines" feedback), just curved instead of straight.
+
+     v20 tweak — per your reference image, one wide shallow arc (like a
+     smile), not several small ripples. First attempt stretched a
+     single arc across the FULL front-island box width via `background-
+     size: 100%` + `repeat-y` — but the fountain's own visible area is
+     only a small slice of that full box (same "shared canvas, mostly
+     transparent padding" convention as every other layer here), so
+     what showed through the mask was just a thin, nearly-flat sliver
+     of that much bigger arc — barely visible. A fixed-pixel-guess tile
+     next (closer, but occasionally showed two partial arcs instead of
+     one clean one), then a runtime alpha-scan of the fountain art to
+     size/align that tile exactly — technically precise, but you still
+     said it "doesn't look right" once you saw it live.
+
+     v21 — at that point we'd tried three different LINE shapes
+     (straight, rippled, one wide arc) without success, so per your
+     invitation to just pick something that looks good, this drops the
+     "line tracing the water" concept entirely. Real light on water
+     doesn't read as lines so much as soft, shifting patches of
+     brightness — so this is now a handful of `radial-gradient`
+     highlights (no SVG) that drift to different positions over a slow
+     `ease-in-out` loop, via plain `background-position` keyframes on
+     each gradient layer independently. Same masking approach as every
+     version before (`mask-image` to the fountain's own alpha shape via
+     `--fountain-mask`, `mix-blend-mode: screen` so it lightens rather
+     than paints flat white) — only the shape/motion of the highlights
+     changed. No runtime measurement needed this time: soft drifting
+     blobs look right at any size or position within the mask, unlike a
+     line that has to trace a specific edge.
+
+     v21 tweak — per your feedback, an occasional hard-looking edge:
+     `fountainImage`'s alpha shape is presumably a crisp vector cutout
+     with no feathering of its own, and `mask-image` clips strictly to
+     that alpha with no softening, so whenever a highlight's brightest
+     point happened to drift right up against the water's silhouette,
+     that hard mask boundary became visible as a sharp line. Two
+     changes: lowered each gradient's peak opacity (0.95/0.8/0.7 down
+     to 0.6/0.5/0.42) so any given point has less contrast against the
+     cutoff to begin with, and added `filter: blur(5px)` to the whole
+     layer — smooths the highlights' own edges BEFORE the mask clips
+     them, so what reaches the hard boundary is already soft rather
+     than a crisp gradient stop. Also pulled the drift keyframes in
+     from the very edges of the box toward the center, so a highlight's
+     bright core sits near the water's boundary less often to begin
+     with.
+
+     v21 tweak 2 — all three highlights were plain white at different
+     opacities, so `mix-blend-mode: screen` just lightened the water by
+     different AMOUNTS — same hue shift each time, hard to tell apart
+     as they crossed. First fix picked three "shades of blue" that
+     were still too close in hue to each other to read as different
+     once screened over the water (screen pushes any light color
+     toward white fast on an already-saturated backdrop, so similar
+     inputs converged to similar, barely-distinguishable results). Re-
+     picked with real distance between them (violet-blue, cyan-teal,
+     pale near-white-blue) — still too subtle once you saw it live,
+     because `screen` is fundamentally a BRIGHTENING blend: it can only
+     push channels up, and against a backdrop whose blue channel is
+     already near maximum, every highlight color converges toward the
+     same pale/white result almost regardless of its own hue — the
+     mode itself was working against the goal, not just the color
+     choices. Switched to `mix-blend-mode: color` instead, which
+     replaces the backdrop's hue/saturation with the source's while
+     keeping the backdrop's own shading/luminance — so each highlight
+     now visibly RECOLORS the water it passes over (to that highlight's
+     actual hue) rather than just brightening it, which is a much
+     bigger, unambiguous difference between the three than any amount
+     of screen-blended color tuning could give. Gradient stops bumped
+     to fully opaque at their center (the falloff to transparent at the
+     edge, plus the blur, still keeps it soft) since `color` blend
+     doesn't have `screen`'s natural "converges toward white" ceiling
+     to lean on for softness.
+
+     v22 — first attempt at "something more creative" was concentric
+     ripple rings/pulses (`.hobby-fountain-ripple`, mask + `mix-blend-
+     mode: color`, alpha-scanned to center on the water). Diagnosed it
+     properly this time — paused every OTHER animation on the page and
+     diffed a frame with the effect against the same frame with it
+     forced invisible — and the honest result was a real ZERO pixel
+     difference, not just "subtle": at the sizes/positions that
+     approach produced, the visible content never actually overlapped
+     the water in a way that showed. Rather than keep tuning numbers
+     blind (I still can't test against your actual fountain.webp, only
+     a rough stand-in), switched to a fundamentally different, more
+     ROBUST kind of effect: a genuine DISTORTION of the art itself
+     instead of a color overlay on top of it. `.hobby-fountain-image`
+     now runs through an SVG filter (`feTurbulence` + `feDisplacement
+     Map`, defined inline per-instance since the filter's `id` needs to
+     be unique) that warps its pixels along a noise field, with the
+     displacement `scale` animated (plain SMIL `<animate>` on the
+     filter primitive, 0 → 16 → 0 on a 2.6s loop) so the water visibly
+     wobbles/ripples in place — a heat-haze/liquid-shimmer look. This
+     can't have the same "landed nowhere" failure mode the color-
+     overlay attempts did: it's not a separate layer that needs to be
+     sized/positioned/masked to line up with the water, it directly
+     distorts the ACTUAL water pixels, which are already confirmed
+     correctly placed (that was the very first fountain fix, v19). No
+     runtime measurement needed at all — removed `sizeFountainRipples`
+     and its alpha-scan entirely.
+
+     v23 — the turbulence wobble didn't land either ("doesn't work that
+     well"), and you asked for a specifically DIGITAL/glitch look
+     rather than another organic-water attempt, so this dropped the SVG
+     displacement filter for a VHS/signal-glitch treatment instead —
+     the same visual language the palm tree's 80s swap (v10/v11,
+     `hobby-palm-glitch`) already uses elsewhere in this file, applied
+     to the water: horizontal `clip-path` "tear" slices of the whole
+     water layer, briefly jumping sideways and snapping back, plus red/
+     cyan chromatic-aberration ghost flashes.
+
+     v24 — per your feedback, that read as the water's SHAPE itself
+     moving around, not a digital effect happening ON/INSIDE the water
+     — an accurate read: v23's slices displaced the entire clipped
+     water layer sideways, which shifts its silhouette against
+     everything else on the front island, rather than confining the
+     glitch to stay strictly within the water's own boundary. Back to
+     `mask-image` (`--fountain-mask`, unchanged since v19 — the mask
+     mechanism itself was never what failed in any of the earlier
+     attempts) to pin the effect's outer edge exactly to the water's
+     real silhouette and never let it move, and per your ask for
+     "lines going from top to bottom": `.hobby-fountain-digital` tiles
+     a small SVG pattern of short vertical ticks in three accent colors
+     (cyan, pink, mint — recolors the water via `mix-blend-mode: color`,
+     the one blend mode that's actually shown up as clearly visible in
+     this file, per v21 tweak 2) and scrolls that tile downward via
+     `background-position`. The `steps()` timing (not `ease`/`linear`)
+     is what keeps it reading as DIGITAL rather than smooth flowing
+     water — each step is a hard jump to the next frame, like a low
+     frame-rate data readout, not a continuous glide. Because the
+     tile's own content varies along its height (ticks sit at different
+     y-offsets within it, unlike a uniform vertical-bar pattern would),
+     scrolling it vertically actually produces visible motion — worth
+     calling out since a naive "vertical bars, animate Y" version would
+     look static (a vertically-uniform pattern doesn't change when you
+     shift it along that same axis).
+
+     v25 — per your feedback: (1) the tick MARKS themselves should be
+     horizontal (short wide dashes) rather than vertical, still falling
+     top-to-bottom — the classic "horizontal scanlines scrolling down"
+     digital look, and (2) shades of blue instead of the cyan/pink/mint
+     trio. On the color choice specifically: picked blues that differ
+     in HUE, not just lightness — a lesson from v21 tweak 2, where an
+     earlier "shades of blue" attempt picked colors too close in hue
+     and they read as barely distinguishable once actually blended
+     (`mix-blend-mode: color` takes the source's hue/saturation but the
+     BACKDROP's own luminance, so two ticks that mainly differ in
+     LIGHTNESS can end up looking nearly identical once composited —
+     lightness doesn't survive that blend the way hue does). These
+     three (a cyan-leaning blue, a vivid royal blue, an indigo-blue)
+     span roughly 40° of hue, same margin that fixed v21.
+
+     v26 — per your ask for "full long lines, maybe glitchy", modeled
+     directly on `AchievementIslandSection.astro`'s existing glitch-pop
+     technique (which you pasted as the reference). Two changes from
+     v25: (1) the background swapped from the small 20×20px tick-pattern
+     SVG to a `repeating-linear-gradient` of FULL-WIDTH horizontal bands
+     in the same three blues — since a CSS gradient always spans the
+     element's full width automatically, this is genuinely "full long
+     lines" rather than short dashes tiled across it, no SVG needed.
+     Still scrolls downward via `background-position` on a `steps()`
+     timing, same mechanism as v24/v25. (2) a second animation,
+     `hobby-fountain-digital-glitch`, layered on via a comma-separated
+     `animation` list (so it runs independently of the scroll) applies
+     `clip-path: inset(...)` "jump-cut" banding — hiding/revealing
+     different horizontal slices of the layer at hard steps — plus
+     `filter: hue-rotate()/saturate()` flashes at those same steps,
+     copied nearly verbatim from `glitch-pop`'s keyframe shape/timing.
+     `steps(1, jump-end)` (not `ease`) is what makes each keyframe a
+     hard jump-cut rather than an interpolated glide, matching the
+     source. A third piece, `.hobby-fountain-digital::after`, mirrors
+     `glitch-scan`: a `repeating-linear-gradient` scanline texture,
+     `mix-blend-mode: overlay`, opacity flickering on the same stepped
+     timing. Crucially this whole redesign keeps `mask-image: var(
+     --fountain-mask)` on `.hobby-fountain-digital` completely
+     unchanged from v24/v25 — the `clip-path` bands here only hide/
+     reveal PARTS of a layer that's already pinned to the water's own
+     alpha shape by the mask, unlike v23's mistake of clip-path-slicing
+     and then TRANSLATING the whole layer sideways (which moved the
+     silhouette itself). Verified via the paused-animation diff method
+     that the water's boundary stays completely static across every
+     keyframe of the glitch — only content strictly inside the mask
+     changes. Also verified the mask correctly clips the `::after`
+     scanline texture too: masking an element folds in everything
+     painted inside its box, pseudo-elements included, so `::after`
+     never needed a mask of its own.
+
+     v27 — the achievement-island-style glitch (v26) read "a bit weird"
+     per your feedback, and you asked for something closer to your new
+     reference image instead: small white sparkle/glint highlights
+     scattered across the water's surface, twinkling on and off, like
+     light catching ripples — not lines or bands at all. Dropped
+     `.hobby-fountain-digital` (the whole tick/band/glitch lineage from
+     v24-v26) for a new `.hobby-fountain-sparkle` wrapper containing
+     several small `.hobby-fountain-sparkle-dot` spans, one per
+     highlight. Each dot is a classic CSS "sparkle": a soft round white
+     `radial-gradient` glow as the element's own background, plus a
+     thin horizontal and vertical `linear-gradient` bar (`::before`/
+     `::after`) crossing through its center and tapering to transparent
+     at both ends — the crossed-bar-through-a-glow shape reads as a
+     four-pointed glint/flare, matching the reference image's highlights
+     far better than a flat dot would. Each dot fades in/out and scales
+     up/down on its own `hobby-fountain-sparkle-twinkle` animation
+     (smooth `ease-in-out`, not `steps()` — this is meant to look like
+     soft natural light, the opposite of the deliberately jerky/digital
+     feel earlier versions were going for), with a different
+     `animation-delay`/`animation-duration` per dot (`--sd`/`--sdur`
+     custom properties set inline per dot in the markup) so they twinkle
+     independently rather than in lockstep, echoing how scattered points
+     of light glint at different moments in the reference. Positions
+     (`--sx`/`--sy`, also inline per dot) are hand-picked percentages
+     spread across the full box, same "shared canvas" convention as
+     every other layer — same reasoning as v21's drifting highlights:
+     the `mask-image` on the wrapper (`--fountain-mask`, unchanged since
+     v19) clips everything to the water's own alpha shape regardless of
+     where a dot's coordinates fall, so only sparkles that actually land
+     within the water ever show, no runtime measurement needed. No
+     `mix-blend-mode` this time (unlike every color-recoloring version
+     since v21 tweak 2) — these are meant to read as bright white light
+     glinting ON TOP of the water, not a recoloring of it, so they're
+     just plain white content, same visual logic as a real highlight.
+
+     v28 — per your feedback, the sparkles were static: they twinkled in
+     place but never actually moved, and you specifically asked for
+     "white dots moving a bit around" to suggest light glinting on
+     FLOWING water rather than fixed points. Added a small drift to the
+     same `hobby-fountain-sparkle-twinkle` keyframe rather than a
+     separate animation: `transform` already handles centering
+     (`translate(-50%, -50%)`) and the fade-scale pulse, so the drift is
+     folded into that same `translate()` via two new custom properties,
+     `--dx`/`--dy` (set inline per dot, alongside `--sd`/`--sdur`/`--ss`)
+     — each dot glides from one small offset to the opposite one and
+     back as it fades in and out, so the motion and the twinkle stay in
+     sync (a dot drifts while it's visible, and the drift reverses right
+     as it fades back out, rather than jumping). Different `--dx`/`--dy`
+     per dot (varied in both magnitude and direction) keeps the drift
+     from looking like one uniform wobble repeated nine times. Still one
+     shared `@keyframes` block for all nine dots — only the custom
+     property VALUES differ per dot, not the animation logic — same
+     "shared keyframe, per-instance custom properties" pattern already
+     used for `--sd`/`--sdur`/`--ss`. Position/masking/timing-stagger
+     logic (alpha-scanned `--fx`/`--fy` base position, `mask-image`
+     confinement, per-dot delay/duration) all unchanged from v27.
+
+     v29 — per your feedback, it "still looks like stars": the crossed-
+     bar `::before`/`::after` flare (added in v27 to match the reference
+     image's pointed glints) was the culprit — four sharp rays radiating
+     from a point is exactly the classic "star" shape, and that read as
+     literal stars rather than light on water regardless of color or
+     motion. Removed `::before`/`::after` entirely — each dot is now
+     JUST its own soft glow, no rays. Also swapped the perfect circle
+     for an irregular blob (asymmetric `border-radius`, a different
+     percentage on each corner) plus a slight `blur`, so it reads as a
+     soft irregular patch of light catching a ripple rather than a
+     precise geometric shape of any kind — circles read as "dots/bubbles"
+     almost as readily as the cross read as "stars", so the fix wasn't
+     just deleting the rays, it was making the shape itself less
+     regular. Position/mask/drift/twinkle-timing logic all unchanged
+     from v27/v28.
+
+     v30 — per your feedback, you wanted the highlights CRISP rather
+     than soft: dropped the `filter: blur(1.5px)` v29 added, and
+     tightened the `radial-gradient` stops so the blob is solid white
+     through most of its shape with a short, sharp falloff right at the
+     edge (`#fff` holding all the way to 68%, transparent by 92%)
+     instead of the long gradual fade from before. The irregular
+     asymmetric `border-radius` (v29, so it doesn't read as a circle/
+     dot) is unchanged — "crisp" here means a defined edge, not a
+     return to a hard geometric shape like the v27 star rays.
+
+     v31 — per your reference image (an actual screenshot of your
+     fountain.webp with its own painted-in highlight shapes visible), a
+     full redesign: rather than several small scattered blobs randomly
+     drifting across the whole water, this now mimics the reference's
+     own highlight style directly — a small round dot paired with a
+     wider oval next to it, repeated in two rows on ONE SIDE of the
+     fountain (upper area and mid-height), not spread edge to edge.
+     Each `.hobby-fountain-sparkle-dot` now has independent `--sw`/
+     `--sh` (width/height, was one shared `--ss`) so the "round dot" and
+     "wide oval" pairs can differ in shape, still `border-radius: 50%`
+     (an ellipse when width ≠ height, a circle when they're equal) for
+     a crisp, flat, solid-white capsule — closer to the reference's flat
+     glossy-highlight look than the earlier gradient-glow blobs. Motion
+     changed too: per your ask for "slightly moving up and down", the
+     old `hobby-fountain-sparkle-twinkle` (fade in/out + diagonal drift
+     + scale pulse, `--dx`/`--dy`) is replaced with `hobby-fountain-
+     sparkle-bob` — pure vertical `translateY` oscillation via a single
+     `--by` (bob amplitude) custom property, no fade and no horizontal
+     movement at all. Opacity is now a constant 0.95 rather than
+     animated, matching how the reference's highlights read: always
+     visible, just gently rising and falling, not blinking on and off.
+     Position mechanism (`data-fx`/`data-fy` mapped through the
+     fountain's real alpha bbox via `scanAlphaBBoxFraction`, `mask-
+     image` confinement) is unchanged since v27 — only the fractions
+     themselves moved to the side/upper-mid area to match the
+     reference, and the dot COUNT dropped from nine to four (two
+     dot+oval pairs) to match its sparser layout.
+
+     v32 — per your feedback: (1) removed the two small round dots
+     entirely, keeping just the two wider ovals — down to two highlights
+     total now, not two pairs. (2) the top oval sat too close to the
+     mask's edge and was getting visibly clipped instead of showing as
+     one complete shape; moved its `data-fx` further left/inward
+     (0.73 → 0.62) so it renders fully within the fountain's real alpha
+     boundary rather than partly cut off. Bottom oval's position
+     unchanged — you only flagged the top one. */
+  .hobby-fountain-image {
+    position: absolute;
+    inset: 0;
+    filter: saturate(1.5) brightness(0.82);
+  }
+
+  .hobby-fountain-sparkle {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    -webkit-mask-image: var(--fountain-mask);
+    mask-image: var(--fountain-mask);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+
+  .hobby-fountain-sparkle-dot {
+    position: absolute;
+    /* top/left default to dead center; `positionFountainSparkles()` in
+       the script below overrides both inline, mapping each dot's
+       `data-fx`/`data-fy` (its fraction WITHIN the fountain's own
+       painted alpha bbox, not the full padded canvas) to real
+       percentages via `scanAlphaBBoxFraction` — same reasoning as
+       every other alpha-scanned position in this file: guessing a flat
+       percentage of the whole shared canvas risks landing outside the
+       fountain's actual (much smaller) painted area entirely, same
+       failure mode as v22's invisible ripple rings. If the scan can't
+       run (cross-origin), dots stay centered rather than breaking. */
+    top: 50%;
+    left: 50%;
+    width: var(--sw);
+    height: var(--sh);
+    /* Flat solid pill/oval — an unequal width/height with `border-
+       radius: 50%` renders as a smooth capsule shape, matching the
+       glossy "highlight" shapes already painted into your fountain art
+       (per your reference image: a small round dot paired with a
+       wider oval next to it) rather than the small round sparkle blobs
+       from v27-v30. */
+    border-radius: 50%;
+    background: #fff;
+    opacity: 0.95;
+    animation-name: hobby-fountain-sparkle-bob;
+    animation-duration: var(--sdur, 3s);
+    animation-delay: var(--sd, 0s);
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+  }
+
+  @keyframes hobby-fountain-sparkle-bob {
+    0%,
+    100% {
+      transform: translate(-50%, -50%) translateY(calc(-1 * var(--by, 3px)));
+    }
+    50% {
+      transform: translate(-50%, -50%) translateY(var(--by, 3px));
+    }
+  }
+
   @keyframes hobby-bob {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
@@ -1564,6 +2213,19 @@ const {
     .hobby-monado-symbol.is-active {
       animation: none;
       opacity: 1;
+    }
+
+    /* v19: pure ambient flourish with no state to preserve, same
+       treatment as the palm tree scanline above — cut entirely rather
+       than frozen mid-loop. v24: selector updated for the mask-
+       confined digital-rain rewrite (was two selectors for the v23
+       glitch-slice/ghost layers, now this one overlay). v27: selector
+       updated again for the sparkle-highlight rewrite — hiding the
+       wrapper is enough, its `.hobby-fountain-sparkle-dot` children
+       (each individually animated) never render or need their own
+       rule. */
+    .hobby-fountain-sparkle {
+      display: none;
     }
   }
 
