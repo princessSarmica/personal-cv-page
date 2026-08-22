@@ -9,20 +9,24 @@
 // bonus_island_background.webp).
 //
 // Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover`, `min-height: 100vh` — brought in line
-// with the rest of the family (this section used to be the odd one
-// out, on a real, uncropped <img> instead). The goal across every
-// section in this chain is a CONSISTENT height on every screen size,
-// with the background's left/right edges cropped as needed to make
-// that happen, rather than letting each image's own aspect ratio
-// drive its section's height.
+// + `background-size: cover`, `min-height` — brought in line with the
+// rest of the family (this section used to be the odd one out, on a
+// real, uncropped <img> instead). The goal across every section in
+// this chain is a CONSISTENT height on every screen size, with the
+// background's left/right edges cropped as needed to make that
+// happen, rather than letting each image's own aspect ratio drive its
+// section's height. `min-height` was bumped from 100vh to 130vh to
+// give the section more scroll room — see the comment on
+// `.bonus-section` below.
 //
 // `background-position: top` protects this section's TOP edge — the
 // one that has to match AchievementIslandSection's bottom. The bottom
 // edge (against OtherIslandSection, the closing full-bleed
 // illustration) is the lower-priority side — OtherIslandSection shows
 // its own image at full aspect ratio on desktop regardless, so that
-// seam was always more approximate than pixel-locked.
+// seam was always more approximate than pixel-locked. The extra
+// min-height above just crops a bit more off this lower-priority
+// bottom edge; it doesn't affect the protected top seam at all.
 //
 // I sampled the actual pixel colors of both images you'd uploaded
 // earlier (before this section moved off the real-<img> approach)
@@ -94,7 +98,17 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
 <style>
   .bonus-section {
     position: relative;
-    min-height: 100vh;
+    /* Bumped up from 100vh to give the section more scroll room (e.g.
+       so CornerIsland.astro's freeze point, which lands partway down
+       this section via FREEZE_TARGET_FRACTION, has more page to sit
+       within before OtherIslandSection starts). background-size:
+       cover + background-position: top means the extra height just
+       crops a bit more off the BOTTOM of the background image — the
+       lower-priority edge per the comment above — without touching
+       the protected top seam against AchievementIslandSection. Adjust
+       this value directly if you want the section taller/shorter
+       still. */
+    min-height: 130vh;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);

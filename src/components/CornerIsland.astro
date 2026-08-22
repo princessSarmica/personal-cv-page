@@ -2,23 +2,41 @@
 // src/components/CornerIsland.astro
 //
 // The persistent "front" island — stays fixed in the bottom-left corner
-// across every section as the page scrolls. This is separate from the
-// per-section illustrations in Section.astro, which come and go with
-// each section.
+// across every section as the page scrolls, up through the first half
+// of BonusIslandSection (id="section-bonus" in src/pages/index.astro;
+// see FREEZE_TARGET_FRACTION / FREEZE_BUFFER_PX in the script below to
+// move that stop point). Once it reaches that point it stops tracking
+// the viewport and is left behind at that page position instead, so it
+// scrolls away normally like any other page content rather than
+// continuing to hover in front of the rest of Bonus and
+// OtherIslandSection (id="section-closing"), the very last section.
+// This is separate from the per-section illustrations in Section.astro,
+// which come and go with each section.
 //
-// Two images now live stacked on top of each other inside
+// Two images live stacked on top of each other inside
 // `.corner-island-inner`:
 //   - front-island.svg               (default, shown everywhere)
 //   - front_island_cartoon_version.webp  (shown only while the user is
 //     over HobbyIslandSection, id="section-hobbies")
-// An IntersectionObserver (bottom of this file) watches that section
+// One IntersectionObserver (bottom of this file) watches that section
 // and toggles the `.is-hobby` class on `.corner-island`, which
 // crossfades between the two via opacity transitions. Swap either
 // image file in public/images/ with the same filename to update the
 // art later; nothing else needs to change.
 //
+// A second, independent piece of script further down handles the
+// "stop partway through BonusIslandSection" behavior described above:
+// it measures a point partway down `#section-bonus` (its vertical
+// middle by default) and, once you've scrolled that far, swaps
+// `.corner-island` from `position: fixed` to `position: absolute` at
+// that exact document position via the `.is-frozen` class +
+// `--frozen-top` custom property. Scrolling back up past that point
+// reverts it to `position: fixed` again, so the behavior works
+// smoothly in both scroll directions.
+//
 // Three nested layers on purpose:
-//   .corner-island        — fixed position + the constant CSS bob loop
+//   .corner-island        — fixed (or, once frozen, absolute) position
+//                            + the constant CSS bob loop
 //   .corner-island-inner  — the mouse-follow offset (see note below),
 //                            and now also the crossfade's positioning
 //                            context (position: relative)
@@ -30,9 +48,9 @@
 // referenced a mouse-follow script "below" that isn't actually present
 // in this file (likely lives elsewhere in the build, or was removed
 // before this snippet was captured) — left as-is rather than guessed
-// at. The <script> actually at the bottom of this file is new: it's
-// the IntersectionObserver that drives the hobby-section image swap
-// described above.
+// at. Both <script> blocks actually at the bottom of this file are
+// new: the hobby-section image swap described above, and the
+// freeze-near-end-of-BonusIslandSection behavior.
 ---
 
 <div class="corner-island" aria-hidden="true">
@@ -59,6 +77,19 @@
     z-index: 5;
     pointer-events: none;
     animation: bob 6s ease-in-out infinite;
+  }
+
+  /* Freeze state: swaps out of the viewport-relative `fixed`
+     positioning above and pins the island at a specific point in the
+     DOCUMENT instead, computed by the script below to be partway down
+     BonusIslandSection (its vertical middle by default). `bottom` has
+     to be explicitly cleared here since the base rule above sets it,
+     and a `top` + `bottom` both being non-auto would fight each
+     other. */
+  .corner-island.is-frozen {
+    position: absolute;
+    top: var(--frozen-top, auto);
+    bottom: auto;
   }
 
   .corner-island-inner {
@@ -137,16 +168,118 @@
   // section is meaningfully in view rather than the instant a single
   // pixel of it appears at the very edge of the screen.
   const hobbySection = document.querySelector("#section-hobbies");
-  const cornerIsland = document.querySelector<HTMLElement>(".corner-island");
+  const cornerIslandForHobby = document.querySelector<HTMLElement>(".corner-island");
 
-  if (hobbySection && cornerIsland) {
-    const observer = new IntersectionObserver(
+  if (hobbySection && cornerIslandForHobby) {
+    const hobbyObserver = new IntersectionObserver(
       ([entry]) => {
-        cornerIsland.classList.toggle("is-hobby", entry.isIntersecting);
+        cornerIslandForHobby.classList.toggle("is-hobby", entry.isIntersecting);
       },
       { rootMargin: "-33% 0px -33% 0px" }
     );
 
-    observer.observe(hobbySection);
+    hobbyObserver.observe(hobbySection);
+  }
+</script>
+
+<script>
+  // Stops the fixed front island partway through BonusIslandSection
+  // (id="section-bonus" in src/pages/index.astro), instead of letting
+  // it keep hovering in front of everything all the way down to
+  // OtherIslandSection (id="section-closing"), the very last section.
+  // The freeze point is FREEZE_TARGET_FRACTION of the way down Bonus's
+  // own height (0.5 = its vertical middle), plus an optional extra
+  // FREEZE_BUFFER_PX nudge (positive moves the stop point higher up
+  // the page, negative moves it lower). Tune either constant to move
+  // where exactly it comes to rest.
+  //
+  // The trick: `position: fixed` and `position: absolute` use the same
+  // coordinate math, just relative to the viewport vs. the document.
+  // So instead of animating anything, we just measure, once, where the
+  // island currently sits on screen (`islandTopViewport`, while it's
+  // still `fixed`) and where the freeze target sits in the document
+  // (`frozenTopPx`, derived from FREEZE_TARGET_FRACTION down Bonus's
+  // own height, minus FREEZE_BUFFER_PX), and from that derive the
+  // exact scrollY (`freezeAtScrollY`) at which those two coincide. Cross that
+  // scrollY going down and we switch the island to `position: absolute;
+  // top: <that same document position>` via the `.is-frozen` class —
+  // visually nothing jumps, because the island's on-screen position at
+  // that instant is identical either way. From then on the island is
+  // ordinary document content again and scrolls away like anything
+  // else. Cross back going up and it reverts to `fixed`.
+  //
+  // Measuring has to happen while NOT frozen (getBoundingClientRect()
+  // on an already-`absolute` island would report frozen-state numbers,
+  // not the normal fixed-state ones), so `measure()` always drops the
+  // frozen class first if needed and restores it after.
+  const FREEZE_TARGET_FRACTION = 0.5;
+  const FREEZE_BUFFER_PX = 0;
+
+  const cornerIslandForFreeze = document.querySelector<HTMLElement>(".corner-island");
+  const bonusSection = document.querySelector<HTMLElement>("#section-bonus");
+
+  if (cornerIslandForFreeze && bonusSection) {
+    let freezeAtScrollY = 0;
+    let frozenTopPx = 0;
+    let isFrozen = false;
+
+    function applyFrozen() {
+      cornerIslandForFreeze!.style.setProperty("--frozen-top", `${frozenTopPx}px`);
+      cornerIslandForFreeze!.classList.add("is-frozen");
+      isFrozen = true;
+    }
+
+    function removeFrozen() {
+      cornerIslandForFreeze!.classList.remove("is-frozen");
+      isFrozen = false;
+    }
+
+    function measure() {
+      const wasFrozen = isFrozen;
+      if (wasFrozen) removeFrozen();
+
+      const islandTopViewport = cornerIslandForFreeze!.getBoundingClientRect().top;
+      const bonusRect = bonusSection!.getBoundingClientRect();
+      const bonusTargetDoc =
+        bonusRect.top + window.scrollY + bonusRect.height * FREEZE_TARGET_FRACTION;
+
+      frozenTopPx = bonusTargetDoc - FREEZE_BUFFER_PX;
+      freezeAtScrollY = frozenTopPx - islandTopViewport;
+
+      if (wasFrozen) applyFrozen();
+    }
+
+    function syncFreezeState() {
+      if (!isFrozen && window.scrollY >= freezeAtScrollY) {
+        applyFrozen();
+      } else if (isFrozen && window.scrollY < freezeAtScrollY) {
+        removeFrozen();
+      }
+    }
+
+    let ticking = false;
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            syncFreezeState();
+            ticking = false;
+          });
+          ticking = true;
+        }
+      },
+      { passive: true }
+    );
+
+    // Re-measure on resize (vw-based sizing means the island's
+    // dimensions change with viewport width) and once more on window
+    // `load`, in case images above BonusIslandSection finish loading
+    // late and shift its position after the initial measurement.
+    window.addEventListener("resize", measure);
+    window.addEventListener("load", measure);
+
+    measure();
+    syncFreezeState();
   }
 </script>
