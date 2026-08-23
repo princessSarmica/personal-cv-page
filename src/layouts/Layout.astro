@@ -87,7 +87,7 @@ const { title = "My CV" } = Astro.props;
        instead. */
     --sky-0: #dcf3fc; /* unused placeholder from before IntroIslandSection existed — kept only so removing it doesn't need to be a separate cleanup pass */
     --sky-1: #3a6ef5; /* Art bottom / Computer top seam-blend target — set to rgb(58, 110, 245) per your request; this pairing is unchanged by the reorder */
-    --sky-2: #14e5fb; /* Computer bottom / Achievement top seam-blend target — set to rgb(20, 229, 251) per your request; originally Computer bottom / Education top, reassigned to Computer bottom / Achievement top now that Education no longer sits between them */
+    --sky-2: #0ADEFB; /* Computer bottom / Achievement top seam-blend target — updated to rgb(10, 222, 251) per your request (previously #14e5fb); also drives SkyShatterSection.astro's tile color, read live via getComputedStyle, so this one edit re-tunes both at once. Originally Computer bottom / Education top, reassigned to Computer bottom / Achievement top now that Education no longer sits between them */
     --sky-3: #00CDF2; /* Education bottom / Art top seam-blend target — set to rgb(29, 237, 250) per your request; originally Education bottom / Achievement top, reassigned to Education bottom / Art top now that Art sits right after Education instead */
     --dusk-blue: #00d4f4; /* Achievement bottom / Bonus top seam-blend target — set to rgb(0, 212, 244) per your request; this pairing is unchanged by the reorder */
     --sky-4: #04c9d1; /* Bonus bottom / Other top seam-blend target — set to rgb(4, 201, 209) per your request; this pairing is unchanged by the reorder */
