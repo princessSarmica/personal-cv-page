@@ -31,20 +31,18 @@
 // sections in this family, treat these as starting values to nudge
 // once you see it live.
 //
-// Background: `backgroundImage` is now OPTIONAL. This section used to
-// always carry a real blue-sky image here (`background-image` +
-// `background-size: cover`, same technique every section in this
-// family uses), but now sits right after SkyShatterSection.astro's
-// scroll-linked 3D tile-shatter effect — which ends by revealing plain
-// white, so this section's top is white now too, no image needed. Pass
-// `backgroundImage` if you ever want a real image back here (it'll
-// render exactly as before); with it omitted, the section just shows
-// through to the page's own white background.
+// Background: real image (`backgroundImage`), via `background-image`
+// + `background-size: cover`, `min-height: 100vh` — same technique
+// every section in this family uses. Every section keeps a CONSISTENT
+// height across every screen size, with the background's left/right
+// edges cropped as needed to make that happen.
 //
-// `background-position: top` / `background-size: cover` are left in
-// the styles below even though there's currently no image to apply
-// them to — harmless no-ops, and they're exactly what you'd want again
-// immediately if `backgroundImage` gets passed in the future.
+// `background-position: top` protects the true top edge — the one
+// that has to match ComputerIslandSection's bottom, now that
+// EducationIslandSection has moved earlier in the page (it used to sit
+// directly before this section; ComputerIslandSection does now) —
+// from ever being cropped. The bottom edge (against BonusIslandSection)
+// is the lower-priority side here.
 //
 // Carries `seam-fade-bottom` (blending into var(--dusk-blue)) against
 // BonusIslandSection's top. Pixel-sampling your screenshots showed
@@ -53,23 +51,17 @@
 // deliberate mask rather than a precision fix (see the shared comment
 // in Layout.astro).
 //
-// No longer carries `seam-fade-top`: that used to blend into
-// var(--sky-2) against ComputerIslandSection's bottom, back when this
-// section's own top was a real (imperfectly-matching) sky photo. Now
-// that SkyShatterSection.astro sits between them and its own shatter
-// effect ends at the exact same white this section already is, top and
-// bottom are already an exact match with nothing to blend — see the
-// comment in SkyShatterSection.astro for the full reasoning.
+// Also carries `seam-fade-top` (blending into var(--sky-2)) against
+// ComputerIslandSection's bottom — retargeted from var(--sky-3)
+// (EducationIslandSection's old bottom-seam variable) now that
+// ComputerIslandSection is this section's actual neighbor.
+// var(--sky-2) is the same variable ComputerIslandSection's own
+// `--seam-target-bottom` already uses (unchanged there, since Art
+// still sits directly before Computer either way), so the two fades
+// meet at an identical color again.
 //
 // Still carries `.sky-chain`, so the gap-collapsing on both sides
 // keeps working regardless of what backs it.
-//
-// `min-height` stays 100vh (a brief drop to 75vh clipped the islands
-// against HobbyIslandSection below and got reverted). Instead,
-// `.content` is now top-aligned (`align-items: start`, was
-// `place-items: center`) rather than vertically centered — see the
-// comment on `.achievement-section` in the styles below for the full
-// reasoning.
 //
 // Carries `.halftone-hover`, joining the single, page-wide cursor-
 // spotlight element in Layout.astro (`.halftone-spotlight`, see the
@@ -198,7 +190,7 @@
 //     rightImageGlitched="/images/right_achievements_island_glitched.webp"
 //     rightChunk1Image="/images/right_achievement_island_first_front_chunk.webp"
 //     rightChunk2Image="/images/right_achievement_island_second_front_chunk.webp"
-//     backgroundImage="/images/achievement_island_background.webp" (optional — omit for plain white)
+//     backgroundImage="/images/achievement_island_background.webp"
 //   />
 
 interface Props {
@@ -212,7 +204,7 @@ interface Props {
   rightImageGlitched?: string;
   rightChunk1Image?: string;
   rightChunk2Image?: string;
-  backgroundImage?: string;
+  backgroundImage: string;
 }
 
 const {
@@ -231,9 +223,9 @@ const {
 ---
 
 <section
-  class="achievement-section sky-chain seam-fade-bottom halftone-hover"
+  class="achievement-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
   id={id}
-  style={backgroundImage ? `background-image: url(${backgroundImage});` : undefined}
+  style={`background-image: url(${backgroundImage});`}
 >
   <div class="achievement-island achievement-island-left" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
@@ -525,31 +517,9 @@ const {
 <style>
   .achievement-section {
     position: relative;
-    /* 100vh, same floor every section in this family uses. A previous
-       pass dropped this to 75vh to close up white space, but that was
-       the wrong lever: both islands below (`.achievement-island-left`
-       / `-right`) are positioned via a `top: Nvh` offset from THIS
-       box's own top edge, sized for a full 100vh box — shrink the box
-       and the island's own height can run past its now-shorter bottom
-       edge, spilling into (and looking clipped against)
-       HobbyIslandSection right after it. Restored to 100vh so both
-       islands always have room to fully render inside their own
-       section again, however tall the real art turns out to be.
-       "Closer to Computer above, with the islands/text sitting higher"
-       is handled below instead, via `align-items: start` — that pulls
-       `.content` up near the top of this (still-100vh-tall) box rather
-       than centering it in the middle, right alongside where the
-       islands already sit (`top: 16-30vh`, unrelated to this box's
-       height either way). Net effect: content clusters near the top,
-       close behind SkyShatterSection.astro, with the rest of this
-       section's own height left as clean white space below it before
-       HobbyIslandSection — exactly the "more white space around them,
-       no rough transition with Hobby" you asked for, without the
-       clipping risk shrinking the box caused. */
     min-height: 100vh;
     display: grid;
-    align-items: start;
-    justify-items: center;
+    place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     /* No `overflow: hidden` here — see the comment on `overflow-x:
        hidden` on `html` in Layout.astro. That handles horizontal
@@ -558,11 +528,12 @@ const {
     background-size: cover;
     background-position: top;
     background-repeat: no-repeat;
-    /* Seam-blend target (see the shared comment in Layout.astro) —
-       only the bottom edge needs one now. It softens into
-       var(--dusk-blue) (BonusIslandSection's top). The top edge no
-       longer needs a fade at all — see the component-level comment
-       above for why. */
+    /* Seam-blend targets (see the shared comment in Layout.astro) —
+       one variable per edge since this section needs two different
+       colors. Top softens into var(--sky-2) (ComputerIslandSection's
+       bottom, now that Education no longer sits between them); bottom
+       softens into var(--dusk-blue) (BonusIslandSection's top). */
+    --seam-target-top: var(--sky-2);
     --seam-target-bottom: var(--dusk-blue);
   }
 

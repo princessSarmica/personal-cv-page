@@ -1,0 +1,392 @@
+---
+// src/components/SkyShatterSection.astro
+//
+// Scroll-linked 3D transition, sitting between ComputerIslandSection and
+// AchievementIslandSection. The idea: the sky (the same color as
+// ComputerIslandSection's bottom / var(--sky-2)) is represented as a
+// grid of flat 3D tiles. As you scroll through this section, each tile
+// tumbles away on its own randomized axis/timing and falls out of
+// frame, revealing plain white underneath — which is also, from here
+// on, AchievementIslandSection's background (see that component: its
+// `backgroundImage` prop is no longer being passed in index.astro, so
+// it now just shows the page's own white background instead of its old
+// blue sky image).
+//
+// Colour comes from `--sky-2` (see Layout.astro's shared CSS variables)
+// read live via getComputedStyle, rather than a hardcoded hex — so if
+// that variable ever changes, this stays in sync with it and with
+// ComputerIslandSection's own `--seam-target-bottom`, same source of
+// truth. Because the color is read exactly, and the fully-shattered end
+// state reveals the same white AchievementIslandSection now sits on,
+// this section needs NO seam-fade-top/seam-fade-bottom of its own (see
+// the shared seam-fade comment in Layout.astro) — both of its edges are
+// already an exact match to their neighbor, nothing to blend.
+//
+// Mechanics: an oversized section (`.shatter-section`, `height: 110vh`)
+// with a `position: sticky` inner wrapper pinned to the viewport for
+// its own height. Scrolling through the extra 10vh of runway is what
+// drives "progress" from 0 (flat, intact grid — seamless match against
+// ComputerIslandSection above) to 1 (every tile fallen/faded away —
+// seamless match against AchievementIslandSection's white below).
+// `position: sticky` does the actual pinning for free — no JS pin/
+// freeze logic needed the way CornerIsland.astro needs it (that one
+// has to unfreeze back into normal flow later; this one just releases
+// naturally once you scroll past the section's own height).
+//
+// Each tile gets its own randomized start/end point within that 0..1
+// progress range (via a shared smoothstep easing), so they don't all
+// move in lockstep — that stagger is what reads as "shattering" rather
+// than "sliding away as one sheet." Rotation axis, fall distance, and
+// sideways drift are randomized per tile too.
+//
+// Tile count adapts to the section's own aspect ratio (see `layout()`
+// below) so tiles stay roughly SQUARE on any viewport instead of
+// stretching into thin rectangles on very narrow or very wide screens.
+//
+// Not every tile falls — see `survivalChance` in the grid-building loop
+// below. A row-dependent fraction are marked `permanent` and never
+// animate at all (skipped outright in `applyProgress`), so a scattered
+// handful of tiles hang on indefinitely rather than the grid clearing
+// to perfectly clean white. Concentrated toward the top two rows
+// (nearest ComputerIslandSection above), thinning out through the rest
+// of the top half, and zero in the bottom half — so the reveal still
+// always reaches full white by the time it meets AchievementIslandSection.
+//
+// `prefers-reduced-motion: reduce`: the canvas never mounts at all (see
+// the script's early guard) — `.shatter-fallback`'s plain CSS gradient
+// (sky-2 fading to white, no motion) shows instead. This is the same
+// "show something plain instead of nothing" approach used elsewhere in
+// this codebase (e.g. AchievementIslandSection's chunks under reduced
+// motion) rather than just leaving blank space.
+//
+// Usage:
+//   <SkyShatterSection id="section-sky-shatter" />
+
+interface Props {
+  id: string;
+}
+
+const { id } = Astro.props;
+---
+
+<section class="shatter-section sky-chain" id={id}>
+  <div class="shatter-sticky">
+    <canvas class="shatter-canvas" aria-hidden="true"></canvas>
+    <div class="shatter-fallback" aria-hidden="true"></div>
+  </div>
+</section>
+
+<script>
+  import * as THREE from "three";
+
+  const canvas = document.querySelector<HTMLCanvasElement>(".shatter-canvas");
+  const section = canvas?.closest<HTMLElement>(".shatter-section");
+  const prefersReducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)"
+  ).matches;
+
+  // Under reduced motion the canvas is hidden by CSS and the plain
+  // `.shatter-fallback` gradient shows instead — don't even set up
+  // Three.js in that case.
+  if (canvas && section && !prefersReducedMotion) {
+    const sky2 =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--sky-2")
+        .trim() || "#0ADEFB"; // fallback matches Layout.astro's own value
+
+    const scene = new THREE.Scene();
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true, // page's white body shows through as tiles clear
+    });
+    renderer.setClearColor(0x000000, 0); // fully transparent clears
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    const fovRad = (camera.fov * Math.PI) / 180;
+    const CAMERA_DISTANCE = 8;
+    camera.position.z = CAMERA_DISTANCE;
+
+    // Shared geometry (a unit square, scaled per-tile via mesh.scale)
+    // and a shared "template" material each tile clones from — cloning
+    // is what lets every tile fade out independently via its own
+    // `.opacity`, while still all starting from the same color/setup.
+    //
+    // MeshBasicMaterial (unlit) is deliberate, not a placeholder — an
+    // earlier pass used MeshStandardMaterial + lights, which looks more
+    // "3D" but means every tile's actual on-screen color depends on its
+    // angle to the light, so a resting flat tile facing slightly away
+    // from the key light renders visibly darker/duller than `sky2`
+    // itself. That's exactly wrong for this effect: the whole seamless-
+    // match-at-rest trick depends on the tile grid being pixel-for-
+    // pixel `--sky-2`, not a lit approximation of it. Unlit means every
+    // tile is always EXACTLY `sky2` regardless of its rotation — no
+    // lights needed at all, so none are added.
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const materialTemplate = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(sky2),
+      side: THREE.DoubleSide,
+      transparent: true,
+      // Transparent tiles overlapping mid-tumble would otherwise sort
+      // oddly against each other; skipping depth writes avoids visible
+      // occlusion glitches. Not noticeable as a tradeoff at this tile
+      // size/color (flat, no overlapping detail to lose).
+      depthWrite: false,
+    });
+
+    type Tile = {
+      mesh: THREE.Mesh;
+      material: THREE.MeshBasicMaterial;
+      baseX: number;
+      baseY: number;
+      rotAxis: THREE.Vector3;
+      rotAmount: number; // radians at full progress
+      fallDistance: number;
+      driftX: number;
+      start: number; // this tile's own progress range within 0..1
+      end: number;
+      // A holdout tile never animates — see the row-based odds in the
+      // grid-building loop below. Its mesh just sits at its resting
+      // position/rotation/opacity forever, since `applyProgress` skips
+      // it entirely (see the `continue` there).
+      permanent: boolean;
+    };
+
+    let tiles: Tile[] = [];
+
+    // Target world-space size for one tile — chosen so COLS/ROWS below
+    // land on roughly-square tiles on any aspect ratio, rather than a
+    // fixed grid that'd stretch into thin rectangles on narrow screens.
+    const TARGET_TILE_SIZE = 1.1;
+
+    let worldWidth = 0;
+    let worldHeight = 0;
+
+    function layout() {
+      const w = section!.clientWidth;
+      const h = window.innerHeight; // the sticky wrapper's own height
+      if (w === 0 || h === 0) return;
+
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+
+      worldHeight = 2 * CAMERA_DISTANCE * Math.tan(fovRad / 2);
+      worldWidth = worldHeight * camera.aspect;
+
+      const cols = Math.min(18, Math.max(6, Math.round(worldWidth / TARGET_TILE_SIZE)));
+      const rows = Math.min(12, Math.max(4, Math.round(worldHeight / TARGET_TILE_SIZE)));
+      const tileW = worldWidth / cols;
+      const tileH = worldHeight / rows;
+
+      for (const t of tiles) {
+        scene.remove(t.mesh);
+        t.material.dispose();
+      }
+      tiles = [];
+
+      for (let row = 0; row < rows; row++) {
+        // Not every tile falls — a scattered few hold on permanently,
+        // concentrated toward the top (row 0 = the very top row,
+        // nearest ComputerIslandSection above; see baseY below). This
+        // reads as an incomplete shatter rather than the sky wiping
+        // away perfectly clean:
+        //   - top two rows: a strong minority hold on ("a lot more" of
+        //     them, per your request).
+        //   - rest of the top half: just a scattered few.
+        //   - bottom half: none — every tile there still falls, so the
+        //     reveal still reaches all the way to full white below.
+        const survivalChance = row < 2 ? 0.45 : row < rows / 2 ? 0.15 : 0;
+
+        for (let col = 0; col < cols; col++) {
+          const material = materialTemplate.clone();
+          const mesh = new THREE.Mesh(geometry, material);
+          // Slight overscale so adjacent intact tiles have zero visible
+          // seam between them at rest (progress 0).
+          mesh.scale.set(tileW * 1.02, tileH * 1.02, 1);
+
+          const baseX = -worldWidth / 2 + tileW * (col + 0.5);
+          const baseY = worldHeight / 2 - tileH * (row + 0.5);
+          mesh.position.set(baseX, baseY, 0);
+          scene.add(mesh);
+
+          const permanent = Math.random() < survivalChance;
+
+          // Narrower/earlier window than a first pass at this (used to
+          // be 0-0.6 start / 0.3-0.45 duration): that let some tiles
+          // wait until 60% of the way down the runway before even
+          // starting, which read as "the effect happens too late,
+          // white's already showing before anything visibly shatters."
+          // Starting everything within the first third of the scroll
+          // and finishing well before progress hits 1 (worst case
+          // 0.35 + 0.45 = 0.8) makes the whole grid noticeably start
+          // breaking apart almost as soon as you scroll in, and fully
+          // clears with margin to spare before the section releases.
+          // (Irrelevant for a `permanent` tile — `applyProgress` skips
+          // it before `start`/`end` are ever read — but every tile
+          // still gets one so the object shape stays consistent.)
+          const start = Math.random() * 0.35;
+          tiles.push({
+            mesh,
+            material,
+            baseX,
+            baseY,
+            rotAxis: new THREE.Vector3(
+              Math.random() - 0.5,
+              Math.random() - 0.5,
+              Math.random() - 0.5
+            ).normalize(),
+            rotAmount: (Math.random() * 0.75 + 0.5) * Math.PI, // 0.5-1.25 turns
+            fallDistance: 3 + Math.random() * 4,
+            driftX: (Math.random() - 0.5) * 2.5,
+            start,
+            end: start + 0.25 + Math.random() * 0.2,
+            permanent,
+          });
+        }
+      }
+    }
+
+    function smoothstep(edge0: number, edge1: number, x: number) {
+      const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
+    }
+
+    // Recomputed from scroll on every frame that needs it — see the
+    // scroll listener below. Deliberately spans TWO phases as one
+    // continuous 0..1 range, not just the sticky-pinned one:
+    //
+    //   1. "Entering" — the section scrolling up from below, before it's
+    //      pinned at all. This is the phase that was missing before:
+    //      progress used to stay at a flat 0 for this entire phase (a
+    //      full viewport height of scrolling), so nothing visibly
+    //      happened until the section had scrolled ALL the way to the
+    //      top — which is what read as "the effect happens too late."
+    //   2. "Pinned" — the sticky wrapper holds at the top of the
+    //      viewport while the section's remaining height scrolls
+    //      underneath it (see `.shatter-sticky` in the styles below).
+    //
+    // `scrolled` is 0 right as the section's top edge first touches the
+    // BOTTOM of the viewport (i.e. the instant any sliver of it is
+    // visible) and grows continuously through both phases — no seam
+    // between them, since normal scrolling and the sticky hand-off are
+    // just two ways of moving the same rect.top value. `total` is the
+    // section's own full height, i.e. one viewport-height of "entering"
+    // plus whatever's left over as pinned runway (110vh - 100vh = 10vh
+    // here — kept short on purpose: every tile is guaranteed done well
+    // before this point, so this residual is just a brief hold rather
+    // than a long stretch of already-blank white before
+    // AchievementIslandSection appears) — so progress hits 1 exactly
+    // as the sticky wrapper releases into AchievementIslandSection.
+    function computeProgress() {
+      const rect = section!.getBoundingClientRect();
+      const total = section!.offsetHeight;
+      if (total <= 0) return 0;
+      const scrolled = window.innerHeight - rect.top;
+      return Math.min(1, Math.max(0, scrolled / total));
+    }
+
+    function applyProgress(progress: number) {
+      for (const t of tiles) {
+        if (t.permanent) continue; // holds its resting state forever
+        const p = smoothstep(t.start, t.end, progress);
+        t.mesh.position.set(
+          t.baseX + t.driftX * p,
+          t.baseY - t.fallDistance * p,
+          -p * 2
+        );
+        // Absolute rotation from progress each frame (not an
+        // incremental rotate) — avoids drift/accumulation bugs from
+        // re-applying a per-frame delta against a value that can also
+        // move backwards (scrolling back up).
+        t.mesh.quaternion.setFromAxisAngle(t.rotAxis, p * t.rotAmount);
+        t.material.opacity = 1 - p;
+      }
+    }
+
+    let latestProgress = 0;
+    let ticking = false;
+    function onScroll() {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          latestProgress = computeProgress();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    function onResize() {
+      layout();
+      latestProgress = computeProgress();
+    }
+    window.addEventListener("resize", onResize);
+    window.addEventListener("load", onResize);
+
+    layout();
+    latestProgress = computeProgress();
+
+    let frameId: number;
+    function tick() {
+      applyProgress(latestProgress);
+      renderer.render(scene, camera);
+      frameId = requestAnimationFrame(tick);
+    }
+    tick();
+
+    document.addEventListener(
+      "astro:before-swap",
+      () => {
+        cancelAnimationFrame(frameId);
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onResize);
+        window.removeEventListener("load", onResize);
+        for (const t of tiles) t.material.dispose();
+        geometry.dispose();
+        materialTemplate.dispose();
+        renderer.dispose();
+      },
+      { once: true }
+    );
+  }
+</script>
+
+<style>
+  .shatter-section {
+    position: relative;
+    height: 110vh;
+  }
+
+  .shatter-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .shatter-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .shatter-fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    background: linear-gradient(to bottom, var(--sky-2), #ffffff);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shatter-canvas {
+      display: none;
+    }
+
+    .shatter-fallback {
+      display: block;
+    }
+  }
+</style>
