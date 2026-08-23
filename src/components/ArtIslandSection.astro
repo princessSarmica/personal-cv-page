@@ -43,13 +43,46 @@
 // derivation), rather than hand-tweaking the calc() coefficients
 // directly.
 //
-// Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover`, `min-height: 100vh`. Back to this
-// technique (from a brief detour through a real, uncropped <img>) per
-// your correction: the goal is every section keeping a CONSISTENT
-// height across every screen size, cropping the left/right edges of
-// the background as needed to make that happen — same as
-// Computer/Education/Achievement/Bonus now all do too.
+// Background: split into TWO layers instead of one flat image, per
+// your request — `moonBackground` (the moon, static) and
+// `cloudsBackground` (a seamlessly-tileable clouds texture that drifts
+// left-to-right and loops forever). Both still use `background-size:
+// cover` / `background-position: bottom`, `min-height: 100vh` on the
+// section itself — the goal is still every section keeping a
+// CONSISTENT height across every screen size, cropping the left/right
+// edges as needed — same as Computer/Education/Achievement/Bonus.
+//
+// Implementation: `.art-moon-bg` is a single absolutely-positioned
+// full-bleed layer, unanimated, still using `background-image` +
+// `background-size: cover` (a single non-repeating image can be
+// cropped freely with no seam to protect). `.art-clouds-bg` is a
+// clipped (`overflow: hidden`) full-bleed layer containing a
+// `.art-clouds-track` — two identical `<img>` copies of the clouds
+// texture side by side (real `<img>` elements, not `background-image`
+// + `cover`, specifically so the FULL image renders at its natural
+// aspect ratio with no horizontal cropping — `cover` would crop each
+// tile to its own box and, since that crop lands centered, both tiles
+// would show the same cropped middle slice of the texture instead of
+// its true left/right edges, producing a visible cut at the tile
+// boundary instead of a seamless join) — animated via `transform:
+// translateX` from -50% to 0%. The track is sized with `width:
+// max-content` (fits its two children exactly), so `translateX(-50%)`
+// always shifts by exactly one tile's rendered width, whatever that
+// width is. Because the two tiles are pixel-identical and the texture
+// is seamlessly tileable, the track loops infinitely with no visible
+// seam: `translateX` (not an animated `background-position`
+// percentage, which is ambiguous once `background-size` is also a
+// percentage) is what makes this reliable. Animating FROM -50% TO 0%
+// specifically is what makes the visible motion read as left-to-right
+// (the reverse would drift right-to-left).
+//
+// Both layers sit at NEGATIVE z-index (-2 for the clouds, -1 for the
+// moon, moon in front of clouds so it stays visible instead of being
+// covered by the drifting clouds texture) so they stay behind the
+// `.seam-fade-top`/`.seam-fade-bottom` pseudo-elements (z-index: 0) as
+// well as the foreground content/islands (z-index: 1/2) — otherwise,
+// as real DOM children they'd paint after those pseudo-elements in the
+// same stacking context and cover the seam blend.
 //
 // `background-position: bottom` protects the true bottom edge — the
 // one that has to match ComputerIslandSection's top.
@@ -140,9 +173,6 @@
 // unconditionally in CSS, so the final artwork just shows immediately
 // and stays put.
 //
-// NOTE: I don't have the actual background image file yet — this is
-// built off a placeholder path.
-//
 // Usage:
 //   <ArtIslandSection
 //     id="art-skills"
@@ -153,7 +183,8 @@
 //     topImageLoading="/images/left_top_art_island_loading.webp"
 //     bottomImage="/images/right_bottom_art_island.svg"
 //     bottomImageLoading="/images/bottom_right_art_island_loading.webp"
-//     backgroundImage="/images/art_island_background.webp"
+//     moonBackground="/images/art_island_moon_background.webp"
+//     cloudsBackground="/images/art_island_clouds_background.webp"
 //   />
 
 interface Props {
@@ -165,7 +196,8 @@ interface Props {
   topImageLoading?: string;
   bottomImage: string;
   bottomImageLoading?: string;
-  backgroundImage: string;
+  moonBackground: string;
+  cloudsBackground: string;
 }
 
 const {
@@ -177,15 +209,23 @@ const {
   topImageLoading,
   bottomImage,
   bottomImageLoading,
-  backgroundImage,
+  moonBackground,
+  cloudsBackground,
 } = Astro.props;
 ---
 
 <section
   class="art-section sky-chain seam-fade-bottom seam-fade-top halftone-hover"
   id={id}
-  style={`background-image: url(${backgroundImage});`}
 >
+  <div class="art-moon-bg" style={`background-image: url(${moonBackground});`} aria-hidden="true"></div>
+  <div class="art-clouds-bg" aria-hidden="true">
+    <div class="art-clouds-track">
+      <img class="art-clouds-tile" src={cloudsBackground} alt="" />
+      <img class="art-clouds-tile" src={cloudsBackground} alt="" />
+    </div>
+  </div>
+
   <div class="art-island art-island-top" aria-hidden="true">
     <div class="art-island-inner parallax-inner">
       {topImageLoading ? (
@@ -427,16 +467,84 @@ const {
        `overflow-x: hidden` on `html` in Layout.astro instead, so a
        vertically-overflowing island isn't hard-clipped by this
        section's own box. See the comment there for why. */
-    background-size: cover;
-    background-position: bottom;
-    background-repeat: no-repeat;
     /* Seam-blend targets (see the shared comment in Layout.astro):
        bottom softens into var(--sky-1) against ComputerIslandSection's
        top; top softens into var(--sky-3) against
        EducationIslandSection's bottom — both regardless of what this
-       section's own background image shows right at those edges. */
+       section's own background layers show right at those edges. */
     --seam-target-bottom: var(--sky-1);
     --seam-target-top: var(--sky-3);
+  }
+
+  /* Looping clouds layer, furthest back (z-index: -2) so the moon
+     renders in front of it. `overflow: hidden` clips the track (which
+     is wider than the section, since it holds two full-width tiles)
+     down to the section's own bounds. */
+  .art-clouds-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* Static moon layer — full-bleed, unanimated, sitting in front of
+     the clouds (z-index: -1) so it stays visible instead of being
+     covered by the drifting clouds texture, while both still stay
+     behind the seam-fade pseudo-elements (z-index: 0) and the
+     foreground content/islands (z-index: 1/2). */
+  .art-moon-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-size: cover;
+    background-position: bottom;
+    background-repeat: no-repeat;
+    pointer-events: none;
+  }
+
+  /* Two identical clouds tiles side by side, animated by exactly one
+     tile-width via `transform: translateX` — see the top-of-file
+     comment for why this (and not an animated `background-position`
+     percentage) is the reliable way to get a seamless infinite loop.
+     `width: max-content` sizes the track to exactly fit its two <img>
+     children (rather than a fixed 200%), so `translateX(-50%)` always
+     shifts by precisely one tile's rendered width, whatever that width
+     actually is. */
+  .art-clouds-track {
+    display: flex;
+    width: max-content;
+    height: 100%;
+    animation: art-clouds-drift 90s linear infinite;
+  }
+
+  /* Real <img> elements, not `background-image` + `background-size:
+     cover` — `cover` independently crops each tile to fit its own box,
+     and since the crop lands centered, both tiles show the same
+     cropped middle slice of the texture instead of its true left/right
+     edges, so the tile-to-tile boundary shows a visible cut instead of
+     a seamless join. Sizing purely by `height` (with `width: auto`)
+     keeps the image's full, uncropped width at its natural aspect
+     ratio, so the actual seamless edges of the texture are what meet
+     at the tile boundary. */
+  .art-clouds-tile {
+    display: block;
+    height: 100%;
+    width: auto;
+    max-width: none;
+    flex-shrink: 0;
+  }
+
+  /* FROM -50% TO 0% (not the reverse) is what makes the visible drift
+     read as left-to-right, since the track's resting position places
+     tile 1 in view and tile 2 immediately to its right. */
+  @keyframes art-clouds-drift {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0%);
+    }
   }
 
   .content {
@@ -664,6 +772,11 @@ const {
   @media (prefers-reduced-motion: reduce) {
     .art-island-top,
     .art-island-bottom {
+      animation: none;
+    }
+
+    /* Freeze the clouds on their resting frame instead of looping. */
+    .art-clouds-track {
       animation: none;
     }
 
