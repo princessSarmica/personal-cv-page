@@ -105,9 +105,10 @@
 // New: optional `topImageLoading` / `bottomImageLoading` props — your
 // left_top_art_island_loading.webp and bottom_right_art_island_loading.webp,
 // red-lined triangulated wireframe / low-poly mesh versions of each
-// island's artwork. The first time EITHER island scrolls into view,
-// that island (independently of the other) plays a one-time two-phase
-// "materialize" animation instead of just appearing:
+// island's artwork. The first time EITHER island is FULLY in view
+// (the entire island, not just part of it) that island (independently
+// of the other) plays a one-time two-phase "materialize" animation
+// instead of just appearing:
 //
 //   1. Materialize (~1.2s): the wireframe sweeps into view bottom-to-
 //      top via an animated `clip-path`, with a red glow
@@ -146,7 +147,9 @@
 // on when (or whether) the bottom one does, and vice versa.
 // `observer.disconnect()` right after each element's first
 // intersection means it can only ever play once per page load, per
-// your request ("the first time it comes into view"). It only touches
+// your request ("the first time it comes into view") — using
+// `threshold: 1.0` so that "into view" means the ENTIRE island, not
+// just a sliver of it. It only touches
 // `opacity`/`clip-path`/`filter` on that reveal wrapper's own
 // children, so it doesn't interact with (or get overridden by) the
 // bob loop or mouse-repel drift already applied higher up on
@@ -344,7 +347,8 @@ const {
   // below):
   //
   //   1. Entrance (`watchEntrance`): one-time, timer-driven, fires the
-  //      first time the island scrolls into view. Plays materialize,
+  //      first time the island is FULLY within the viewport (see
+  //      `threshold: 1.0` below). Plays materialize,
   //      waits for it to finish, then plays dematerialize while
   //      permanently marking the final artwork visible (`is-revealed`)
   //      — this is the original "loading -> real image" reveal.
@@ -418,7 +422,21 @@ const {
             observer.disconnect();
           }
         },
-        { threshold: 0.2 }
+        // `threshold: 1.0` — `entry.isIntersecting` only turns true
+        // once the element's intersection ratio reaches 1.0, i.e. the
+        // entire island is inside the viewport, not just part of it.
+        //
+        // `rootMargin` expands the viewport horizontally (by a value
+        // far bigger than these islands ever intentionally bleed off
+        // the left/right edge — see the top-of-file comment on that
+        // sizing) so that deliberate horizontal overflow never counts
+        // against the ratio. Without this, an island that's designed
+        // to poke past the screen edge at narrower viewports could
+        // never reach ratio 1.0 at all, and its entrance would never
+        // fire. Left unexpanded top/bottom, so what actually gates the
+        // reveal is exactly what you asked for: the island fully
+        // visible top-to-bottom as you scroll.
+        { threshold: 1.0, rootMargin: "0px 2000px 0px 2000px" }
       );
 
       observer.observe(reveal);
