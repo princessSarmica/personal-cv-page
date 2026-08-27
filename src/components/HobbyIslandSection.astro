@@ -90,13 +90,13 @@
 // plain `clamp()` now.
 //
 // Background: `hobby_island_background.webp` is a FLAT fill (sampled
-// at ≈#01d4f3), close enough to identical to `--dusk-blue` (defined
-// in Layout.astro; AchievementIslandSection's bottom edge and
-// BonusIslandSection's top edge both already use it) that this
-// section's seam-fades reuse `--dusk-blue` on BOTH edges. That means
-// NEITHER Layout.astro NOR AchievementIslandSection.astro NOR
-// BonusIslandSection.astro need any changes — all three already
-// agree on this exact color at the seam.
+// at ≈#01d4f3), close enough to identical to AchievementIslandSection's
+// bottom edge / BonusIslandSection's top edge that this section always
+// met its neighbors cleanly even without any seam-blend help — the
+// shared fade-band system (`.seam-fade-top`/`.seam-fade-bottom`) that
+// used to exist for the sections where that WASN'T true has since been
+// removed entirely per your request, so this note is just historical
+// context for why this particular section never needed it.
 //
 // v6 — you swapped in your own re-exported CSP layers and the layout
 // broke ("look size and position of the site completely changes").
@@ -720,7 +720,7 @@ const {
 ---
 
 <section
-  class="hobby-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
+  class="hobby-section sky-chain halftone-hover"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -1293,6 +1293,16 @@ const {
   .hobby-section {
     position: relative;
     min-height: 100vh;
+    /* `aspect-ratio: 16 / 9` matches the background image (measured at
+       3840x2160, though it's a flat fill so this doesn't change its
+       appearance either way) — combined with `width: 100%` and
+       `min-height`, the browser uses whichever constraint needs MORE
+       height, same reasoning as the rest of this family (see
+       ArtIslandSection.astro's fuller comment) — kept here mainly for
+       consistency, since a flat-fill background has no "shortening"
+       artifact to begin with. */
+    width: 100%;
+    aspect-ratio: 16 / 9;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1302,19 +1312,14 @@ const {
        hidden` on `html` in Layout.astro. That handles horizontal
        clipping page-wide, so the island group is free to sit taller
        than this section's own box without being hard-clipped. */
+    /* `cover` — always fills the section edge-to-edge with no gaps,
+       same as the rest of this family (see EducationIslandSection.astro
+       for the fuller "why not size by height alone" reasoning) — though
+       since this background is a flat fill it won't look any different
+       either way. */
     background-size: cover;
     background-position: top;
     background-repeat: no-repeat;
-    /* Seam-blend targets (see the shared comment in Layout.astro).
-       Both edges target `--dusk-blue` — see the top-of-file comment
-       above for why that's correct even though this section sits
-       between two different neighbors: the actual background is a
-       flat fill equal to that color, so it already matches
-       AchievementIslandSection's bottom on this section's top edge,
-       and already matches BonusIslandSection's top on this section's
-       bottom edge, with no new variable needed. */
-    --seam-target-top: var(--dusk-blue);
-    --seam-target-bottom: var(--dusk-blue);
   }
 
   .content {

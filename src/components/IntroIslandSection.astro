@@ -1,107 +1,113 @@
 ---
 // src/components/IntroIslandSection.astro
 //
-// New first section on the page — sits before ArtIslandSection. Just
-// centered text (no background image or islands originally), styled
-// with the same `.content` conventions as every other section in this
-// family (`width: min(*ch, 100%); margin: 0 auto; text-align: left;`,
-// same padding scale), so it reads as part of the same design system
-// even though it's simpler.
+// First section on the page — sits before EducationIslandSection.
+// Space theme, per your request: a solid black background with a
+// regular grid of small white dots (most dim, a random sparse handful
+// bright), rendered on a `<canvas>` so the pattern can react live to
+// the cursor — dots near the pointer glow brighter and slightly
+// bigger, easing back down once the cursor moves away, so the pattern
+// visibly "shifts" as you move through it instead of being static.
 //
-// Two lines of text:
+// This replaces the previous version of this section, which had a sky
+// photo (`backgroundImage`) and a cloud mascot with a hover-triggered
+// smile (`cloudImage`/`cloudSmileImage`). Per your call: the cloud is
+// dropped entirely for a clean space look, so those props are gone —
+// this section is now just the star-grid canvas behind the name/
+// titles text, no other props needed.
+//
+// Two lines of text, unchanged from before:
 //   - `name`   -> "Name Surname", rendered noticeably bigger than any
 //     other section's heading (`clamp(2.75rem, 6vw, 4.5rem)` vs the
 //     usual `clamp(2rem, 4vw, 3rem)` for h2 elsewhere), since this is
 //     the one place on the page that should read as a name/title card.
 //   - `titles` -> a single line underneath, e.g. "Title 1, Title 2,
 //     Title 3" — smaller, muted, same treatment as `.body-text`
-//     elsewhere.
+//     elsewhere. Both recolored to light tones (previously dark, meant
+//     for a light sky background) so they read against the new black
+//     background.
 //
-// Now takes an optional `backgroundImage` (your sky photo) and
-// `cloudImage` (the plain cloud) prop. The cloud is treated exactly
-// like a single flanking island from the rest of the family — same
-// nested split as every other island:
-//   `.intro-cloud`       — outer wrapper, the constant CSS bob loop
-//   `.intro-cloud-inner` — `.parallax-inner`, the JS-driven mouse-repel
-//     drift (kept on a separate element so the two transforms don't
-//     fight each other over the same `transform` property — see the
-//     comment in CornerIsland.astro / ArtIslandSection.astro for why).
-// The `<script>` below is the same proximity-repel drift used in
-// every other section — it queries ALL `.parallax-inner` elements
-// globally (not just this section's own cloud), so it also drives
-// whatever islands are already on the page from Art/Computer/etc.
-// That's intentional/harmless (every copy computes the same easing
-// toward the same targets), just a little redundant — same tradeoff
-// noted in those files.
+// The star grid (`.intro-stars`, a `<canvas>`):
+//   - A perfectly regular grid (no jitter — matches the reference
+//     image you sent, which is a clean, evenly spaced grid rather than
+//     a scattered one), spacing controlled by `SPACING` below.
+//   - Each dot's "is this one of the bright ones?" call, and its exact
+//     base opacity/size within its bright-or-dim band, are decided
+//     once per dot via a deterministic hash of its grid column/row
+//     (`hash()`) — so the "random" pattern is stable across redraws/
+//     resizes rather than reshuffling every time, the same way you'd
+//     expect a fixed star field to behave.
+//   - Cursor reactivity: dots within `INFLUENCE_RADIUS` of the pointer
+//     ease toward extra brightness/size (`boost`), and ease back down
+//     once the cursor moves away — this is what makes the pattern
+//     "change a bit as you move your cursor through it" per your
+//     request, on top of the sparse bright dots that are there at
+//     rest.
+//   - Performance: the resting grid (the vast majority of dots, which
+//     never change) is rendered ONCE to an offscreen bitmap
+//     (`restingBitmap`) and then just blitted (`drawImage`) each
+//     frame; only the small, currently-active set of cursor-boosted
+//     dots is redrawn on top individually. This keeps the per-frame
+//     cost proportional to how many dots are actually glowing near the
+//     cursor, not the size of the whole grid (which can be a couple
+//     thousand dots on a big screen).
+//   - The animation loop only runs while at least one dot has a
+//     nonzero boost — it stops itself (no `requestAnimationFrame`
+//     scheduled) once everything has eased back to rest, rather than
+//     redrawing forever in the background.
+//   - Resizing: a `ResizeObserver` on the canvas itself (not just a
+//     `window resize` listener) rebuilds the grid and resting bitmap
+//     whenever the section's rendered size actually changes, so it
+//     stays correct across breakpoints/orientation changes/etc.
+//   - Seamless handoff into InBetweenSection1: this section's height is
+//     basically never an exact multiple of `SPACING`, so without any
+//     correction the row grid would restart fresh at y=0 of THIS
+//     canvas, landing its rows at a different offset than
+//     InBetweenSection1's own grid starting at y=0 of ITS canvas right
+//     below — visible as an irregular gap/seam right at the boundary
+//     (reported as "a line of dots that is cut away"). Fixed by phase-
+//     shifting the row grid to line up with the page's global 24px
+//     rhythm instead of this canvas's own local top edge — see the
+//     `rowPhase` comment on `resize()` below.
+//   - `prefers-reduced-motion: reduce`: the grid still renders (it's
+//     the section's whole background, not optional decoration), but
+//     no mousemove listener or animation loop is attached at all —
+//     what you get is the static resting pattern with zero motion,
+//     same "show a plain static state instead of nothing" convention
+//     used everywhere else in this codebase.
 //
-// New: optional `cloudSmileImage` prop — a second cloud image (same
-// cloud, smiling) layered directly on top of `cloudImage` inside
-// `.intro-cloud-inner`, at `opacity: 0` by default and crossfaded to
-// `opacity: 1` on `:hover` of `.intro-cloud`. This is a plain CSS
-// opacity transition on the image itself, so it composes cleanly with
-// the two existing transforms (the CSS bob on `.intro-cloud`, the JS
-// drift on `.intro-cloud-inner`) instead of competing with them —
-// nothing here touches `transform`.
-// Needed `.intro-cloud`'s `pointer-events` flipped from `none` to
-// `auto` for the `:hover` to fire at all — previously the cloud was
-// purely decorative and click/hover-transparent. It's still
-// `aria-hidden` and non-interactive otherwise (no click behavior, no
-// focus target), so this only affects mouse hover, not keyboard nav.
-// Note this is hover-only: touch devices have no persistent cursor,
-// so the smile won't appear on mobile/tablet as-is. Revisit with a
-// tap-toggle if that matters.
+// Dropped `halftone-hover` from this section's classes (the page-wide
+// cursor "halftone spotlight" effect from Layout.astro): that overlay
+// is its own dot pattern meant to tint whatever background a section
+// has, and layering it on top of this section's OWN dot pattern would
+// just be two competing dot textures fighting each other visually.
+// Every other section keeps that effect as before — this is scoped to
+// just this section.
 //
-// Both `cloudImage`/`cloudSmileImage` are optional so existing usage
-// without them still works (renders as before: plain, no cloud, or
-// cloud with no smile crossfade if `cloudSmileImage` is omitted).
-// Now carries `.sky-chain .seam-fade-bottom`, joining the same
-// seam-color-matching system the rest of the chain uses (see
-// Layout.astro). `--seam-target-bottom` is set to the new
-// `--intro-seam` variable, and ArtIslandSection's top now fades to
-// that same variable via its own `.seam-fade-top` — so the two
-// sections blend into one shared color at the seam instead of
-// showing a hard edge. Being `.sky-chain` also zeroes out the normal
-// inter-section margin against ArtIslandSection (also `.sky-chain`),
-// so they sit flush against each other the way the rest of the chain
-// does.
+// No seam-fade classes any more — the shared fade-band system that
+// used to blend section edges together was removed per your request,
+// so this section now just butts directly against InBetweenSection1
+// below it. Still carries `.sky-chain` so the gap between them stays
+// collapsed to 0.
 //
 // Usage:
 //   <IntroIslandSection
 //     id="section-intro"
 //     name="Name Surname"
 //     titles="Title 1, Title 2, Title 3"
-//     backgroundImage="/images/intro_sky_background.webp"
-//     cloudImage="/images/intro_cloud.png"
-//     cloudSmileImage="/images/intro_cloud_smile.png"
 //   />
 
 interface Props {
   id: string;
   name: string;
   titles: string;
-  backgroundImage?: string;
-  cloudImage?: string;
-  cloudSmileImage?: string;
 }
 
-const { id, name, titles, backgroundImage, cloudImage, cloudSmileImage } = Astro.props;
+const { id, name, titles } = Astro.props;
 ---
 
-<section
-  class="intro-section sky-chain seam-fade-bottom halftone-hover"
-  id={id}
-  style={backgroundImage ? `background-image: url(${backgroundImage});` : undefined}
->
-  {cloudImage && (
-    <div class="intro-cloud" aria-hidden="true">
-      <div class="intro-cloud-inner parallax-inner">
-        <img src={cloudImage} alt="" class="cloud-base" />
-        {cloudSmileImage && (
-          <img src={cloudSmileImage} alt="" class="cloud-smile" />
-        )}
-      </div>
-    </div>
-  )}
+<section class="intro-section sky-chain" id={id}>
+  <canvas class="intro-stars" aria-hidden="true"></canvas>
 
   <div class="content">
     <h1>{name}</h1>
@@ -110,89 +116,294 @@ const { id, name, titles, backgroundImage, cloudImage, cloudSmileImage } = Astro
 </section>
 
 <script>
-  // Same proximity-repel drift as the rest of this family, driving
-  // every `.parallax-inner` element on the page. See
-  // ArtIslandSection.astro for the full explanation of how the
-  // repel-away-from-cursor math works.
-  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
+  // See the top-of-file comment for the overall design. Everything
+  // below is scoped to this one `<canvas>` — nothing here is shared
+  // globally the way the `.parallax-inner` drift script in the other
+  // sections is.
+  const canvas = document.querySelector<HTMLCanvasElement>(".intro-stars");
+  const ctx = canvas?.getContext("2d") ?? null;
 
-  if (islands.length && !prefersReducedMotion) {
-    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
-    const influenceRadius = 500; // px, push fades to 0 beyond this distance
-    const ease = 0.08;
+  if (canvas && ctx) {
+    const SPACING = 24; // px between grid points, both axes
+    const BRIGHT_CHANCE = 0.035; // fraction of dots that start "lit" at rest
+    const INFLUENCE_RADIUS = 130; // px, cursor reach before a dot's boost is 0
+    const EASE = 0.15;
+    const MAX_DPR = 2; // cap device-pixel-ratio for perf on very high-density screens
 
-    let mouseX = 0;
-    let mouseY = 0;
-    let hasMouse = false;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
 
-    const state = Array.from(islands).map((el) => ({
-      el,
-      currentX: 0,
-      currentY: 0,
-    }));
+    // Deterministic pseudo-random in [0, 1) from two integers — same
+    // (col, row) always produces the same value, so each dot's
+    // "is it bright" / exact opacity call is stable across rebuilds
+    // instead of reshuffling on every resize.
+    function hash(x: number, y: number) {
+      const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+      return v - Math.floor(v);
+    }
 
-    window.addEventListener("mousemove", (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      hasMouse = true;
+    interface Dot {
+      x: number;
+      y: number;
+      isBright: boolean;
+      baseAlpha: number;
+      baseRadius: number;
+      boost: number;
+    }
+
+    let dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    let width = 0;
+    let height = 0;
+    let cols = 0;
+    let rows = 0;
+    let rowPhase = 0; // see resize() — kept in this scope so activateNearby() can undo the shift
+    let dots: Dot[] = [];
+    let restingBitmap: HTMLCanvasElement | null = null;
+    const active = new Set<number>();
+
+    let mouseX = -99999;
+    let mouseY = -99999;
+    let rafId: number | null = null;
+
+    // `rowPhase` shifts every row's y-coordinate so the grid lines up
+    // with the PAGE's global 24px rhythm instead of restarting fresh
+    // at this canvas's own top edge — see the comment on `resize()`
+    // below for why (this is what keeps the dot grid seamless across
+    // the boundary into InBetweenSection1, which does the exact same
+    // thing). Row indices used for `hash()`/`active` bookkeeping stay
+    // plain 0..rows-1 integers regardless — only the drawn `y` value
+    // is shifted.
+    function buildDots(rowPhase: number) {
+      cols = Math.ceil(width / SPACING) + 1;
+      rows = Math.ceil((height + rowPhase) / SPACING) + 1;
+      dots = [];
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const roll = hash(col * 3 + 1, row * 7 + 5);
+          const isBright = roll < BRIGHT_CHANCE;
+          dots.push({
+            x: col * SPACING,
+            y: row * SPACING - rowPhase,
+            isBright,
+            baseAlpha: isBright
+              ? 0.75 + hash(col, row + 11) * 0.25
+              : 0.08 + hash(col + 11, row) * 0.14,
+            baseRadius: isBright ? 1.7 : 1.05,
+            boost: 0,
+          });
+        }
+      }
+      active.clear();
+    }
+
+    // The vast majority of dots never change frame-to-frame — render
+    // them once to an offscreen bitmap so each animation frame only
+    // has to `drawImage` (cheap) plus redraw the handful of currently
+    // cursor-boosted dots, instead of redrawing the whole grid.
+    function renderResting() {
+      const bitmap = document.createElement("canvas");
+      bitmap.width = canvas.width;
+      bitmap.height = canvas.height;
+      const rctx = bitmap.getContext("2d");
+      if (!rctx) return;
+
+      rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (const d of dots) {
+        rctx.beginPath();
+        rctx.fillStyle = `rgba(255, 255, 255, ${d.baseAlpha.toFixed(3)})`;
+        if (d.isBright) {
+          rctx.shadowColor = "rgba(255, 255, 255, 0.85)";
+          rctx.shadowBlur = 5;
+        } else {
+          rctx.shadowBlur = 0;
+        }
+        rctx.arc(d.x, d.y, d.baseRadius, 0, Math.PI * 2);
+        rctx.fill();
+      }
+
+      restingBitmap = bitmap;
+    }
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, width, height);
+      if (restingBitmap) {
+        ctx.drawImage(restingBitmap, 0, 0, width, height);
+      }
+
+      for (const idx of active) {
+        const d = dots[idx];
+        if (!d || d.boost <= 0.01) continue;
+        const alpha = Math.min(1, d.baseAlpha + d.boost * 0.7);
+        const radius = d.baseRadius + d.boost * 1.6;
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
+        ctx.shadowColor = "rgba(255, 255, 255, 0.9)";
+        ctx.shadowBlur = 4 + d.boost * 8;
+        ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // This canvas's top edge in PAGE (document) coordinates — adding
+      // back the current scroll offset cancels it out, so this is the
+      // same value regardless of where the page happens to be scrolled
+      // when resize() runs. Used only to phase-shift the row grid (see
+      // `buildDots()`) so it lines up with the page's global 24px
+      // rhythm instead of always starting a fresh row right at this
+      // canvas's own top — otherwise, since this section's height is
+      // basically never an exact multiple of SPACING, the row spacing
+      // right at the seam into InBetweenSection1 (which sits flush
+      // against this section's bottom, no gap) would be off — either
+      // squeezed together or gapped wider than the normal 24px rhythm,
+      // reading as a visible cut/seam in the dot pattern. Both this
+      // section and InBetweenSection1 compute this the same way
+      // independently, so any two adjacent sections using this
+      // technique line up automatically without needing to coordinate.
+      const pageTop = rect.top + window.scrollY;
+      rowPhase = ((pageTop % SPACING) + SPACING) % SPACING;
+
+      buildDots(rowPhase);
+      renderResting();
+      drawFrame();
+    }
+
+    resize();
+
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const ro = new ResizeObserver(() => {
+      // Small debounce — a resize can fire many times in quick
+      // succession (e.g. during a window drag), and rebuilding the
+      // grid + resting bitmap on every single one is wasted work.
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resize, 120);
     });
+    ro.observe(canvas);
 
-    function tick() {
-      for (const s of state) {
-        let targetX = 0;
-        let targetY = 0;
+    if (!prefersReducedMotion) {
+      function activateNearby(x: number, y: number) {
+        // Row lookups need `+ rowPhase` to undo the shift `buildDots()`
+        // applied to each dot's actual `y` (see the comment on
+        // `resize()`) — column lookups don't, since x is unshifted.
+        const minCol = Math.max(0, Math.floor((x - INFLUENCE_RADIUS) / SPACING));
+        const maxCol = Math.min(cols - 1, Math.ceil((x + INFLUENCE_RADIUS) / SPACING));
+        const minRow = Math.max(0, Math.floor((y + rowPhase - INFLUENCE_RADIUS) / SPACING));
+        const maxRow = Math.min(rows - 1, Math.ceil((y + rowPhase + INFLUENCE_RADIUS) / SPACING));
 
-        if (hasMouse) {
-          const rect = s.el.getBoundingClientRect();
-          const restX = rect.left + rect.width / 2 - s.currentX;
-          const restY = rect.top + rect.height / 2 - s.currentY;
+        for (let row = minRow; row <= maxRow; row++) {
+          for (let col = minCol; col <= maxCol; col++) {
+            active.add(row * cols + col);
+          }
+        }
+      }
 
-          const dx = restX - mouseX;
-          const dy = restY - mouseY;
-          const dist = Math.hypot(dx, dy) || 1;
+      function ensureLoopRunning() {
+        if (rafId === null) {
+          rafId = requestAnimationFrame(tick);
+        }
+      }
 
-          if (dist < influenceRadius) {
-            const falloff = 1 - dist / influenceRadius;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            targetX = nx * maxOffset * falloff;
-            targetY = ny * maxOffset * falloff;
+      function tick() {
+        let anyActive = false;
+
+        for (const idx of active) {
+          const d = dots[idx];
+          if (!d) {
+            active.delete(idx);
+            continue;
+          }
+
+          const dx = d.x - mouseX;
+          const dy = d.y - mouseY;
+          const dist = Math.hypot(dx, dy);
+          const target = dist < INFLUENCE_RADIUS ? 1 - dist / INFLUENCE_RADIUS : 0;
+
+          d.boost += (target - d.boost) * EASE;
+
+          if (d.boost < 0.01 && target === 0) {
+            d.boost = 0;
+            active.delete(idx);
+          } else {
+            anyActive = true;
           }
         }
 
-        s.currentX += (targetX - s.currentX) * ease;
-        s.currentY += (targetY - s.currentY) * ease;
-        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+        drawFrame();
+        rafId = anyActive ? requestAnimationFrame(tick) : null;
       }
-      requestAnimationFrame(tick);
-    }
 
-    requestAnimationFrame(tick);
+      window.addEventListener("mousemove", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+        activateNearby(mouseX, mouseY);
+        ensureLoopRunning();
+      });
+
+      // Classic cross-browser "cursor left the whole browser window"
+      // check (`relatedTarget`/`toElement` both null) — without this,
+      // moving the cursor off the page entirely leaves `mouseX`/
+      // `mouseY` at their last in-window position, so any dots that
+      // were lit at that moment would stay lit forever (no more
+      // mousemove events to ease them back down).
+      document.addEventListener("mouseout", (e) => {
+        const leftWindow = !e.relatedTarget && !(e as any).toElement;
+        if (leftWindow) {
+          mouseX = -99999;
+          mouseY = -99999;
+          ensureLoopRunning();
+        }
+      });
+    }
   }
 </script>
 
 <style>
   .intro-section {
     position: relative;
+    /* `z-index: 0` alongside `position: relative` — without an
+       explicit z-index, this element wouldn't establish its OWN
+       stacking context, and `.intro-stars` below (z-index: -1) would
+       then be resolved against the nearest ANCESTOR that does (further
+       up the page), escaping past this section's own background
+       instead of layering on top of it. Concretely: `.intro-section`'s
+       `background: #000` would end up painting AFTER (covering)
+       `.intro-stars`'s canvas content, since a positioned element with
+       z-index:auto paints later than a negative-z-index descendant of
+       some ancestor stacking context — the exact bug that made the
+       star grid invisible against the black background. Forcing a
+       z-index here makes `.intro-section` its own stacking context, so
+       painting order is scoped to just its own children as expected:
+       this section's background first, then `.intro-stars` on top of
+       it, then the positive-z-index content on top of that. */
+    z-index: 0;
     min-height: 100vh;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    /* No `overflow: hidden` here — see the comment on `overflow-x:
-       hidden` / `overflow-x: clip` on `html` in Layout.astro, which
-       handles horizontal clipping page-wide instead. */
-    background-size: cover;
-    background-position: bottom;
-    background-repeat: no-repeat;
-    /* Seam-blend target for `.seam-fade-bottom` (see the shared
-       comment in Layout.astro) — softens the boundary against
-       ArtIslandSection's top into var(--intro-seam) regardless of
-       what this section's own sky photo shows right at its bottom
-       edge. */
-    --seam-target-bottom: var(--intro-seam);
+    overflow: hidden;
+    background: #000;
+  }
+
+  /* Full-bleed, behind everything else in the section. */
+  .intro-stars {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
   }
 
   .content {
@@ -210,93 +421,19 @@ const { id, name, titles, backgroundImage, cloudImage, cloudSmileImage } = Astro
     font-weight: 700;
     line-height: 1.05;
     margin: 0 0 1rem;
-    color: #1a1a1a;
+    color: #f5f6fa;
   }
 
   .titles {
     font-size: 1.05rem;
-    color: #444;
+    color: #9aa3ba;
     margin: 0;
-  }
-
-  /* The cloud: a single flanking island, upper-right — mirroring where
-     a corner accent usually sits in this design. Doesn't bleed off any
-     edge, so (like ComputerIslandSection/AchievementIslandSection)
-     plain vw/vh offsets are enough — no need for the fluid
-     clamp(mobileValue, calc(a + b*vw), desktopValue) trick
-     ArtIslandSection/EducationIslandSection use for their
-     edge-bleeding corners. Starting values eyeballed for "sits above
-     and to the right of the text, mostly clear of it" — nudge once
-     it's live.
-
-     `pointer-events: auto` (was `none`) so the `.cloud-smile` hover
-     crossfade below can actually fire — this is the only interactive
-     bit on an otherwise decorative, aria-hidden element. */
-  .intro-cloud {
-    position: absolute;
-    z-index: 1;
-    pointer-events: auto;
-    top: 10vh;
-    right: 6vw;
-    width: clamp(260px, 32vw, 480px);
-    animation: bob-cloud 7s ease-in-out infinite;
-  }
-
-  /* `relative` so `.cloud-smile` (absolutely positioned) stacks
-     directly on top of `.cloud-base` instead of the section. */
-  .intro-cloud-inner {
-    position: relative;
-  }
-
-  .cloud-base,
-  .cloud-smile {
-    display: block;
-    width: 100%;
-    height: auto;
-  }
-
-  /* Smile crossfade: sits exactly on top of the base cloud, invisible
-     until hover. Pure opacity transition — deliberately not touching
-     `transform`, since both the outer bob (`.intro-cloud`) and the JS
-     drift (`.intro-cloud-inner`, applied via inline style from the
-     script above) already own that property on their respective
-     elements. */
-  .cloud-smile {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    transition: opacity 1.2s ease;
-  }
-
-  .intro-cloud:hover .cloud-smile {
-    opacity: 1;
-  }
-
-  @keyframes bob-cloud {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .intro-cloud {
-      animation: none;
-    }
   }
 
   @media (max-width: 640px) {
     .content {
       width: min(36ch, 100%);
       padding-inline: 1.5rem;
-    }
-
-    /* Smaller and tucked toward the top on narrow screens so it sits
-       above the now full-width text instead of overlapping it, same
-       spirit as the other sections' mobile treatment for their
-       islands. */
-    .intro-cloud {
-      top: 3vh;
-      right: -8vw;
-      width: clamp(180px, 50vw, 300px);
     }
   }
 </style>

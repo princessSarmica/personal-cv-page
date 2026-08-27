@@ -12,42 +12,28 @@
 // + `background-size: cover`, `min-height` — brought in line with the
 // rest of the family (this section used to be the odd one out, on a
 // real, uncropped <img> instead). The goal across every section in
-// this chain is a CONSISTENT height on every screen size, with the
-// background's left/right edges cropped as needed to make that
-// happen, rather than letting each image's own aspect ratio drive its
-// section's height. `min-height` was bumped from 100vh to 130vh to
-// give the section more scroll room — see the comment on
-// `.bonus-section` below.
+// this chain is a CONSISTENT height on every screen size (now 130vh,
+// see the comment on `.bonus-section` below), with `cover` cropping
+// whichever dimension needs it least to make that happen with no gaps.
+// Briefly tried sizing by height only (`auto 100%`, cropping only the
+// sides) per your request to stop shortening backgrounds vertically on
+// wide screens, but that left visible white space on screens wider (in
+// aspect ratio) than the image itself, which you didn't want either —
+// back to `cover`.
 //
-// `background-position: top` protects this section's TOP edge — the
-// one that has to match AchievementIslandSection's bottom. The bottom
-// edge (against OtherIslandSection, the closing full-bleed
-// illustration) is the lower-priority side — OtherIslandSection shows
-// its own image at full aspect ratio on desktop regardless, so that
-// seam was always more approximate than pixel-locked. The extra
-// min-height above just crops a bit more off this lower-priority
-// bottom edge; it doesn't affect the protected top seam at all.
+// One more layer on top of that: on a short/wide viewport, `cover`
+// still has to crop SOMETHING to avoid a gap, and per your follow-up
+// that "something" shouldn't ever be the image's own height either —
+// you'd rather scroll than see it shortened. Fixed by adding
+// `aspect-ratio: 16 / 9` (the image's real ratio) alongside
+// `min-height`/`width: 100%` on `.bonus-section` below, so the section
+// itself grows taller than 130vh on those viewports instead of asking
+// `cover` to crop into the height — see the comment there.
 //
-// I sampled the actual pixel colors of both images you'd uploaded
-// earlier (before this section moved off the real-<img> approach)
-// rather than eyeballing them off screenshots:
-//   bonus_island_background.png  top ~ #0cd4ee, bottom ~ #04c9d1
-//   other_island_2.webp          top ~ #08c6c9
-// `--dusk-blue` in Layout.astro (AchievementIslandSection's bottom,
-// which this section's top needs to match) is still set to that
-// sampled #0cd4ee.
-//
-// Carries `seam-fade-top` (blending into var(--dusk-blue)) to pair
-// with AchievementIslandSection's `seam-fade-bottom` — since
-// Achievement's bottom edge turned out to be an arbitrary/uncropped
-// crop rather than a fixed color (confirmed by sampling multiple
-// screenshots of the same seam), this fade is what actually makes the
-// two sides agree on a color, rather than relying on the underlying
-// images to happen to match.
-//
-// Also carries `seam-fade-bottom` (blending into var(--sky-4)) to pair
-// with OtherIslandSection's `seam-fade-top` — same idea, softening the
-// boundary against the closing illustration.
+// No seam-fade classes any more — the shared fade-band system that
+// used to blend section edges together was removed per your request,
+// so this section now just butts directly against AchievementIslandSection
+// above it and OtherIslandSection below it.
 //
 // This section (and OtherIslandSection) carry the shared `.sky-chain`
 // marker class from Layout.astro, so the normal gap between sections
@@ -84,7 +70,7 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
 ---
 
 <section
-  class="bonus-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
+  class="bonus-section sky-chain halftone-hover"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -101,29 +87,37 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
     /* Bumped up from 100vh to give the section more scroll room (e.g.
        so CornerIsland.astro's freeze point, which lands partway down
        this section via FREEZE_TARGET_FRACTION, has more page to sit
-       within before OtherIslandSection starts). background-size:
-       cover + background-position: top means the extra height just
-       crops a bit more off the BOTTOM of the background image — the
-       lower-priority edge per the comment above — without touching
-       the protected top seam against AchievementIslandSection. Adjust
-       this value directly if you want the section taller/shorter
-       still. */
+       within before OtherIslandSection starts). Adjust this value
+       directly if you want the section taller/shorter still. */
     min-height: 130vh;
+    /* `aspect-ratio: 16 / 9` matches the background image (measured at
+       3840x2160) — combined with `width: 100%` and `min-height`, the
+       browser uses whichever constraint needs MORE height: on a
+       viewport wider-than-16:9 (mainly short/wide windows), the
+       aspect-ratio wins and this section grows taller than 130vh,
+       showing the FULL image at its native ratio with no cropping —
+       you scroll to see the rest, per your request, instead of
+       `cover` shortening (cropping) the image's height to fit a
+       too-short viewport. On a taller-than-16:9 viewport (e.g. mobile
+       portrait), `min-height: 130vh` wins instead, so the section
+       stays exactly 130vh tall and `cover` crops the sides only —
+       unchanged from before. `width: 100%` is required alongside
+       `aspect-ratio` — without it, on the min-height-wins branch the
+       browser would stretch this section's WIDTH to satisfy the ratio
+       instead of its height, overflowing past the viewport edges. */
+    width: 100%;
+    aspect-ratio: 16 / 9;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
     /* No `overflow: hidden` here — see the comment on `overflow-x:
        hidden` on `html` in Layout.astro. */
+    /* `cover` — always fills the section edge-to-edge with no gaps,
+       cropping whichever dimension needs it least (see the top-of-file
+       comment for why this isn't sized by height alone). */
     background-size: cover;
     background-position: top;
     background-repeat: no-repeat;
-    /* Seam-blend targets (see the shared comment in Layout.astro) —
-       one variable per edge since this section needs two different
-       colors. Top softens into var(--dusk-blue)
-       (AchievementIslandSection's bottom); bottom softens into
-       var(--sky-4) (OtherIslandSection's top). */
-    --seam-target-top: var(--dusk-blue);
-    --seam-target-bottom: var(--sky-4);
   }
 
   .content {

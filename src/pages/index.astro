@@ -2,6 +2,7 @@
 // src/pages/index.astro
 import Layout from '../layouts/Layout.astro';
 import IntroIslandSection from '../components/IntroIslandSection.astro';
+import InBetweenSection1 from '../components/InBetweenSection1.astro';
 import ArtIslandSection from '../components/ArtIslandSection.astro';
 import ComputerIslandSection from '../components/ComputerIslandSection.astro';
 import EducationIslandSection from '../components/EducationIslandSection.astro';
@@ -16,9 +17,11 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     id="section-intro"
     name="Name Surname"
     titles="Title 1, Title 2, Title 3"
-    backgroundImage="/personal-cv-page/images/intro_island_background.webp"
-    cloudImage="/personal-cv-page/images/intro_island_cloud_no_smile.webp"
-    cloudSmileImage="/personal-cv-page/images/intro_island_cloud_smile.webp"
+  />
+
+  <InBetweenSection1
+    id="section-in-between-1"
+    backgroundImage="/personal-cv-page/images/in_between_section_background_1.webp"
   />
 
   <EducationIslandSection

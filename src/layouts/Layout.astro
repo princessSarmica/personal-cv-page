@@ -54,58 +54,16 @@ const { title = "My CV" } = Astro.props;
   :root {
     color-scheme: light;
 
-    /* Shared boundary colors for the page-wide sky -> sunset -> dusk
-       backdrop across the whole `.sky-chain` run. Each section's
-       gradient reuses the SAME variable at a shared edge, so adjacent
-       sections are guaranteed to meet at the exact same color — not
-       just a close visual match — with zero risk of the two ever
-       drifting apart the way hand-picked hex values in two different
-       files could.
-
-       Current page order (after you moved EducationIslandSection to
-       sit right after IntroIslandSection, ahead of Art/Computer) is:
-       Intro -> Education -> Art -> Computer -> Achievement -> Bonus ->
-       Other. The variable NAMES below still reflect the ORIGINAL order
-       they were introduced in (e.g. `--sky-2` was first picked to
-       match Computer/Education, back when that was their pairing) —
-       reordering the sections didn't rename these, it just changed
-       WHICH pair of `--seam-target-top`/`--seam-target-bottom`
-       declarations (in each section's own file) reference which
-       variable, same way you'd move furniture around a room without
-       repainting it. See each section's own top-of-file comment for
-       which variable it currently uses on which edge — that's the
-       up-to-date source of truth for the CURRENT chain order; the
-       list below just documents what each variable's color value is
-       and where it originally came from.
-
-       --dusk-blue is AchievementIslandSection's bottom color, which
-       matches BonusIslandSection's top (BonusIslandSection sits
-       between Achievement and the closing OtherIslandSection). This
-       used to be an eyeballed guess off a screenshot; once you
-       uploaded the actual bonus_island_background.png, it was updated
-       to the real sampled top-row color of that image (#0cd4ee)
-       instead. */
-    --sky-0: #dcf3fc; /* unused placeholder from before IntroIslandSection existed — kept only so removing it doesn't need to be a separate cleanup pass */
-    --sky-1: #3a6ef5; /* Art bottom / Computer top seam-blend target — set to rgb(58, 110, 245) per your request; this pairing is unchanged by the reorder */
-    --sky-2: #0ADEFB; /* Computer bottom / Achievement top seam-blend target — updated to rgb(10, 222, 251) per your request (previously #14e5fb). Originally Computer bottom / Education top, reassigned to Computer bottom / Achievement top now that Education no longer sits between them */
-    --sky-3: #00CDF2; /* Education bottom / Art top seam-blend target — set to rgb(29, 237, 250) per your request; originally Education bottom / Achievement top, reassigned to Education bottom / Art top now that Art sits right after Education instead */
-    --dusk-blue: #00d4f4; /* Achievement bottom / Bonus top seam-blend target — set to rgb(0, 212, 244) per your request; this pairing is unchanged by the reorder */
-    --sky-4: #04c9d1; /* Bonus bottom / Other top seam-blend target — set to rgb(4, 201, 209) per your request; this pairing is unchanged by the reorder */
-
-    /* Now IntroIslandSection bottom / EducationIslandSection top
-       seam-blend target — originally Intro bottom / Art top, back
-       when Art was the section directly after Intro. Reassigned to
-       Intro bottom / Education top now that Education sits there
-       instead. Set to rgb(0, 221, 249) per your request. Named
-       descriptively rather than continuing the `--sky-N` numbering,
-       same reasoning as `--dusk-blue`: it sits outside that sequential
-       run rather than as its next member. */
-    --intro-seam: #00DDF9;
-
-    /* --sunset-mid / --sunset-deep are no longer used — they backed
-       AchievementIslandSection's old 4-stop gradient, which is now a
-       real background image like the rest of the chain. Left out
-       entirely rather than kept as dead variables. */
+    /* The seam-fade system (a shared set of --sky-N / --dusk-blue /
+       --intro-seam / --in-between-seam-1 boundary colors, plus the
+       `.seam-fade-top`/`.seam-fade-bottom` gradient-band classes below
+       that blended each section's edge into them) has been removed per
+       your request — sections now meet directly, no blended band. Each
+       section's own top-of-file comment still describes the OLD
+       pairing history for context on why its background image was
+       cropped/positioned the way it is, but the variables and classes
+       themselves are gone. See the "background sizing" comment further
+       down for how sections now handle their edges instead. */
   }
 
   * {
@@ -188,69 +146,6 @@ const { title = "My CV" } = Astro.props;
      what makes those two sit flush together too. */
   .sky-chain + .sky-chain {
     margin-top: 0;
-  }
-
-  /* Seam-blend utility classes, shared across every section in the
-     `.sky-chain`. Each `cover`-cropped section can only guarantee its
-     OWN edge pixel is exact on ONE of its two sides (top OR bottom,
-     whichever `background-position` protects) — the other side is an
-     arbitrary crop of interior content, and even on a "both sides
-     protected" seam, the two different source images' true edge
-     colors aren't guaranteed to match each other. Rather than trying
-     to fix that at the image-crop level (which `cover` fundamentally
-     can't do for more than one edge per section), these two classes
-     repaint a soft gradient band at the very top/bottom of a section,
-     fading between the section's own actual image and a flat,
-     agreed-upon color — so regardless of what the underlying cropped
-     image actually shows right at the boundary, the seam eases into
-     the same color on both sides instead of hitting a hard line.
-     (Tried a wave-shaped cutout here first — reverted per your
-     feedback back to a plain top-to-bottom gradient blend.)
-
-     `.seam-fade-bottom::after` paints a band at the very bottom of a
-     section, fading from transparent (revealing the section's own
-     image, in the middle) to solid `--seam-target-bottom` (right at
-     the bottom edge). `.seam-fade-top::before` paints a matching band
-     at the very TOP of the next section, fading from solid
-     `--seam-target-top` (right at the top edge) back to transparent.
-     On a properly paired seam both variables are set to the identical
-     color, so the two fades reach the same color exactly where the
-     sections meet — no hard line, just a smooth color blend on both
-     sides of the seam.
-
-     A section that needs fades on BOTH sides (e.g. ComputerIslandSection,
-     ArtIslandSection now that IntroIslandSection precedes it, ...
-     sandwiched between two different seams) carries both classes and
-     sets both `--seam-target-*` variables independently — they don't
-     have to be the same color. `height` uses `clamp()` so the band
-     stays a sensible size on both very short and very tall viewports.
-     `z-index: 0` keeps this below normal in-flow content (`.content`,
-     islands — all z-index 1+), and `pointer-events: none` keeps it
-     from blocking anything. */
-  .seam-fade-bottom,
-  .seam-fade-top {
-    position: relative;
-  }
-
-  .seam-fade-bottom::after,
-  .seam-fade-top::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: clamp(40px, 9vh, 140px);
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  .seam-fade-bottom::after {
-    bottom: 0;
-    background: linear-gradient(to bottom, transparent, var(--seam-target-bottom));
-  }
-
-  .seam-fade-top::before {
-    top: 0;
-    background: linear-gradient(to bottom, var(--seam-target-top), transparent);
   }
 
   /* Halftone cursor spotlight — a dot-grid pattern that shows around

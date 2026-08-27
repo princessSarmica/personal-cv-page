@@ -1,0 +1,437 @@
+---
+// src/components/InBetweenSection1.astro
+//
+// First "in-between" section — a short breathing-room section you
+// asked for, sitting between IntroIslandSection and
+// EducationIslandSection, purely visual (no title/eyebrow/text props
+// like the island sections have — just a `<slot />` in case you want
+// to drop something into it later).
+//
+// Background: your actual `in_between_section_background_1.webp` image
+// (`backgroundImage` prop), via `background-image` + `background-size:
+// cover`, same technique every section in this family uses — not a CSS
+// recreation. Went through two CSS-gradient attempts first (a radial
+// glow, then a tilted linear-gradient) trying to recreate the image's
+// look; per your call, simplest and most faithful is to just use the
+// real file and layer the dot effect on top of it, so that's what this
+// is now. `background-position: bottom` protects the true bottom edge
+// (the one that has to match EducationIslandSection's top); `cover`
+// guarantees the image always fills the section edge-to-edge with no
+// gaps — briefly tried `auto 100%` (height-locked, crop sides only)
+// per your request to stop shortening the image's height on wide
+// screens, but that left visible white space on screens wider (in
+// aspect ratio) than the image itself, which you didn't want either —
+// back to `cover`, which only ever crops the minimum needed (height OR
+// sides, whichever is required) to avoid that gap.
+//
+// One more layer on top of that: on a short/wide viewport, `cover`
+// still has to crop SOMETHING to avoid a gap, and per your follow-up
+// that "something" shouldn't ever be the image's own height either —
+// you'd rather scroll than see it shortened. Fixed by adding
+// `aspect-ratio: 16 / 9` (the image's real ratio) alongside
+// `min-height`/`width: 100%` on `.in-between-section` below, so the
+// section itself grows taller than one screen on those viewports
+// instead of asking `cover` to crop into the height — see the comment
+// there.
+//
+// The dot-grid canvas (`.in-between-stars`): the exact same technique
+// as IntroIslandSection.astro's star field — a regular grid of mostly-
+// dim, sparsely-bright dots on an offscreen "resting" bitmap (blitted
+// each frame), with a small live-updated set of dots near the cursor
+// (also including the `rowPhase` fix that keeps this grid's rows lined
+// up with IntroIslandSection's, so the seam between them reads as one
+// continuous dot field instead of an interrupted one — see the
+// `rowPhase` comment on `resize()` below, and the matching one in
+// IntroIslandSection.astro)
+// easing brighter/bigger and back down — see the top-of-file comment
+// there for the full breakdown of why it's built that way. Per your
+// request ("the dark part would work the same way as
+// IntroIslandSection, with the dots"), it's masked
+// (`mask-image`/`-webkit-mask-image`) with a radial gradient anchored
+// at the bottom-left corner — opaque (dots fully visible) toward the
+// dark top/top-right of the real photo, fading to fully transparent by
+// the time it reaches the bright cyan bottom-left corner. That anchor
+// point and falloff aren't a guess — they're fit to pixel colors
+// actually sampled from your background image (bottom-left corner,
+// top-right corner, and points along the diagonal between them), which
+// showed close to the same brightness roughly equidistant from that
+// corner in every direction: bright cyan right at the corner, fading
+// through navy to essentially black by about 70-80% of the way to the
+// far corner. That's what keeps the dots confined to "the dark part"
+// of the actual photo instead of also showing up (faintly, since
+// they're white) over its brighter end.
+//
+// If you ever swap in a differently-lit background image, the mask's
+// anchor/stops on `.in-between-stars` below may need to move to match
+// wherever the new image's dark region actually is.
+//
+// `z-index: 0` on `.in-between-section` (alongside its `position:
+// relative`) is required, not decorative — without it, this element
+// wouldn't establish its own stacking context, and `.in-between-stars`
+// (z-index: -1) would escape past it to be resolved against some
+// ancestor's stacking context instead, letting this section's own
+// background image paint OVER the canvas instead of under it. This is
+// the exact bug that made IntroIslandSection's star grid invisible at
+// first — see the fix comment there for the full explanation.
+//
+// No seam-fade classes any more — the shared fade-band system that
+// used to blend section edges together was removed per your request,
+// so this section now just butts directly against IntroIslandSection
+// above it and EducationIslandSection below it. Still carries
+// `.sky-chain` so the gap between them stays collapsed to 0.
+//
+// Deliberately no `halftone-hover` — same reasoning as
+// IntroIslandSection: that page-wide cursor-halftone effect is its own
+// dot pattern, and layering it on top of this section's OWN dot canvas
+// would just be two dot textures competing visually.
+//
+// Usage:
+//   <InBetweenSection1
+//     id="section-in-between-1"
+//     backgroundImage="/images/in_between_section_background_1.webp"
+//   />
+//   <!-- or, if you want to put something in it: -->
+//   <InBetweenSection1
+//     id="section-in-between-1"
+//     backgroundImage="/images/in_between_section_background_1.webp"
+//   >
+//     <p>Optional content here.</p>
+//   </InBetweenSection1>
+
+interface Props {
+  id: string;
+  backgroundImage: string;
+}
+
+const { id, backgroundImage } = Astro.props;
+---
+
+<section
+  class="in-between-section sky-chain"
+  id={id}
+  style={`background-image: url(${backgroundImage});`}
+>
+  <canvas class="in-between-stars" aria-hidden="true"></canvas>
+
+  <div class="content">
+    <slot />
+  </div>
+</section>
+
+<script>
+  // Same star-grid technique as IntroIslandSection.astro — see the
+  // top-of-file comment there for the full design rationale (resting
+  // bitmap + small live-boosted set, ResizeObserver, reduced-motion
+  // handling, etc.). Duplicated here rather than shared, matching this
+  // codebase's existing convention of each section owning its own copy
+  // of whatever script it needs (see ArtIslandSection.astro's comment
+  // on the `.parallax-inner` drift script for the same tradeoff).
+  const canvas = document.querySelector<HTMLCanvasElement>(".in-between-stars");
+  const ctx = canvas?.getContext("2d") ?? null;
+
+  if (canvas && ctx) {
+    const SPACING = 24;
+    const BRIGHT_CHANCE = 0.035;
+    const INFLUENCE_RADIUS = 130;
+    const EASE = 0.15;
+    const MAX_DPR = 2;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    function hash(x: number, y: number) {
+      const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+      return v - Math.floor(v);
+    }
+
+    interface Dot {
+      x: number;
+      y: number;
+      isBright: boolean;
+      baseAlpha: number;
+      baseRadius: number;
+      boost: number;
+    }
+
+    let dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    let width = 0;
+    let height = 0;
+    let cols = 0;
+    let rows = 0;
+    let rowPhase = 0; // see resize() — kept in this scope so activateNearby() can undo the shift
+    let dots: Dot[] = [];
+    let restingBitmap: HTMLCanvasElement | null = null;
+    const active = new Set<number>();
+
+    let mouseX = -99999;
+    let mouseY = -99999;
+    let rafId: number | null = null;
+
+    // `rowPhase` shifts every row's y-coordinate so the grid lines up
+    // with the PAGE's global 24px rhythm instead of restarting fresh
+    // at this canvas's own top edge — see the comment on `resize()`
+    // below for why (this is what keeps the dot grid seamless across
+    // the boundary from IntroIslandSection, which does the exact same
+    // thing). Row indices used for `hash()`/`active` bookkeeping stay
+    // plain 0..rows-1 integers regardless — only the drawn `y` value
+    // is shifted.
+    function buildDots(rowPhase: number) {
+      cols = Math.ceil(width / SPACING) + 1;
+      rows = Math.ceil((height + rowPhase) / SPACING) + 1;
+      dots = [];
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const roll = hash(col * 3 + 1, row * 7 + 5);
+          const isBright = roll < BRIGHT_CHANCE;
+          dots.push({
+            x: col * SPACING,
+            y: row * SPACING - rowPhase,
+            isBright,
+            baseAlpha: isBright
+              ? 0.75 + hash(col, row + 11) * 0.25
+              : 0.08 + hash(col + 11, row) * 0.14,
+            baseRadius: isBright ? 1.7 : 1.05,
+            boost: 0,
+          });
+        }
+      }
+      active.clear();
+    }
+
+    function renderResting() {
+      const bitmap = document.createElement("canvas");
+      bitmap.width = canvas.width;
+      bitmap.height = canvas.height;
+      const rctx = bitmap.getContext("2d");
+      if (!rctx) return;
+
+      rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (const d of dots) {
+        rctx.beginPath();
+        rctx.fillStyle = `rgba(255, 255, 255, ${d.baseAlpha.toFixed(3)})`;
+        if (d.isBright) {
+          rctx.shadowColor = "rgba(255, 255, 255, 0.85)";
+          rctx.shadowBlur = 5;
+        } else {
+          rctx.shadowBlur = 0;
+        }
+        rctx.arc(d.x, d.y, d.baseRadius, 0, Math.PI * 2);
+        rctx.fill();
+      }
+
+      restingBitmap = bitmap;
+    }
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, width, height);
+      if (restingBitmap) {
+        ctx.drawImage(restingBitmap, 0, 0, width, height);
+      }
+
+      for (const idx of active) {
+        const d = dots[idx];
+        if (!d || d.boost <= 0.01) continue;
+        const alpha = Math.min(1, d.baseAlpha + d.boost * 0.7);
+        const radius = d.baseRadius + d.boost * 1.6;
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
+        ctx.shadowColor = "rgba(255, 255, 255, 0.9)";
+        ctx.shadowBlur = 4 + d.boost * 8;
+        ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // This canvas's top edge in PAGE (document) coordinates — adding
+      // back the current scroll offset cancels it out, so this is the
+      // same value regardless of where the page happens to be scrolled
+      // when resize() runs. Used only to phase-shift the row grid (see
+      // `buildDots()`) so it lines up with the page's global 24px
+      // rhythm instead of always starting a fresh row right at this
+      // canvas's own top — otherwise, since this section's height is
+      // basically never an exact multiple of SPACING, the row spacing
+      // right at the seam against IntroIslandSection (which sits flush
+      // above this section, no gap) would be off — either squeezed
+      // together or gapped wider than the normal 24px rhythm, reading
+      // as a visible cut/seam in the dot pattern. Both this section and
+      // IntroIslandSection compute this the same way independently, so
+      // any two adjacent sections using this technique line up
+      // automatically without needing to coordinate.
+      const pageTop = rect.top + window.scrollY;
+      rowPhase = ((pageTop % SPACING) + SPACING) % SPACING;
+
+      buildDots(rowPhase);
+      renderResting();
+      drawFrame();
+    }
+
+    resize();
+
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const ro = new ResizeObserver(() => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resize, 120);
+    });
+    ro.observe(canvas);
+
+    if (!prefersReducedMotion) {
+      function activateNearby(x: number, y: number) {
+        // Row lookups need `+ rowPhase` to undo the shift `buildDots()`
+        // applied to each dot's actual `y` (see the comment on
+        // `resize()`) — column lookups don't, since x is unshifted.
+        const minCol = Math.max(0, Math.floor((x - INFLUENCE_RADIUS) / SPACING));
+        const maxCol = Math.min(cols - 1, Math.ceil((x + INFLUENCE_RADIUS) / SPACING));
+        const minRow = Math.max(0, Math.floor((y + rowPhase - INFLUENCE_RADIUS) / SPACING));
+        const maxRow = Math.min(rows - 1, Math.ceil((y + rowPhase + INFLUENCE_RADIUS) / SPACING));
+
+        for (let row = minRow; row <= maxRow; row++) {
+          for (let col = minCol; col <= maxCol; col++) {
+            active.add(row * cols + col);
+          }
+        }
+      }
+
+      function ensureLoopRunning() {
+        if (rafId === null) {
+          rafId = requestAnimationFrame(tick);
+        }
+      }
+
+      function tick() {
+        let anyActive = false;
+
+        for (const idx of active) {
+          const d = dots[idx];
+          if (!d) {
+            active.delete(idx);
+            continue;
+          }
+
+          const dx = d.x - mouseX;
+          const dy = d.y - mouseY;
+          const dist = Math.hypot(dx, dy);
+          const target = dist < INFLUENCE_RADIUS ? 1 - dist / INFLUENCE_RADIUS : 0;
+
+          d.boost += (target - d.boost) * EASE;
+
+          if (d.boost < 0.01 && target === 0) {
+            d.boost = 0;
+            active.delete(idx);
+          } else {
+            anyActive = true;
+          }
+        }
+
+        drawFrame();
+        rafId = anyActive ? requestAnimationFrame(tick) : null;
+      }
+
+      window.addEventListener("mousemove", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+        activateNearby(mouseX, mouseY);
+        ensureLoopRunning();
+      });
+
+      document.addEventListener("mouseout", (e) => {
+        const leftWindow = !e.relatedTarget && !(e as any).toElement;
+        if (leftWindow) {
+          mouseX = -99999;
+          mouseY = -99999;
+          ensureLoopRunning();
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .in-between-section {
+    position: relative;
+    /* Required alongside `position: relative` — see the top-of-file
+       comment for why (`.in-between-stars`'s negative z-index needs
+       THIS element to be its own stacking context, or its background
+       image paints over the canvas instead of under it). */
+    z-index: 0;
+    min-height: 100vh;
+    /* `aspect-ratio: 16 / 9` matches the background image (measured at
+       3840x2160) — combined with `width: 100%` and `min-height`, the
+       browser uses whichever constraint needs MORE height: on a
+       viewport wider-than-16:9 (mainly short/wide windows), the
+       aspect-ratio wins and this section grows taller than one
+       screen, showing the FULL image at its native ratio with no
+       cropping — you scroll to see the rest, per your request,
+       instead of `cover` shortening (cropping) the image's height to
+       fit a too-short viewport. On a taller-than-16:9 viewport (e.g.
+       mobile portrait), `min-height: 100vh` wins instead, so the
+       section stays exactly one screen tall and `cover` crops the
+       sides only — unchanged from before. `width: 100%` is required
+       alongside `aspect-ratio` — without it, on the min-height-wins
+       branch the browser would stretch this section's WIDTH to
+       satisfy the ratio instead of its height, overflowing past the
+       viewport edges. */
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    overflow: hidden;
+    /* `cover` — always fills the section edge-to-edge with no gaps,
+       cropping whichever dimension needs it least (see the top-of-file
+       comment for why this reverted back from `auto 100%`). */
+    background-size: cover;
+    background-position: bottom;
+    background-repeat: no-repeat;
+  }
+
+  /* Full-bleed, behind everything else in the section — same z-index
+     pattern as IntroIslandSection's `.intro-stars`. */
+  .in-between-stars {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* Fades the dots out toward the bright bottom-left corner of the
+       real background photo (see the top-of-file comment for the
+       sampled pixel data this is fit to) — opaque toward the dark
+       top/top-right, transparent near the bright corner, so the dot
+       grid only ever shows over "the dark part" of the actual image. */
+    mask-image: radial-gradient(
+      ellipse at 0% 100%,
+      transparent 0%,
+      transparent 28%,
+      black 60%
+    );
+    -webkit-mask-image: radial-gradient(
+      ellipse at 0% 100%,
+      transparent 0%,
+      transparent 28%,
+      black 60%
+    );
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(36ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+</style>

@@ -22,32 +22,28 @@
 // Background: real image (`backgroundImage`), via `background-image`
 // + `background-size: cover`, `min-height: 100vh` — same technique
 // every section in this family uses. Every section keeps a CONSISTENT
-// height across every screen size, with the background's left/right
-// edges cropped as needed to make that happen.
+// height across every screen size, with `cover` cropping whichever
+// dimension needs it least to make that happen with no gaps. Briefly
+// tried sizing by height only (`auto 100%`, cropping only the sides)
+// per your request to stop shortening backgrounds vertically on wide
+// screens, but that left visible white space on screens wider (in
+// aspect ratio) than the image itself, which you didn't want either —
+// back to `cover`.
 //
-// `background-position: bottom` protects the true bottom edge — the
-// one that has to match AchievementIslandSection's top — from ever
-// being cropped; `cover` is free to crop the top and the sides.
+// One more layer on top of that: on a short/wide viewport, `cover`
+// still has to crop SOMETHING to avoid a gap, and per your follow-up
+// that "something" shouldn't ever be the image's own height either —
+// you'd rather scroll than see it shortened. Fixed by adding
+// `aspect-ratio: 16 / 9` (the image's real ratio) alongside
+// `min-height`/`width: 100%` on `.education-section` below, so the
+// section itself grows taller than one screen on those viewports
+// instead of asking `cover` to crop into the height — see the comment
+// there.
 //
-// Carries `seam-fade-top` (blending into var(--intro-seam)) against
-// IntroIslandSection's bottom — updated after you moved this section
-// to sit right after Intro instead of after Computer. This used to
-// target var(--sky-2) (matching ComputerIslandSection's bottom, back
-// when Computer was this section's neighbor); with the new order that
-// pairing no longer exists, so the two sides disagreed on a color and
-// the seam showed as a hard line instead of a blend. Retargeting to
-// var(--intro-seam) matches what's now actually above this section
-// (the same variable IntroIslandSection's own seam-fade-bottom uses).
-//
-// Also carries `seam-fade-bottom` (blending into var(--sky-3)) against
-// ArtIslandSection's top — unchanged variable, but now blending
-// against a DIFFERENT section than before (Art used to sit right after
-// Intro; now it sits right after Education instead). Confirmed via
-// sampling the actual rendered screenshot that var(--sky-3) is still a
-// solid match for this new pairing — very close to both Education's
-// real bottom-edge color and Art's real top-edge color — so no change
-// was needed here; only the top side broke. ArtIslandSection's own
-// `--seam-target-top` was updated to match (see the comment there).
+// No seam-fade classes any more — the shared fade-band system that
+// used to blend section edges together was removed per your request,
+// so this section now just butts directly against InBetweenSection1
+// above it and ArtIslandSection below it.
 //
 // Positioning: `.education-island-stack`'s `top`/`right` use the
 // clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
@@ -114,7 +110,7 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
 ---
 
 <section
-  class="education-section sky-chain seam-fade-top seam-fade-bottom halftone-hover"
+  class="education-section sky-chain halftone-hover"
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
@@ -212,6 +208,24 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
   .education-section {
     position: relative;
     min-height: 100vh;
+    /* `aspect-ratio: 16 / 9` matches the background image (measured at
+       3840x2160) — combined with `width: 100%` and `min-height`, the
+       browser uses whichever constraint needs MORE height: on a
+       viewport wider-than-16:9 (mainly short/wide windows), the
+       aspect-ratio wins and this section grows taller than one
+       screen, showing the FULL image at its native ratio with no
+       cropping — you scroll to see the rest, per your request,
+       instead of `cover` shortening (cropping) the image's height to
+       fit a too-short viewport. On a taller-than-16:9 viewport (e.g.
+       mobile portrait), `min-height: 100vh` wins instead, so the
+       section stays exactly one screen tall and `cover` crops the
+       sides only — unchanged from before. `width: 100%` is required
+       alongside `aspect-ratio` — without it, on the min-height-wins
+       branch the browser would stretch this section's WIDTH to
+       satisfy the ratio instead of its height, overflowing past the
+       viewport edges. */
+    width: 100%;
+    aspect-ratio: 16 / 9;
     display: grid;
     place-items: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
@@ -220,17 +234,12 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
        clipping page-wide (including the island stack's intentional
        bleed off the right edge), so the stack isn't hard-clipped
        vertically when it needs more room than this section provides. */
+    /* `cover` — always fills the section edge-to-edge with no gaps,
+       cropping whichever dimension needs it least (see the top-of-file
+       comment for why this isn't sized by height alone). */
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
-    /* Seam-blend targets (see the shared comment in Layout.astro) —
-       one variable per edge since this section needs two different
-       colors. Top softens into var(--intro-seam) (IntroIslandSection's
-       bottom, now that this section sits right after Intro); bottom
-       softens into var(--sky-3) (ArtIslandSection's top, now that Art
-       sits right after this section instead of Achievement). */
-    --seam-target-top: var(--intro-seam);
-    --seam-target-bottom: var(--sky-3);
   }
 
   .content {

@@ -61,13 +61,9 @@
 // need to line up with anything since this is the last section on the
 // page.
 //
-// Carries `seam-fade-top` (blending into var(--sky-4)) to pair with
-// BonusIslandSection's `seam-fade-bottom` — same shared fade mask
-// technique used across the rest of the chain (see the comment in
-// Layout.astro). Works here even though this section is backed by a
-// plain <img> rather than a CSS background-image — the fade is just a
-// pseudo-element painted on top of `.other-section`, which is already
-// `position: relative`, so it doesn't care what's underneath it.
+// No seam-fade classes any more — the shared fade-band system that
+// used to blend section edges together was removed per your request,
+// so this section now just butts directly against BonusIslandSection.
 //
 // Now also carries `.halftone-hover`, same as the rest of the chain —
 // joins the single, page-wide cursor-spotlight element in
@@ -107,7 +103,7 @@ interface Props {
 const { id, image, alt = "" } = Astro.props;
 ---
 
-<section class="other-section sky-chain seam-fade-top halftone-hover" id={id}>
+<section class="other-section sky-chain halftone-hover" id={id}>
   <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
 </section>
 
@@ -121,10 +117,6 @@ const { id, image, alt = "" } = Astro.props;
     margin-right: -50vw;
     overflow-x: hidden;
     line-height: 0;
-    /* Seam-blend target for `.seam-fade-top` (see the shared comment
-       in Layout.astro) — softens the boundary against
-       BonusIslandSection's bottom into var(--sky-4). */
-    --seam-target-top: var(--sky-4);
   }
 
   .other-section-image {
