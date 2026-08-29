@@ -1,89 +1,476 @@
 ---
 // src/components/EducationIslandSection.astro
 //
-// Same family as ArtIslandSection.astro / ComputerIslandSection.astro:
-// two illustrations flanking centered-ish text, one JS-driven
-// mouse-repel script, one CSS bob loop per island. This is a
-// "background + foreground" pair rather than two symmetric corners,
-// and both live on the RIGHT side, stacked on top of each other:
+// This section has gone through five looks now:
+//   1. Two flanking foreground islands (`bigImage` + `smallImage`),
+//      same family as ArtIslandSection/ComputerIslandSection — a bob
+//      loop + mouse-repel script per island.
+//   2. A flat color (`#40CAEC`), per your request to drop the image
+//      entirely — no cropping/aspect-ratio concerns at all.
+//   3. `bigImage`/`smallImage` replaced with a single new illustration
+//      (`image`, your `education_island_ver3.webp`) stretching across
+//      the full page width edge-to-edge, with the text sitting in
+//      normal flow BELOW it.
+//   4. Per your reference photo: same full-bleed image, but `.content`
+//      sits OVERLAID inside the courtyard gap between the two
+//      buildings instead of below the image, with the exact same
+//      plain text styling used everywhere else in this family (no
+//      background/card behind it).
+//   5. Below a certain window width, the image is now deliberately
+//      cropped on the sides (`object-fit: cover`) instead of shown in
+//      full, per your request — see the narrow-window section below
+//      for why that needed a bigger structural change than just a CSS
+//      tweak.
+//   6. `.content` stays overlaid on the image at EVERY screen width
+//      now, including narrow ones — it no longer switches to sitting
+//      below the image. Per your feedback that the switch itself read
+//      as the text "jumping" and not staying in the same place as the
+//      window resized.
+//   7. Two optional glitch "burst" spots, confined to the exact same
+//      two small square positions this feature has used since it
+//      started (`glitchSquare1Frame1/2/3`, `glitchSquare2Frame1/2/3`)
+//      — most of the time invisible, periodically flickering through
+//      grayscale (black/white/shades-of-gray) noise frames for under a
+//      second before vanishing again — see the dedicated section below
+//      for the full history of how this got here.
+//   8. An optional `cloudsBackground` layer sitting BEHIND everything
+//      else in `.education-visual` — same idea as ArtIslandSection's
+//      `cloudsBackground`/`moonBackground` pair, just clouds only here
+//      (no moon). Since `image`'s courtyard illustration has a real
+//      transparent gap baked into it (see the big comment below), this
+//      is the layer that actually shows through that gap instead of
+//      the flat `#40CAEC` fill on its own.
+//   9. THIS VERSION, per your feedback after seeing step 8 — two bugs:
+//      "the background is not really loopable... roughly cut, sharp
+//      cut between the loop at one part" and "make the clouds
+//      higher... i do not want the white part of the clouds to be
+//      seen at the bottom beneath the education_island_background_
+//      ver3.webp." Both traced back to the SOURCE FILE, not the CSS:
+//        - The seam: the original `education_island_clouds_
+//          background.webp` you supplied was never authored as a
+//          seamless horizontal tile (its right edge doesn't blend into
+//          its left edge), so the "duplicate the image + translateX"
+//          loop technique from step 8 — which only ever hides a seam
+//          when the two copies' shared edge is a visual match — showed
+//          a real discontinuity at that boundary once per loop, which
+//          is the "sharp cut" you saw scroll past. Fixed by
+//          reprocessing the image itself (not the CSS): rolled it
+//          horizontally by half its width so that old mismatched
+//          edge-seam becomes a seam in the MIDDLE instead (the image's
+//          own new left/right edges are now guaranteed to match,
+//          they're adjacent columns from the original source's
+//          center), then blended a band around that new center seam
+//          with a horizontally-mirrored copy of itself, cosine-
+//          weighted (full mirror right at the seam, fading to the
+//          unblended image a short distance either side). This is the
+//          standard "make a texture seamlessly tileable" technique;
+//          it works cleanly here because the image's color is a flat,
+//          constant white — the actual "cloud" pattern lives entirely
+//          in the alpha channel — so blending is really just smoothing
+//          a soft grayscale density field, not reconciling mismatched
+//          colors or hard edges.
+//        - The white bottom: the original file had a real solid
+//          (`alpha: 255` edge-to-edge) white band across roughly its
+//          bottom 28%, below a gradient where cloud density increases
+//          going down. `object-fit: cover` on a wrap sized to the
+//          FULL illustration height (step 8's `inset: 0`) stretched
+//          that solid band to land right at the very bottom of the
+//          illustration — close enough to the buildings' base to peek
+//          out from underneath. Fixed with two changes together: the
+//          source image was cropped to drop that solid band entirely
+//          (keeping only the gradient portion, with the last stretch
+//          of it faded smoothly down to fully transparent at the new
+//          bottom edge, so the crop itself doesn't just trade one hard
+//          edge for another), AND `.education-clouds-wrap` (see its
+//          own comment below) no longer stretches to the full
+//          illustration height — it's capped at `58%`, pinned to the
+//          top. Between the two, there's no opaque source content left
+//          anywhere near the bottom of the illustration at all, and
+//          the visible clouds sit higher up, per your request.
 //
-//   - `bigImage`   (education_island.svg) -> the large landmass,
-//     sitting low-right, further back visually (lower z-index,
-//     positioned first in the DOM). Sized/positioned so it just
-//     slightly overlaps into the text column — `.content` stays
-//     z-index 3 (above both islands) so the text is never actually
-//     obscured, just visually close to the island's edge.
-//   - `smallImage` (small_island.svg)     -> the smaller island
-//     carrying the college-building silhouette, layered in front of
-//     the big island (higher z-index), sitting a bit higher up and
-//     inset from it so it reads as "on top of" the mountain rather
-//     than off to another corner.
+// IMPORTANT about this image: unlike the OTHER sections' background
+// photos (Art/Computer/Achievement/Bonus/Hobby/InBetween1, all opaque
+// edge-to-edge photos), this one has real transparency baked in — it's
+// a die-cut illustration (courtyard + two buildings) with a see-through
+// gap between the two buildings, the same way `bigImage`/`smallImage`
+// were transparent illustrations before. That's why it's rendered as a
+// foreground `<img>`, NOT as a CSS `background-image` with
+// `background-size: cover` like the rest of the family — tried that
+// first and the transparent gap showed through to a plain white page
+// background instead of your flat `#40CAEC` fill, which looked broken.
+// As a foreground image sitting on top of the section's own flat-color
+// background, the transparent parts correctly show that color through
+// instead — which is also exactly what makes step 4 possible: `.content`
+// can sit inside that same see-through gap and read cleanly against the
+// flat color, framed by the two buildings on either side. Since step 8
+// above, the transparent gap shows the looping clouds layer instead of
+// the flat color directly — the flat `#40CAEC` on `.education-section`
+// is still there underneath everything, as a fallback for the split
+// second before the clouds image itself has loaded in, and for anyone
+// who didn't pass `cloudsBackground` at all.
 //
-// Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover`, `min-height: 100vh` — same technique
-// every section in this family uses. Every section keeps a CONSISTENT
-// height across every screen size, with `cover` cropping whichever
-// dimension needs it least to make that happen with no gaps. Briefly
-// tried sizing by height only (`auto 100%`, cropping only the sides)
-// per your request to stop shortening backgrounds vertically on wide
-// screens, but that left visible white space on screens wider (in
-// aspect ratio) than the image itself, which you didn't want either —
-// back to `cover`.
+// Structure: `.education-visual` > (`.education-clouds-wrap`,
+// `.education-image-wrap` > `<img>`, `.content`) — i.e. `.content` is
+// a SIBLING of the image wrap, not nested inside it any more. That
+// split exists purely for step 5's mobile crop: `.education-image-wrap`
+// gets a real `aspect-ratio` on mobile (see below) so the browser knows
+// exactly how tall to make it, but a block only honors that if nothing
+// forces it taller — and `.content` in normal flow (which is what
+// mobile needs, see below) counts as exactly that kind of forcing
+// content. With `.content` nested inside the wrap, its own text height
+// was inflating the wrap past its aspect-ratio size, confirmed with
+// Playwright (measured height came out ~40% taller than the
+// aspect-ratio math predicted). Pulling `.content` out to be a sibling
+// under `.education-visual` fixes that: the wrap now contains ONLY the
+// `<img>`, so nothing stops its `aspect-ratio` from being honored
+// exactly, on any screen size. `.education-visual` has
+// `position: relative` and is what `.content`'s percentage-based
+// desktop position resolves against — since `.content` is
+// `position: absolute` there (removed from flow, contributing no
+// height), `.education-visual`'s rendered box ends up exactly matching
+// the image wrap's own box, so the same percentages that used to be
+// measured against the wrap directly still land in the same place now
+// that they're measured against its sibling wrapper instead.
+// `.education-clouds-wrap` (step 8) is ALSO `position: absolute` for
+// this exact same reason — it needs to sit fully behind the image and
+// match its box exactly, without contributing any height of its own
+// that would make `.education-visual` taller than the image alone
+// makes it.
 //
-// One more layer on top of that: on a short/wide viewport, `cover`
-// still has to crop SOMETHING to avoid a gap, and per your follow-up
-// that "something" shouldn't ever be the image's own height either —
-// you'd rather scroll than see it shortened. Fixed by adding
-// `aspect-ratio: 16 / 9` (the image's real ratio) alongside
-// `min-height`/`width: 100%` on `.education-section` below, so the
-// section itself grows taller than one screen on those viewports
-// instead of asking `cover` to crop into the height — see the comment
-// there.
+// Positioning `.content` inside the gap (desktop/default — no media
+// query): measured directly off the source file's alpha channel (a
+// column is "in the gap" once it's transparent for more than half the
+// image's height) — the gap runs horizontally from ~26% to ~68% of
+// the image's width (center ~47%), and vertically from the very top
+// down to ~64% (below that, the courtyard floor/steps become opaque).
+// `.content` is positioned at `left: 47%; top: 33%;` with
+// `transform: translate(-50%, -50%)` — i.e. centered on that point.
+// `width: min(32ch, 100%)` is the same formula every other section in
+// this family uses for `.content` — 32ch alone already comes out
+// narrower than the ~42%-wide gap at any realistic viewport width, so
+// it fits without its own bespoke cap, matching your reference photo
+// (cross-checked against it: the box in your photo sits at roughly the
+// same 47%-center, 4%-62% vertical span once you exclude the section's
+// own top/bottom padding).
 //
-// No seam-fade classes any more — the shared fade-band system that
-// used to blend section edges together was removed per your request,
-// so this section now just butts directly against InBetweenSection1
-// above it and ArtIslandSection below it.
+// No background/scrim behind the text — per your feedback, `.content`
+// (and `.eyebrow`/`h2`/`.body-text`) keep the exact same plain styling
+// as the rest of this family (ArtIslandSection/ComputerIslandSection/
+// AchievementIslandSection): no card, no backdrop, just text directly
+// over the illustration, same colors/sizes as everywhere else.
 //
-// Positioning: `.education-island-stack`'s `top`/`right` use the
-// clamp(mobileValue, calc(a + b*vw), desktopValue) fluid technique
-// from ArtIslandSection.astro, since it bleeds off the right edge on
-// wide screens (a fixed rem offset doesn't scale with viewport width
-// the way a vw-based width does — see the longer explanation in
-// ArtIslandSection.astro). On mobile the stack is pushed even further
-// right so part of it is deliberately cropped off-screen — see the
-// max-width: 640px query.
+// Narrow-window (`max-width: 1024px` — deliberately wider than the
+// `640px` "phone" breakpoint the rest of this family uses, so it kicks
+// in while just dragging a desktop browser window narrower, not only
+// on an actual phone-width screen): `.education-image-wrap` switches
+// from "fully visible, no cropping" to a fixed `aspect-ratio: 1 / 1`
+// with `object-fit: cover` on the image, cropping the LEFT/RIGHT sides
+// instead — per your request, since at narrow widths the uncropped
+// image was flattening into a short, not-very-present strip, and you
+// wanted it cropped rather than fully visible there. `.content` does
+// NOT change here any more (see step 6 above) — it keeps the exact
+// same overlaid position at every width, so nothing about the text
+// jumps or shifts when this breakpoint hits; only the image crops in
+// underneath it. `.education-clouds-wrap` doesn't need its own media
+// query either — it's `inset: 0` against `.education-visual`, and
+// `.education-visual`'s height still comes from `.education-image-wrap`
+// (the only in-flow-height-contributing child), so the clouds layer
+// automatically matches whatever height the image wrap ends up at,
+// cropped breakpoint included. The percentages still land correctly in
+// the gap even against the cropped image — worked out by hand (and
+// confirmed with Playwright): `object-position: center` crops the
+// image symmetrically around its own middle, and `.content`'s
+// `left: 47%` is already close enough to that midpoint (47% vs. 50%)
+// that the remapping from "percentage of the cropped box" back to
+// "percentage of the original image" barely moves it (`~47.8%` instead
+// of `47%`) — nowhere near enough to visibly drift off the gap.
+// `aspect-ratio`
+//     (rather than a `vh`-based height, which is what
+//     OtherIslandSection.astro's mobile breakpoint uses) is deliberate
+//     here: since the wrap's width is already a definite `100vw`, an
+//     aspect-ratio gives a height that's a fixed PROPORTION of that
+//     width, so the crop looks the same (same fraction of the image's
+//     sides cut off) on every phone regardless of its screen's own
+//     aspect ratio — a `vh` height would instead vary the crop by
+//     device height, cropping more aggressively on a tall phone than a
+//     short one. `1 / 1` was chosen by the numbers: at that ratio, the
+//     visible horizontal slice works out to ~72% of the image's width
+//     (~14% cropped off each side, per `object-fit: cover`'s standard
+//     "scale to cover, crop the rest" math) — enough to visibly trim
+//     the outer edges of both buildings while still keeping a
+//     recognizable sliver of each alongside the courtyard gap, rather
+//     than cropping so tight it shows only the empty gap itself (a
+//     taller box, like `100vh`, does exactly that on most phones —
+//     tried it, confirmed with Playwright the crop was narrow enough
+//     to fall entirely inside the transparent gap, showing no
+//     buildings at all). Tune the ratio if you want more or less of
+//     the buildings trimmed.
 //
-// `smallImage` is positioned in %, relative to the stack — NOT vh/vw
-// relative to the section. That's a deliberate fix: `bigImage`'s
-// rendered height depends on its own width (it's `width: <something
-// in vw>; height: auto`), so its actual pixel height changes with
-// viewport width in a way that has nothing to do with vh. Positioning
-// `smallImage` with an independent vh offset meant the two only lined
-// up correctly at whatever viewport width they happened to be tuned
-// against — everywhere else, `smallImage` drifted up or down the
-// mountain because the two offsets (vh vs. the big island's actual
-// vw-driven height) scaled at different rates. Since `.education-
-// island-stack` is sized to `bigImage`'s own rendered box (nothing
-// else inside it takes up space), a percentage-based top/right on
-// `smallImage` is always relative to that same box, so it scales in
-// lockstep with `bigImage` at every viewport width instead of just a
-// couple of tuned ones.
-// These are starting values eyeballed off the screenshots — expect to
-// nudge them once you see it live, same as the other two sections.
+// Why `1024px` and not the usual `640px`: first shipped at `640px` to
+// match the rest of the family, but per your follow-up you were
+// testing by dragging a desktop browser window narrower and never saw
+// the crop appear — at `640px` that's expected (a browser window has
+// to get genuinely phone-narrow before the swap happens), but you
+// wanted it to show up sooner, without narrowing all the way to phone
+// width. `1024px` is comfortably inside typical "half a laptop screen"
+// window-dragging territory, so the crop shows up well before the
+// window gets anywhere near actual phone width. This only changes the
+// breakpoint for THIS component — every other section in the family
+// keeps its own `640px` mobile breakpoint as-is.
 //
-// Still carries `.sky-chain`, so the gap-collapsing on both sides
-// keeps working regardless of what backs it.
+// Full-bleed technique: same break-out-of-the-container trick as
+// OtherIslandSection.astro —
+//   width: 100vw; position: relative; left: 50%; right: 50%;
+//   margin-left: -50vw; margin-right: -50vw;
+// — applied to `.education-image-wrap` (and to `.education-clouds-wrap`
+// too, so the clouds layer spans the exact same full-bleed width as
+// the image sitting in front of it, edge to edge). The
+// horizontal-scrollbar-width edge case this can introduce is already
+// handled page-wide by `overflow-x: hidden` on `html` in Layout.astro,
+// so nothing extra is needed here for that.
 //
-// Now also carries `.halftone-hover`, joining the single, page-wide
-// cursor-spotlight element in Layout.astro (`.halftone-spotlight`,
-// see the comment there) purely by having this class — no markup or
-// script needed here for it, since `body:has(.halftone-hover:hover)
-// .halftone-spotlight` is what actually turns the spotlight on.
+// Height (desktop/default): no `object-fit`/`aspect-ratio` cropping
+// trick — the image is `width: 100%; height: auto;`, so it always
+// keeps its own aspect ratio (measured 5000x3600, ~1.39:1) at whatever
+// the full page width happens to be, with NO cropping, ever. Per your
+// earlier note that it's fine either way, this leans on ordinary block
+// flow: the image is real in-flow content inside the wrap, so on a
+// short/wide viewport where it renders taller than one screen, the
+// section (a plain flex column sized by its own content) just grows to
+// fit it, same "grow instead of crop" spirit as the `aspect-ratio`
+// trick used elsewhere in this family.
 //
-// NOTE: I still don't have the actual background image files — this
-// is reasoned from first principles, not measured against the real
-// files.
+// No foreground bob loop or mouse-repel script in this file — those
+// fit small floating islands, not one full-bleed illustration (also,
+// this image is exactly 100vw wide with nothing extra to shift into; a
+// mouse-repel translate() would expose a gap of the flat background
+// color at whichever edge it moved away from). Safe to leave this
+// file's copy of the shared parallax script out entirely: the other
+// three copies still on the page (Art/Computer/Achievement Island
+// Section) already drive every remaining `.parallax-inner` element
+// site-wide. The clouds loop (step 8) is plain CSS `animation`, not
+// this shared script, for the same reason the glitch bursts are plain
+// CSS too — a simple one-property loop doesn't need JS to drive it.
+//
+// No `overflow: hidden` here (except `.education-clouds-wrap`, which
+// needs its own local `overflow: hidden` — see the comment above it —
+// purely to crop its doubled-up scrolling track back down to the
+// wrap's own box; that's unrelated to the page-wide horizontal-bleed
+// guard described next). See the comment on `overflow-x: hidden` on
+// `html` in Layout.astro. That handles horizontal clipping page-wide,
+// so this section isn't hard-clipped if it ever needs more vertical
+// room than one screen (see above).
+//
+// Still carries `.sky-chain` (seam-matching gap-collapse) and
+// `.halftone-hover` (page-wide cursor-spotlight, purely by having the
+// class — no markup/script needed here for it), same as before.
+//
+// Clouds background (`cloudsBackground`, step 8, reprocessed in step
+// 9): a single wide clouds illustration, doubled up side-by-side
+// inside a `200%`-wide flex track and scrolled with one CSS
+// `animation`, the same "duplicate + translateX" loop technique used
+// for any seamless horizontal marquee — this ONLY reads as seamless
+// because the source file itself was made to tile horizontally first
+// (see step 9's history entry above); the CSS technique alone can't
+// paper over a source image whose edges don't match.
+// `.education-clouds-track` holds two `<img>` copies of the exact same
+// file, each pinned to `width: 50%` (i.e. exactly one wrap-width each)
+// so the two sit edge-to-edge with no gap. The keyframes animate
+// `transform` from `translateX(-50%)` to `translateX(0%)` — since the
+// percentage in a `translateX` on the track resolves against the
+// TRACK's own width (200% of the wrap), `-50%` of that is exactly one
+// wrap-width, so animating UP to `0%` slides the track rightward by
+// exactly one wrap-width over the loop. Concretely: at the start, copy
+// 2 fills the visible wrap and copy 1 sits one wrap-width to its left,
+// off-screen; as the track slides right, copy 1 enters from the left
+// edge and copy 2 exits off the right edge — i.e. any given cloud
+// shape visibly travels from left to right across the section, per
+// your request. Once the track finishes sliding (copy 1 now exactly
+// fills the wrap, in the same position copy 2 started in), the
+// `infinite` animation restarts at `-50%` — which, because copy 1 and
+// copy 2 are pixel-identical, is visually indistinguishable from where
+// the previous cycle just ended, so the loop reads as continuous with
+// no visible seam or snap. `linear` easing keeps the drift at a
+// constant speed rather than easing in/out at the loop boundary, which
+// would otherwise read as a stutter every cycle. `.education-clouds-wrap`
+// itself needs `overflow: hidden` so only one wrap-width of the
+// always-200%-wide track is ever visible at a time — without it the
+// second copy would spill out past the section's own edges instead of
+// being clipped by them. It sits BEHIND `.education-image-wrap` purely
+// by DOM order (it's the first child of `.education-visual`, and
+// neither it nor the plain `<img>` inside `.education-image-wrap` sets
+// a `z-index`, so normal painting order already puts it underneath) —
+// no `z-index` needed, same as how `.education-image-wrap`'s own
+// `<img>` doesn't need one to sit below `.content`/the glitch frames,
+// which DO set one. Not gated behind `prefers-reduced-motion`, for the
+// same reason the glitch bursts below aren't: Firefox and Brave both
+// report "reduce" by default for privacy reasons unrelated to the
+// viewer's actual motion preference, which would otherwise silently
+// hide this on a CV meant to be seen by whoever an employer happens to
+// open it with. Entirely optional — like the glitch-square props, it
+// only renders (and only pays for the extra `<img>` requests) when
+// `cloudsBackground` is actually passed in.
+//
+// Glitch "burst" spots (`glitchSquare1Frame1/2/3`,
+// `glitchSquare2Frame1/2/3` — each group of three optional, but only
+// renders if all three in that group are given): each is a full
+// illustration-canvas-sized, mostly-transparent image (matching
+// `image`'s own aspect ratio) with a grayscale noise texture baked
+// into ONE specific small spot and everything else transparent — the
+// exact same technique (and the exact same two spots) the very first
+// version of this feature used (see history item 10) — so each just
+// needs `inset: 0` + `object-fit: cover`/`object-position: center` to
+// line up pixel-for-pixel with the base illustration at EVERY
+// breakpoint, including the narrow-window crop, with no separate
+// positioning math and no risk of ever drifting into `.content`'s box
+// (unlike the previous, CSS-positioned "burst zone" phase — see item
+// 10 for why that mattered). Three frames per square, stacked and
+// flickered through in rapid succession, briefly, every so often.
+//
+// This went through several shapes based on your feedback, worth
+// knowing about if you ever want to revisit any of them:
+//   1. Started as a periodic flash (`opacity: 0` at rest, a JS
+//      `setTimeout` scheduler adding/removing an `.is-glitching` class
+//      at random intervals) reusing AchievementIslandSection's
+//      `clip-path`-banding `glitch-pop` effect — dropped because it
+//      wasn't rendering reliably for you across browsers.
+//   2. Rebuilt as a direct port of HobbyIslandSection.astro's
+//      Monado-symbol swap instead (opacity animated INSIDE the
+//      keyframes with `forwards` fill, rather than a separate static
+//      `opacity` rule racing the animation on specificity) — this
+//      part rendered reliably from here on.
+//   3. Per "more glitchy and less flashy... shakes a bit left and
+//      right," swapped the brightness pulse for a `translateX` shake.
+//   4. Per "the moving left and right isn't the best... make the
+//      color range change more, a bit more flashy," dropped the shake
+//      for a much wider `hue-rotate`/`saturate`/`brightness` swing.
+//   5. Per "make it glitchy over it, and maybe so that it doesn't
+//      disappear but is present to be seen all the time": `opacity: 1`
+//      became the PERMANENT base state — no more show/hide at all, so
+//      no more JS scheduler either (there's no `<script>` block in
+//      this file). Each square runs its own never-ending CSS
+//      `animation` that sits at `filter: none` for most of every ~4s
+//      cycle and pops through the color swing briefly near the end,
+//      forever — `glitchImage2` offset by half a cycle so the two
+//      don't pop in sync. The square's PRESENCE stopped flickering
+//      entirely; only its color did, periodically.
+//   6. Added an actual per-pixel warp on top of the existing color
+//      swing, per "make be a twirl ripple effect that is played from
+//      time to time for the squares, like a glitching screen" — an SVG
+//      `feTurbulence`/`feDisplacementMap` filter (same technique
+//      HobbyIslandSection.astro's fountain tried in its own v22, just
+//      put to different use here) plus a smoothly-eased
+//      `transform: rotate()/scale()` wobble running alongside it.
+//      REJECTED after you saw it, with two reference images attached:
+//      "hmm thank you but i was thinking of something like this. the
+//      effect should still look like a square for the most part." The
+//      warp made the whole silhouette blobby/distorted, which is the
+//      opposite of what your reference images show (a square staying
+//      mostly intact, with thin streaks bleeding out of it) — see the
+//      next entry for the replacement.
+//   7. Removed the feTurbulence/feDisplacementMap warp and the
+//      rotate/scale twirl entirely (along with the SVG `<defs>` markup
+//      and the `--warp-filter` custom property that powered them) and
+//      replaced both with a "slice tear" effect instead. The
+//      always-visible base square keeps ONLY its plain color swing
+//      (unwarped, unrotated — this is what keeps the silhouette
+//      looking "like a square for the most part"). On top of it, each
+//      glitch image gets several duplicate copies (`GLITCH_SLICES`,
+//      see below) cropped via `clip-path` to a thin horizontal band
+//      and independently `translateX()`-jumped. At rest a slice sits
+//      pixel-perfectly over the base (identical image content, so it's
+//      invisible as its own layer) and only reads as a distinct offset
+//      streak during its jump — since each band is cropped to the
+//      square's own footprint, this shows up as a thin horizontal tear
+//      bleeding sideways out of an intact square, matching the "streaks
+//      off the edges of a mostly-square shape" look in your reference
+//      images, rather than an organic warped blob.
+//   8. Per "not bad but it feels kinda forces/not random... could you
+//      make the effect a bit more random please how it moves, maybe a
+//      shaky line": the previous version had every slice sharing one
+//      fixed 4s clock and one fixed set of keyframe percentages, so
+//      all five always jumped at the exact same instants relative to
+//      each other, cycle after cycle — mechanically perfect repetition
+//      read as "forced." Now each slice runs its OWN `--slice-duration`
+//      (a different loop length per slice, see `GLITCH_SLICES`) and
+//      its own `--slice-delay`, so they drift in and out of phase with
+//      each other continuously — which slices happen to be mid-jump,
+//      and by how much, keeps changing rather than repeating
+//      identically. The keyframes themselves
+//      (`@keyframes education-glitch-slice`) also got many more,
+//      smaller, alternating-direction steps instead of a handful of
+//      big clean jumps, so a slice reads as vibrating/rattling ("shaky
+//      line") rather than snapping to one offset and holding still.
+//   9. Per you sending a reference image of a full-frame RGB/datamosh-
+//      style corruption burst (saturated red/green/blue/cyan/magenta/
+//      yellow/black/white block noise) and asking "is it possible to
+//      make a glitch effect like this?" — I flagged that this look is
+//      a different CHARACTER of effect entirely (loud, full-color,
+//      chaotic) from the small muted-gray square this feature had been
+//      up to this point, and asked how to scope it; you picked "let
+//      the glitch spread beyond the small square into a larger, more
+//      dominant burst." Everything from items 1-8 above (the small
+//      square, its permanent color swing, the slice-tear streaks) was
+//      GONE — replaced with two bigger rectangular zones sitting
+//      mostly invisible over the illustration and periodically
+//      flickering through three procedurally-generated noise-texture
+//      images in rapid, staggered succession for well under a second,
+//      plus a brief erratic `translate()` shake on the whole zone —
+//      then vanishing again until the next burst. This DID introduce a
+//      real bug, caught with Playwright before shipping: at
+//      narrow/mobile widths, `.content`'s `width: min(32ch, 100%)` (a
+//      fixed CHARACTER count, not a percentage) becomes a much larger
+//      FRACTION of the narrower wrap, so a zone placed where it was
+//      safely clear of `.content` at the default full-bleed width
+//      ended up visually overlapping it once the screen narrowed
+//      enough — fixed at the time by moving both zones below
+//      `.content`'s vertical range at every width, but this whole
+//      class of bug goes away entirely with item 10's approach below.
+//  10. THIS VERSION (glitch history), per "could this effect be
+//      applied only for the two of my squares/their position please?
+//      and maybe that instead of color it is made up off different
+//      shades of gray, black and white please?": two changes. First,
+//      back to the ORIGINAL small-square positions/sizes from this
+//      feature's very first version (measured off `gray_square_1.webp`/
+//      `gray_square_2.webp`'s own alpha channels, back when this
+//      feature started) — the CSS-positioned "bigger burst zone" from
+//      item 9 is gone, and with it, the whole class of narrow-width
+//      overlap bug that zone introduced, since a full-canvas image
+//      sharing the base illustration's own `object-fit`/`object-
+//      position` rules crops in lockstep with it automatically at
+//      every breakpoint, the same way `.education-glitch`/
+//      `.education-glitch-slice` always did in earlier versions —
+//      no hand-measured CSS rectangle to ever drift out of place.
+//      Second, the noise-frame images themselves (regenerated) now
+//      use a strictly grayscale palette (black, white, and several
+//      shades of gray in between) instead of saturated RGB colors —
+//      same generation technique as item 9's frames (random-width
+//      horizontal bands subdivided into vertical blocks, per-pixel
+//      static, thin streak lines) just restricted to one palette and,
+//      this time, painted only inside each square's own small bbox on
+//      an otherwise-transparent canvas rather than across a whole
+//      standalone rectangle. Six frame props now instead of three
+//      (`glitchSquare1Frame1/2/3` for the first square's spot,
+//      `glitchSquare2Frame1/2/3` for the second's) since each square
+//      needs its OWN three frames baked at its OWN bbox — sharing one
+//      frame image between both squares would make them always
+//      flicker in lockstep instead of independently. The flicker and
+//      shake mechanics themselves (rapid staggered on/off blips,
+//      brief erratic `translate()`) are otherwise unchanged from
+//      item 9.
+//
+// `z-index: 1` on `.education-glitch-frame` matters for the same
+// reason `.content` needs it — see the `.halftone-spotlight` comment
+// in Layout.astro: without it, the page-wide cursor-spotlight would
+// paint over these and mute them depending on cursor position. Not
+// gated behind `prefers-reduced-motion` — Firefox and Brave both
+// report "reduce" by default for privacy reasons unrelated to the
+// viewer's actual motion preference, which would otherwise silently
+// hide this on a CV meant to be seen by whoever an employer happens to
+// open it with. Each square's three frames only render if all three
+// of ITS OWN props are supplied (a partial set for one square renders
+// nothing for that square, rather than a broken one- or two-frame
+// flicker; the other square is unaffected either way).
 //
 // Usage:
 //   <EducationIslandSection
@@ -91,9 +478,14 @@
 //     eyebrow="Island 03"
 //     title="Adipiscing Elit Sed"
 //     text="Sunt in culpa qui officia deserunt mollit anim id est laborum..."
-//     bigImage="/images/education_island.svg"
-//     smallImage="/images/small_island.svg"
-//     backgroundImage="/images/education_island_background.webp"
+//     image="/images/education_island_ver3.webp"
+//     cloudsBackground="/images/education_island_clouds_background.webp"
+//     glitchSquare1Frame1="/images/glitch_gray_sq1_1.webp"
+//     glitchSquare1Frame2="/images/glitch_gray_sq1_2.webp"
+//     glitchSquare1Frame3="/images/glitch_gray_sq1_3.webp"
+//     glitchSquare2Frame1="/images/glitch_gray_sq2_1.webp"
+//     glitchSquare2Frame2="/images/glitch_gray_sq2_2.webp"
+//     glitchSquare2Frame3="/images/glitch_gray_sq2_3.webp"
 //   />
 
 interface Props {
@@ -101,154 +493,305 @@ interface Props {
   eyebrow?: string;
   title: string;
   text: string;
-  bigImage: string;
-  smallImage: string;
-  backgroundImage: string;
+  image: string;
+  alt?: string;
+  cloudsBackground?: string;
+  glitchSquare1Frame1?: string;
+  glitchSquare1Frame2?: string;
+  glitchSquare1Frame3?: string;
+  glitchSquare2Frame1?: string;
+  glitchSquare2Frame2?: string;
+  glitchSquare2Frame3?: string;
 }
 
-const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astro.props;
+const {
+  id,
+  eyebrow,
+  title,
+  text,
+  image,
+  alt = "",
+  cloudsBackground,
+  glitchSquare1Frame1,
+  glitchSquare1Frame2,
+  glitchSquare1Frame3,
+  glitchSquare2Frame1,
+  glitchSquare2Frame2,
+  glitchSquare2Frame3,
+} = Astro.props;
 ---
 
-<section
-  class="education-section sky-chain halftone-hover"
-  id={id}
-  style={`background-image: url(${backgroundImage});`}
->
-  <div class="education-island-stack" aria-hidden="true">
-    <div class="education-island-big">
-      <div class="education-island-inner parallax-inner">
-        <img src={bigImage} alt="" />
+<section class="education-section sky-chain halftone-hover" id={id}>
+  <div class="education-visual">
+    {cloudsBackground && (
+      <div class="education-clouds-wrap" aria-hidden="true">
+        <div class="education-clouds-track">
+          <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+          <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+        </div>
       </div>
+    )}
+
+    <div class="education-image-wrap">
+      <img src={image} alt={alt} loading="lazy" decoding="async" />
+
+      {glitchSquare1Frame1 && glitchSquare1Frame2 && glitchSquare1Frame3 && (
+        <>
+          <img class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-a" src={glitchSquare1Frame1} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <img class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-b" src={glitchSquare1Frame2} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <img class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-c" src={glitchSquare1Frame3} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+        </>
+      )}
+      {glitchSquare2Frame1 && glitchSquare2Frame2 && glitchSquare2Frame3 && (
+        <>
+          <img class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-a" src={glitchSquare2Frame1} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <img class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-b" src={glitchSquare2Frame2} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <img class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-c" src={glitchSquare2Frame3} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+        </>
+      )}
     </div>
 
-    <div class="education-island-small">
-      <div class="education-island-inner parallax-inner">
-        <img src={smallImage} alt="" />
-      </div>
+    <div class="content">
+      {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+      <h2>{title}</h2>
+      <p class="body-text">{text}</p>
     </div>
-  </div>
-
-  <div class="content">
-    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
-    <h2>{title}</h2>
-    <p class="body-text">{text}</p>
   </div>
 </section>
-
-<script>
-  // Same proximity-repel drift as the rest of this family, driving
-  // every `.parallax-inner` element on the page. If more than one of
-  // these sections lands on the same page, each ships its own copy of
-  // this script and each queries ALL `.parallax-inner` elements
-  // globally (not just its own) — intentional/harmless (they all
-  // compute the same easing toward the same targets), just a little
-  // redundant. Worth hoisting into one shared script if this family
-  // keeps growing.
-  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
-
-  if (islands.length && !prefersReducedMotion) {
-    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
-    const influenceRadius = 500; // px, push fades to 0 beyond this distance
-    const ease = 0.08;
-
-    let mouseX = 0;
-    let mouseY = 0;
-    let hasMouse = false;
-
-    const state = Array.from(islands).map((el) => ({
-      el,
-      currentX: 0,
-      currentY: 0,
-    }));
-
-    window.addEventListener("mousemove", (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      hasMouse = true;
-    });
-
-    function tick() {
-      for (const s of state) {
-        let targetX = 0;
-        let targetY = 0;
-
-        if (hasMouse) {
-          const rect = s.el.getBoundingClientRect();
-          const restX = rect.left + rect.width / 2 - s.currentX;
-          const restY = rect.top + rect.height / 2 - s.currentY;
-
-          const dx = restX - mouseX;
-          const dy = restY - mouseY;
-          const dist = Math.hypot(dx, dy) || 1;
-
-          if (dist < influenceRadius) {
-            const falloff = 1 - dist / influenceRadius;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            targetX = nx * maxOffset * falloff;
-            targetY = ny * maxOffset * falloff;
-          }
-        }
-
-        s.currentX += (targetX - s.currentX) * ease;
-        s.currentY += (targetY - s.currentY) * ease;
-        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
-      }
-      requestAnimationFrame(tick);
-    }
-
-    requestAnimationFrame(tick);
-  }
-</script>
 
 <style>
   .education-section {
     position: relative;
     min-height: 100vh;
-    /* `aspect-ratio: 16 / 9` matches the background image (measured at
-       3840x2160) — combined with `width: 100%` and `min-height`, the
-       browser uses whichever constraint needs MORE height: on a
-       viewport wider-than-16:9 (mainly short/wide windows), the
-       aspect-ratio wins and this section grows taller than one
-       screen, showing the FULL image at its native ratio with no
-       cropping — you scroll to see the rest, per your request,
-       instead of `cover` shortening (cropping) the image's height to
-       fit a too-short viewport. On a taller-than-16:9 viewport (e.g.
-       mobile portrait), `min-height: 100vh` wins instead, so the
-       section stays exactly one screen tall and `cover` crops the
-       sides only — unchanged from before. `width: 100%` is required
-       alongside `aspect-ratio` — without it, on the min-height-wins
-       branch the browser would stretch this section's WIDTH to
-       satisfy the ratio instead of its height, overflowing past the
-       viewport edges. */
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    /* No `overflow: hidden` here — see the comment on `overflow-x:
-       hidden` on `html` in Layout.astro. That handles horizontal
-       clipping page-wide (including the island stack's intentional
-       bleed off the right edge), so the stack isn't hard-clipped
-       vertically when it needs more room than this section provides. */
-    /* `cover` — always fills the section edge-to-edge with no gaps,
-       cropping whichever dimension needs it least (see the top-of-file
-       comment for why this isn't sized by height alone). */
-    background-size: cover;
-    background-position: bottom;
-    background-repeat: no-repeat;
+    /* Flat color, kept from an earlier request — still the fallback
+       behind the illustration's transparent gap (see the top-of-file
+       comment) for the moment before `cloudsBackground` loads in, and
+       for callers that don't pass one at all. */
+    background: #40CAEC;
   }
 
-  .content {
+  /* Positioning context for `.content` and `.education-clouds-wrap`
+     (see the top-of-file comment for why both live here as siblings of
+     the image wrap rather than nested inside it). Otherwise a plain,
+     unstyled block — it just wraps the pieces so their percentages
+     have something stable to resolve against. */
+  .education-visual {
     position: relative;
-    z-index: 3;
+  }
+
+  /* Looping clouds layer, behind everything else — see the dedicated
+     top-of-file comment ("Clouds background") for the full loop
+     mechanics. Same full-bleed breakout as `.education-image-wrap`
+     below. Pinned to the TOP (`top: 0`) with a fixed `height: 58%` of
+     `.education-visual`'s own box — NOT the full `inset: 0` height
+     this used in the previous version. That change is what fixes "the
+     white part of the clouds showing at the bottom, beneath the
+     illustration": the source `education_island_clouds_background.webp`
+     itself was reprocessed to crop off its old solid-white bottom band
+     and fade smoothly to fully transparent at its own new bottom edge
+     instead (see the top-of-file comment for the file history) — but
+     `object-fit: cover` below still stretches that source to fill
+     whatever height this wrap is given, so leaving it at full height
+     would have re-stretched the fade to end at the very bottom of the
+     illustration again, right where it'd be most likely to peek past
+     the buildings. Capping the wrap at `58%` keeps the whole cloud
+     band (fade-out included) well up in the top portion — comfortably
+     inside where the courtyard gap is transparent (the gap runs to
+     ~64%, see the top-of-file comment) — with the remaining ~42% of
+     the box below it left empty (no clouds, no white — just whatever
+     the flat `#40CAEC`/opaque illustration underneath already show).
+     `position: absolute` still contributes no height to
+     `.education-visual` itself, same trick `.content` uses.
+     `overflow: hidden` clips the always-200%-wide scrolling track back
+     down to one wrap-width. Sits behind `.education-image-wrap` purely
+     by DOM order — no `z-index` needed, see the top-of-file comment. */
+  .education-clouds-wrap {
+    position: absolute;
+    top: 0;
+    height: 80%;
+    left: 50%;
+    right: 50%;
+    width: 100vw;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    overflow: hidden;
+  }
+
+  /* Two copies of the same image, edge-to-edge, slid rightward on a
+     continuous loop — see the top-of-file comment for exactly how the
+     `-50% → 0%` keyframes below work out to "clouds drift left to
+     right, seamlessly." */
+  .education-clouds-track {
+    display: flex;
+    width: 200%;
+    height: 100%;
+    animation: education-clouds-scroll 60s linear infinite;
+  }
+
+  .education-clouds-track img {
+    display: block;
+    flex: 0 0 50%;
+    width: 50%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+  }
+
+  @keyframes education-clouds-scroll {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0%); }
+  }
+
+  /* Full-bleed break-out: spans the full viewport width no matter what
+     this section's own left/right padding is — same trick as
+     OtherIslandSection.astro (see the component-level comment above).
+     `line-height: 0` avoids the couple of stray px an inline <img>
+     otherwise leaves below itself. */
+  .education-image-wrap {
+    position: relative;
+    left: 50%;
+    right: 50%;
+    width: 100vw;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    line-height: 0;
+  }
+
+  .education-image-wrap img {
+    display: block;
+    width: 100%;
+    height: auto;
+    pointer-events: none;
+  }
+
+  /* Glitch "burst" spots — v10 (see the top-of-file comment, glitch
+     overlays history item 10). Back to the ORIGINAL small-square
+     positions/sizes this feature started with: each `<img>` here is a
+     full illustration-canvas-sized, mostly-transparent image (a
+     grayscale noise texture baked into one small spot, matching
+     `gray_square_1.webp`/`gray_square_2.webp`'s own alpha-channel
+     bounds from this feature's very first version), so `inset: 0` +
+     `object-fit: cover`/`object-position: center` below line it up
+     pixel-for-pixel with the base illustration automatically, at
+     every breakpoint — including the narrow-window crop, since it
+     crops in lockstep with the base image rather than needing its own
+     hand-measured CSS rectangle (that was the previous, `v9` "burst
+     zone" approach, and the source of a real narrow-width overlap bug
+     with `.content` — see item 9's entry for what happened and why
+     this approach doesn't have that problem). Mostly `opacity: 0` (see
+     `education-glitch-burst-flicker` below) — only one of a square's
+     three frames is ever meant to be visible at a time, taking turns. */
+  .education-image-wrap img.education-glitch-frame {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 0;
+    animation:
+      education-glitch-burst-flicker var(--burst-duration) steps(1, end) infinite,
+      education-glitch-burst-shake var(--burst-duration) steps(30, end) infinite;
+  }
+
+  /* Each square's three frames share one `--burst-duration` (so their
+     flicker and shake stay in sync with EACH OTHER), but the two
+     squares' durations differ from one another so the two squares'
+     bursts drift in and out of phase — same "don't let independent
+     things read as one synced thing" idea used everywhere else in
+     this file, down to the bob-timing offsets in
+     HobbyIslandSection.astro. */
+  .education-glitch-frame-group-1 {
+    --burst-duration: 6.3s;
+  }
+  .education-glitch-frame-group-2 {
+    --burst-duration: 7.1s;
+  }
+
+  /* Frame `a` uses the base rule's default `animation-delay` (`0s` for
+     both animations, unstated). Frames `b`/`c` get a slightly earlier
+     negative delay on ONLY the first (flicker) animation in the list —
+     the second value, `0s`, re-states the shake's delay so it stays
+     identical across all three frames of a group (only one frame is
+     ever opaque at a time, so it doesn't matter that all three "shake"
+     on the same schedule — what you actually see is just whichever
+     frame is currently visible rattling in place). This staggering is
+     what turns three otherwise-identical on/off blips into a rapid
+     a-then-b-then-c flicker instead of all three flashing in unison.
+     Compound selectors (`.education-glitch-frame.education-glitch-
+     frame-b`, not just the bare `-b` class) for the same specificity
+     reason documented at length elsewhere in this file's history: the
+     base `.education-glitch-frame` rule above sets the `animation`
+     SHORTHAND, which would reset a lower-specificity override's
+     `animation-delay` back to `0s, 0s`. */
+  .education-image-wrap img.education-glitch-frame.education-glitch-frame-b {
+    animation-delay: -0.18s, 0s;
+  }
+  .education-image-wrap img.education-glitch-frame.education-glitch-frame-c {
+    animation-delay: -0.36s, 0s;
+  }
+
+  /* Invisible for the vast majority of the loop, with two rapid on/off
+     "blips" packed into the last ~10% of it. Combined with the three
+     frames' staggered delays above, this chains into a rapid
+     multi-flash burst (a-on, b-on, c-on, a-on again, briefly, ...)
+     lasting well under half a second, then silence again for the rest
+     of the multi-second cycle — the "burst" itself. `steps(1, end)`
+     (not the jump-cut `steps(26, end)`/`steps(30, end)` used
+     elsewhere in this file) is deliberate: with only two states (0 or
+     1) there's nothing for extra steps to subdivide — one hard cut per
+     keyframe boundary is all a plain `opacity: 0 → 1 → 0` needs. */
+  @keyframes education-glitch-burst-flicker {
+    0%   { opacity: 0; }
+    84%  { opacity: 0; }
+    85%  { opacity: 1; }
+    87%  { opacity: 0; }
+    89%  { opacity: 1; }
+    91%  { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  /* A brief, erratic `translate()` shake, timed to the same ~84%-93%
+     window the frame flicker above uses, so whichever frame is
+     currently visible visibly rattles while it's flickering rather
+     than flickering perfectly still in place — the same "shaky line"
+     idea from the previous (small-square) version of this feature,
+     carried over and applied here too. Since this now animates
+     `transform` on the same full-canvas `<img>` the flicker's
+     `opacity` animates (rather than a separate wrapping box, as the
+     `v9` "burst zone" version used), a shift of a few px moves the
+     WHOLE mostly-transparent canvas — but since only the small baked-
+     in noise spot is ever visible, that spot itself still visibly
+     shakes by the same few px, same as before. `steps(30, end)` for
+     the same jump-cut reasoning as the rest of this file's glitch
+     animations. */
+  @keyframes education-glitch-burst-shake {
+    0%   { transform: translate(0, 0); }
+    84%  { transform: translate(0, 0); }
+    93%  { transform: translate(0, 0); }
+    100% { transform: translate(0, 0); }
+  }
+
+  /* Positioned inside the courtyard gap between the two buildings —
+     see the top-of-file comment for how these percentages were
+     measured off the source image's alpha channel and cross-checked
+     against your reference photo. Percentages here resolve against
+     `.education-visual`'s own box, which matches the image wrap's box
+     exactly at this breakpoint (see the top-of-file comment for why),
+     so the text stays centered in the gap at every viewport width. */
+  .content {
+    position: absolute;
+    top: 33%;
+    left: 47%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
 
     width: min(32ch, 100%);
-    margin: 0 auto;
-
     text-align: left;
   }
 
@@ -273,90 +816,27 @@ const { id, eyebrow, title, text, bigImage, smallImage, backgroundImage } = Astr
     margin: 0;
   }
 
-  /* Positioned against the section: bleeds off the right edge on
-     wide screens, so `right` keeps the fluid
-     clamp(mobileValue, calc(a + b*vw), desktopValue) treatment.
-     Anchors: -2rem at 640px viewport width, 3rem at 1280px. Sized to
-     `bigImage`'s own width — nothing else inside it affects its size
-     — which is exactly what makes it a stable coordinate system for
-     `.education-island-small`'s percentage-based position below.
-     `pointer-events: none` lives here now instead of on `.education-
-     island`, since that covers both children at once. */
-  .education-island-stack {
-    position: absolute;
-    top: 16vh;
-    right: clamp(-2rem, calc(-112px + 12.5vw), 3rem);
-    width: clamp(390px, 46vw, 700px);
-    pointer-events: none;
-  }
-
-  .education-island-inner img {
-    display: block;
-    width: 100%;
-    height: auto;
-  }
-
-  /* Big background landmass: fills the stack (100% of its width — the
-     stack was sized to this image in the first place), normal
-     document flow inside it (not absolutely positioned — it's the
-     thing the stack's own size comes from). `.content` is z-index 3,
-     above both islands, so the text itself never gets covered even
-     where the stack's edge slightly overlaps the text column — it
-     just sits visually close to it. z-index 1 = the back layer. */
-  .education-island-big {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    animation: bob-big 7.5s ease-in-out infinite;
-  }
-
-  /* Small foreground island with the college silhouette: positioned in
-     % relative to the stack (i.e. relative to the big island's own
-     rendered box), NOT vh/vw relative to the section — see the
-     component-level comment above for why that's the fix for it
-     drifting out of place across viewport widths. `top`/`right`/
-     `width` are all % of the stack, so they scale in lockstep with
-     the big island automatically. These are eyeballed starting values
-     for "sits on the lower-middle of the mountain" — nudge directly if
-     it needs to move. z-index 2 = in front of the big island. */
-  .education-island-small {
-    position: absolute;
-    z-index: 2;
-    top: 86%;
-    right: 18%;
-    width: 30%;
-    animation: bob-small 6s ease-in-out infinite;
-  }
-
-  @keyframes bob-big {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-  }
-
-  @keyframes bob-small {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .education-island-big,
-    .education-island-small {
-      animation: none;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .content {
-      width: min(32ch, 100%);
-      padding-inline: 1.5rem;
+  /* `1024px`, not the family's usual `640px` — see the top-of-file
+     comment for why. `.content` stays overlaid (absolute, same
+     top/left/transform as the default rule) at every width, including
+     here — only the image itself changes at this breakpoint. The
+     clouds layer needs no rule here at all — see the top-of-file
+     comment ("Narrow-window") for why it automatically tracks
+     whatever height the image wrap ends up at. */
+  @media (max-width: 1024px) {
+    /* `aspect-ratio` (not a `vh` height) so the crop fraction stays
+       consistent across phones regardless of their own screen aspect
+       ratio — see the top-of-file comment for the full reasoning and
+       the math behind `1 / 1` specifically. */
+    .education-image-wrap {
+      aspect-ratio: 1 / 1;
     }
 
-    /* Deliberately push the whole stack further right than its
-       desktop position so part of it crops off-screen — same
-       overflow: hidden that protects against horizontal scrolling
-       elsewhere in this family, just leaned into on purpose here. */
-    .education-island-stack {
-      right: -8vw;
+    .education-image-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
     }
   }
 </style>
