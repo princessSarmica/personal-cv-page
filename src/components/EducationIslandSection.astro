@@ -308,6 +308,51 @@
 //      "grow instead of crop" philosophy (see the desktop "Height"
 //      section below) — let me know if you'd rather it be clipped to
 //      exactly one screen instead.
+//  16. THIS VERSION, per your follow-up — two more adjustments to
+//      step 15's crop: "the education_island_ver3.webp gets cut off
+//      at the top and bottom on wider screens" (a real regression),
+//      and on true mobile screens "the left and right side... is cut
+//      away a bit too much" (too aggressive, the pendulum swinging too
+//      far the other way). Fixed both together:
+//        - The top/bottom cut on wider (but still ≤1024px) windows was
+//          a direct consequence of `height: 100vh` alone: whenever a
+//          window in this range is proportionally WIDE relative to its
+//          own height (a landscape tablet, or just a short/wide
+//          browser window), the resulting box became WIDER, relative
+//          to its height, than this image's own 1.39:1 ratio — and
+//          `object-fit: cover` crops whichever axis overflows, so in
+//          that specific shape it started cropping the TOP/BOTTOM
+//          instead of the sides. Fixed the same way ArtIslandSection
+//          avoids this on ITS OWN background art (see the "Narrow-
+//          window" comment below): `.education-image-wrap` now sets
+//          BOTH `min-height` and `aspect-ratio: 5000 / 3600` (this
+//          image's own exact pixel ratio, not an arbitrary one like
+//          Art's `16 / 9`) — since the browser resolves that pairing
+//          as "whichever computes the TALLER box wins," any viewport
+//          shape where a `vh`-based height would end up wider than
+//          1.39:1 instead gets a box that exactly matches the image's
+//          own ratio, which `object-fit: cover` can then scale into
+//          with NO cropping needed in either direction at all (box
+//          ratio == image ratio) — it may run taller than one screen
+//          there (same "grow instead of crop" behavior the desktop
+//          version already uses), but it will never cut the image's
+//          top or bottom again, on any window shape.
+//        - The over-aggressive side crop on true portrait phones came
+//          from using the FULL `100vh` as that floor — the taller the
+//          floor relative to width, the narrower the visible slice
+//          ends up being. Softened it to `min-height: 75vh` instead:
+//          on a representative phone (~390×844) this raises the
+//          visible width from ~33% (at `100vh`) to ~44%, letting a
+//          noticeably larger sliver of both buildings show alongside
+//          the courtyard, while still keeping the section close to
+//          full-screen rather than reverting all the way back to step
+//          5's original `72%`-visible `1 / 1` square. This one number
+//          is the easiest dial to keep tuning by feel — raise it back
+//          toward `100vh` for a tighter crop (more clouds/stairs, less
+//          building), or lower it for an even more generous one (more
+//          building, less crop); let me know if `75vh` still isn't the
+//          right amount either way, since I can't preview the live
+//          result myself.
 //
 // IMPORTANT about this image: unlike the OTHER sections' background
 // photos (Art/Computer/Achievement/Bonus/Hobby/InBetween1, all opaque
@@ -389,50 +434,54 @@
 // `640px` "phone" breakpoint the rest of this family uses, so it kicks
 // in while just dragging a desktop browser window narrower, not only
 // on an actual phone-width screen): `.education-image-wrap` switches
-// from "fully visible, no cropping" to `height: 100vh` with
-// `object-fit: cover` on the image, cropping the LEFT/RIGHT sides —
-// per step 15's history entry, this now matches ArtIslandSection's own
-// mobile treatment specifically (a full-viewport-tall box, cropped to
-// cover), so only the clouds, the courtyard stairs, and the base of
-// the illustration are visible, with the buildings' facades cropped
-// away almost entirely, rather than kept partially visible the way the
-// original `aspect-ratio: 1 / 1` version did (see the crossed-out
-// history below for that earlier reasoning and why it was dropped).
-// `.content` does NOT change here any more (see step 6 above) — it
-// keeps the exact same overlaid position at every width, so nothing
-// about the text jumps or shifts when this breakpoint hits; only the
-// image crops in underneath it. `.education-clouds-wrap` doesn't need
-// its own media query either (see step 13's history entry): its
-// height is `64.5%` of `.education-visual`, the same measured
-// courtyard-floor percentage `.content` already uses — so it
-// automatically re-scales together with `.education-visual` at this
-// breakpoint exactly the same way `.content`'s own percentages do,
-// rather than needing a separate override here.
+// from "fully visible, no cropping" to `min-height: 75vh` PLUS
+// `aspect-ratio: 5000 / 3600` together (this image's own exact pixel
+// ratio), with `object-fit: cover` on the image cropping whichever
+// axis the resulting box shape calls for. Per step 16's history entry,
+// this pairing is what guarantees the image's top/bottom are NEVER
+// cropped, on any window shape: the browser resolves a `min-height` +
+// `aspect-ratio` pair by using whichever one computes the TALLER box,
+// so on a window shape where a plain `vh` height would end up
+// proportionally WIDER than 1.39:1 (cropping top/bottom), the
+// aspect-ratio branch wins instead and the box grows to exactly match
+// the image's own ratio — no cropping needed in either direction there
+// at all, same "grow taller instead of cropping" spirit the desktop
+// rule already uses. On a genuinely narrow/tall phone, `min-height`
+// wins instead, and `object-fit: cover` crops the LEFT/RIGHT sides
+// against that `75vh`-tall box — tuned (per step 16) to show a real
+// sliver of both buildings alongside the courtyard rather than
+// cropping in tight enough to show only the gap itself. `.content`
+// does NOT change here any more (see step 6 above) — it keeps the
+// exact same overlaid position at every width, so nothing about the
+// text jumps or shifts when this breakpoint hits; only the image
+// crops in underneath it. `.education-clouds-wrap` doesn't need its
+// own media query either (see step 13's history entry): its height is
+// `64.5%` of `.education-visual`, the same measured courtyard-floor
+// percentage `.content` already uses — so it automatically re-scales
+// together with `.education-visual` at this breakpoint exactly the
+// same way `.content`'s own percentages do, rather than needing a
+// separate override here.
 // The percentages on `.content` still land correctly in the gap even
 // against the cropped image — worked out by hand: `object-position:
 // center` crops the image symmetrically around its own middle, and
 // `.content`'s `left: 47%` is already close enough to that midpoint
 // (47% vs. 50%) that the remapping from "percentage of the cropped
 // box" back to "percentage of the original image" barely moves it —
-// nowhere near enough to visibly drift off the gap, even with the much
-// tighter crop this version uses.
+// nowhere near enough to visibly drift off the gap.
 //
-// Earlier reasoning, kept for context (superseded by step 15): this
-// breakpoint originally used `aspect-ratio: 1 / 1` instead of a `vh`
-// height, deliberately, so the crop fraction stayed IDENTICAL across
-// every phone regardless of its own screen aspect ratio — a `vh`
-// height varies the crop by device height, cropping more aggressively
-// on a tall phone than a short one. `1 / 1` was chosen by the numbers
-// at the time: it left ~72% of the image's width visible (~14% cropped
-// off each side), enough to trim the buildings' outer edges while
-// still keeping a recognizable sliver of each alongside the courtyard
-// gap, rather than cropping so tight it showed only the empty gap
-// itself — which a `100vh` box was confirmed (with Playwright) to do.
-// Per step 15, showing only the gap is now the EXPLICIT goal instead
-// (to match ArtIslandSection's look), so that's exactly what `100vh`
-// is used for now — the device-to-device crop variance this
-// reintroduces is an accepted trade-off, not an oversight; see step
-// 15's history entry.
+// History of this breakpoint's crop, if you ever want to revisit any
+// of it: `aspect-ratio: 1 / 1` originally (step 5) — chosen so the
+// crop fraction stayed identical on every phone (~72% of the image's
+// width visible, ~14% cropped per side); replaced with a bare
+// `height: 100vh` (step 15) to match ArtIslandSection's full-screen
+// look, which cropped MUCH tighter (~33% visible) but, on short/wide
+// windows within this breakpoint, started cropping the image's
+// top/bottom instead of its sides — an unwanted regression; replaced
+// with THIS version's `min-height: 75vh` + `aspect-ratio: 5000 / 3600`
+// pairing (step 16), which keeps ArtIslandSection's "fills the screen,
+// crops the sides" look on true phones while both raising how much of
+// the sides show (~44% visible) and permanently ruling out the
+// top/bottom crop regardless of window shape.
 //
 // Why `1024px` and not the usual `640px`: first shipped at `640px` to
 // match the rest of the family, but per your follow-up you were
@@ -1096,15 +1145,26 @@ const {
      unaffected by whatever this breakpoint does to
      `.education-image-wrap`. */
   @media (max-width: 1024px) {
-    /* `height: 100vh` (not `aspect-ratio`) so this matches
-       ArtIslandSection's own mobile treatment — a full-viewport-tall
-       box, cropped to cover — per step 15's history entry: the goal
-       changed from "keep the crop fraction identical on every phone"
-       to "look and read the same size as the rest of the family,"
-       which means accepting that the crop amount now varies with the
-       viewport's own height-to-width ratio, same as Art already does. */
+    /* `min-height` + `aspect-ratio` together (step 16) — whichever of
+       the two computes the TALLER box wins, per the CSS sizing spec.
+       `aspect-ratio: 5000 / 3600` is this image's own exact ratio, so
+       whenever a window in this range is proportionally wider than
+       that (a landscape tablet, a short/wide browser window), THIS
+       branch wins and the box grows to match the image's own shape
+       exactly — `object-fit: cover` then has nothing left to crop in
+       either direction, guaranteeing the top/bottom are never cut off,
+       on any window shape. On a genuinely narrow/tall phone,
+       `min-height: 75vh` wins instead, and `cover` crops the
+       LEFT/RIGHT sides against that shorter-than-100vh box — tuned to
+       show a real sliver of both buildings rather than cropping in
+       tight enough to show only the courtyard gap. See the top-of-file
+       "Narrow-window" comment (and step 16's history entry) for the
+       full reasoning and the numbers behind both values — `75vh` in
+       particular is the easiest single number to retune by feel if
+       this still isn't quite the right amount of building to show. */
     .education-image-wrap {
-      height: 100vh;
+      min-height: 75vh;
+      aspect-ratio: 5000 / 3600;
     }
 
     .education-image-wrap img {
