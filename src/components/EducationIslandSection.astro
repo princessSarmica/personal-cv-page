@@ -40,12 +40,12 @@
 //      transparent gap baked into it (see the big comment below), this
 //      is the layer that actually shows through that gap instead of
 //      the flat `#40CAEC` fill on its own.
-//   9. THIS VERSION, per your feedback after seeing step 8 — two bugs:
-//      "the background is not really loopable... roughly cut, sharp
-//      cut between the loop at one part" and "make the clouds
-//      higher... i do not want the white part of the clouds to be
-//      seen at the bottom beneath the education_island_background_
-//      ver3.webp." Both traced back to the SOURCE FILE, not the CSS:
+//   9. Per your feedback after seeing step 8 — two bugs: "the
+//      background is not really loopable... roughly cut, sharp cut
+//      between the loop at one part" and "make the clouds higher... i
+//      do not want the white part of the clouds to be seen at the
+//      bottom beneath the education_island_background_ver3.webp." Both
+//      traced back to the SOURCE FILE, not the CSS, at the time:
 //        - The seam: the original `education_island_clouds_
 //          background.webp` you supplied was never authored as a
 //          seamless horizontal tile (its right edge doesn't blend into
@@ -73,20 +73,191 @@
 //          (`alpha: 255` edge-to-edge) white band across roughly its
 //          bottom 28%, below a gradient where cloud density increases
 //          going down. `object-fit: cover` on a wrap sized to the
-//          FULL illustration height (step 8's `inset: 0`) stretched
-//          that solid band to land right at the very bottom of the
-//          illustration — close enough to the buildings' base to peek
-//          out from underneath. Fixed with two changes together: the
-//          source image was cropped to drop that solid band entirely
-//          (keeping only the gradient portion, with the last stretch
-//          of it faded smoothly down to fully transparent at the new
-//          bottom edge, so the crop itself doesn't just trade one hard
-//          edge for another), AND `.education-clouds-wrap` (see its
-//          own comment below) no longer stretches to the full
-//          illustration height — it's capped at `58%`, pinned to the
-//          top. Between the two, there's no opaque source content left
-//          anywhere near the bottom of the illustration at all, and
-//          the visible clouds sit higher up, per your request.
+//          FULL illustration height stretched that solid band to land
+//          right at the very bottom of the illustration — close enough
+//          to the buildings' base to peek out from underneath. Fixed
+//          with two changes together: the source image was cropped to
+//          drop that solid band entirely (keeping only the gradient
+//          portion, with the last stretch of it faded smoothly down to
+//          fully transparent at the new bottom edge, so the crop
+//          itself doesn't just trade one hard edge for another), AND
+//          `.education-clouds-wrap` no longer stretched to the full
+//          illustration height — capped instead, pinned to the top.
+//  10. Per your follow-up after step 9 shipped — "the background is
+//      not really loopable... roughly cut, sharp cut between the loop
+//      at one part" persisted even after the SOURCE FILE reprocessing
+//      above. Traced to a second, independent cause this time — CSS,
+//      not the source file: `.education-clouds-track img` used
+//      `object-fit: cover; height: 100%;` to fill the wrap, but the
+//      wrap's own box (a percentage of the section's height) was
+//      proportionally much TALLER, relative to its width, than the
+//      clouds artwork itself at the time (a very wide, flat strip).
+//      `cover` always scales to match whichever axis makes the image
+//      just barely fill the box, then crops the other axis to fit —
+//      since the box was relatively taller than the artwork, `cover`
+//      scaled to match the box's HEIGHT and cropped the WIDTH down to
+//      fit, centered. That meant each of the two copies was only ever
+//      showing the same cropped CENTER slice of the source, never its
+//      true left/right edges — the exact edges step 9's reprocessing
+//      had carefully made tileable. Two copies of the same center-crop,
+//      placed edge to edge, jump from the right side of that crop
+//      straight back to its left side at the seam — a real
+//      discontinuity, and visually indistinguishable from "a cut in
+//      the middle of the image," even though the source file itself
+//      was already fine by this point. Fixed by dropping
+//      `object-fit: cover` and `height: 100%` entirely — each copy now
+//      renders at `width: 50%` (of the 200%-wide track, i.e. exactly
+//      one wrap-width) with `height: auto`, so the browser scales it
+//      to its own natural aspect ratio instead of forcing it to fill
+//      the box. That guarantees the FULL width of the source (0% to
+//      100%, the genuinely tileable edges) always maps onto each
+//      copy — no crop, no arbitrary center window, so the true seam is
+//      what actually meets at the loop boundary. `align-items:
+//      flex-start` on the track keeps the images pinned to the top of
+//      the wrap rather than being flex-stretched back to full height.
+//  11. THIS VERSION, per your follow-up — "on some screens the clouds
+//      are just a bit too high which results in some background sky
+//      to be seen." Root cause: `.education-clouds-wrap`'s height was
+//      still a fixed PERCENTAGE of `.education-visual`'s own height,
+//      while the clouds artwork itself (rendering at `height: auto`
+//      since step 10) is sized purely off its OWN intrinsic aspect
+//      ratio — two independent numbers, with no guarantee they'd ever
+//      match. Worse, `.education-visual`'s height isn't even constant
+//      relative to viewport width: it comes from `.education-image-
+//      wrap`, which switches from the base illustration's own aspect
+//      ratio to a fixed `1 / 1` at the `1024px` narrow-window
+//      breakpoint (see that section below) — so the wrap's target
+//      height, in `vw` terms, actually changes shape at that
+//      breakpoint, while the clouds' own natural height (also in `vw`
+//      terms, since the wrap is always `100vw` wide) stays exactly the
+//      same. The gap between "how tall the wrap wants to be" and "how
+//      tall the clouds actually render" was therefore never fixed —
+//      it happened to be small on wide desktop screens and much larger
+//      on screens at or below `1024px`, which is exactly the "some
+//      screens" you saw the flat `#40CAEC` sky poking through on. You
+//      also supplied a new, taller clouds source at this point
+//      (7679×4320, versus the original's much flatter ~7679×2160) —
+//      that closed the gap somewhat at wide desktop widths (where its
+//      new aspect ratio happens to land close to the wrap's old
+//      percentage-derived one) but couldn't fix the underlying issue,
+//      since no single fixed-aspect-ratio image can match a wrap
+//      height that itself changes shape at a breakpoint. Fixed by
+//      removing the percentage entirely: `.education-clouds-wrap` now
+//      uses `aspect-ratio: 7679 / 3026` — the clouds source's own
+//      exact pixel dimensions — instead of `height: 80%`. Since the
+//      wrap's width is always a definite `100vw`, this gives it EXACTLY
+//      the height the clouds naturally render at, always, with zero
+//      dependency on `.education-visual` at all — there's no longer
+//      two independent numbers that could ever drift apart, at this or
+//      any future breakpoint. One side effect worth knowing: at wide
+//      desktop widths this new height comfortably exceeds where the
+//      courtyard gap's alpha channel goes opaque (~64% of the
+//      illustration, see below) — harmless, since the building
+//      illustration paints on top of the clouds layer regardless, so
+//      the excess is simply hidden behind it rather than showing
+//      through anywhere.
+//  12. THIS VERSION, per your follow-up that you still saw blue sky
+//      space on some screens (and separately, white space between the
+//      clouds and the island illustration) even after step 11's CSS
+//      fix. With direct access to the actual source file this time,
+//      the real cause turned out to be baked into the PIXELS, not the
+//      CSS at all: `education_island_clouds_background.webp`'s alpha
+//      channel had a fully transparent margin across its top ~30%
+//      (rows 0–1294 of 4320 had zero alpha everywhere — pure dead
+//      canvas) and, separately, a hard-edged, fully solid
+//      (`alpha: 255` edge-to-edge) block across its bottom ~38%
+//      (rows 2617–4320, ending abruptly at the very last row with no
+//      taper at all) — basically the same "solid white band" problem
+//      from step 9's history entry, reintroduced in this newer,
+//      taller (7679×4320) file, which evidently wasn't given the same
+//      crop-and-fade treatment the original file received. Since
+//      step 11 sizes `.education-clouds-wrap` to match the clouds
+//      source's FULL canvas via `aspect-ratio`, both dead zones were
+//      being faithfully rendered: the transparent top margin let the
+//      flat `#40CAEC` show through for the first ~30% of the wrap
+//      (the "blue sky" you kept seeing), and the solid bottom block
+//      painted a flat, textureless white rectangle for the last ~38%
+//      wherever it wasn't already hidden behind the building
+//      illustration (the "white space" between the clouds and the
+//      island). Fixed by reprocessing the actual image file (not the
+//      CSS): cropped away the fully-transparent top margin entirely
+//      (so content now starts right at row 0, eliminating the blue
+//      gap structurally rather than trying to CSS-position around
+//      it), then replaced the hard-edged solid bottom block with a
+//      smooth cosine fade from full opacity down to fully transparent
+//      over its final ~22%, landing at true `alpha: 0` by the very
+//      last row — same "fade the tail, don't cut it" technique step
+//      9 used originally. Net result: `education_island_clouds_
+//      background.webp` is now 7679×3026 (was 7679×4320) — a backup
+//      of the pre-fix file is kept alongside it as
+//      `education_island_clouds_background_original_backup.webp` in
+//      case you ever want to reprocess it differently — and
+//      `.education-clouds-wrap`'s `aspect-ratio` below was updated to
+//      `7679 / 3026` to match, so the wrap's box still exactly equals
+//      the (now dead-zone-free) image's own natural rendered size,
+//      same reasoning as step 11.
+//  13. THIS VERSION, per your follow-up — "there is too much blue
+//      space between the clouds and the education_island_ver3.webp
+//      image... make some white space between it please." Root cause:
+//      step 12's fix made the clouds wrap match the clouds ARTWORK's
+//      own (now dead-zone-free, but still comparatively short) natural
+//      height exactly — 7679×3026, rendering at roughly 39vw tall at
+//      full-bleed width — but the actual courtyard floor line in
+//      `education_island_ver3.webp` (measured directly off its alpha
+//      channel this time, not eyeballed: the gap stays transparent
+//      down to row 2322 of 3600, i.e. ~64.5% of that image's own
+//      height, confirmed consistently across the ~28%–64% width band
+//      the gap occupies) sits noticeably lower, at roughly 46vw. The
+//      ~7vw stretch between the two was simply uncovered flat
+//      `#40CAEC`, which is exactly the "too much blue space" you saw.
+//      Fixed by reintroducing a two-piece `.education-clouds-wrap` (a
+//      column flex container, similar in spirit to an earlier attempt
+//      you'd since reverted, but grounded in this measured number
+//      rather than a guess this time): the wrap's own height goes
+//      back to being a PERCENTAGE of `.education-visual` — `64.5%`,
+//      matching the courtyard floor line exactly, the same figure
+//      this file already uses for `.content`'s own vertical bounds
+//      (see "Positioning `.content`" below) — so the wrap always
+//      reaches precisely down to where the building illustration
+//      turns opaque, at any breakpoint, the same way `.content`'s own
+//      percentages already do. Inside it, `.education-clouds-track-
+//      row` holds the actual scrolling clouds (`flex: 0 0 auto`,
+//      sized to its own natural height only, untouched — still no
+//      cropping, so step 10's tileable-seam fix is unaffected), and
+//      `.education-clouds-fill` (`flex: 1 1 auto`,
+//      `background: #ffffff`) grows to soak up whatever's left
+//      between the clouds' own (shorter) height and the wrap's
+//      `64.5%` total — exactly the "some white space in between" you
+//      asked for, sized to close the specific gap that was actually
+//      measured this time rather than guessed at.
+//  14. THIS VERSION, per your follow-up — "make the clouds a bit
+//      overlap with the created white space so it is guaranteed every
+//      time to work properly." Step 13's fill closes the gap with a
+//      precise MEASURED number (`64.5%`, matched to this specific
+//      clouds file's own natural height), which works exactly as long
+//      as the clouds row's real rendered height, sub-pixel rounding
+//      included, never ends up a hair taller than expected — swap in
+//      a different clouds image later (as you were experimenting with
+//      this session) and a razor-thin sliver of the flat `#40CAEC`
+//      could in principle peek through right at the seam between the
+//      clouds row and the fill. `.education-clouds-fill` now carries
+//      `margin-top: -1vw` — since it's the LATER element in DOM order
+//      (painted on top of `.education-clouds-track-row` wherever the
+//      two overlap), pulling it up by a small, deliberate amount means
+//      its opaque white always paints over the clouds row's own last
+//      sliver of height instead of stopping exactly at its edge — so
+//      even if the row renders very slightly taller than the fill
+//      "expects," there's no longer a razor-thin gap for the section's
+//      flat blue to show through at all, on any image or any screen.
+//      `1vw` is deliberately larger than any realistic rounding error
+//      (which would only ever be a fraction of a pixel) so this holds
+//      regardless of which clouds file ends up in `cloudsBackground`
+//      going forward, not just today's image specifically. The
+//      trade-off is genuinely invisible: it just means the very last
+//      `1vw` of the clouds artwork's own bottom edge — already the
+//      point of highest, most uniform density, per this file's own
+//      cloud-density gradient — sits behind solid white instead of
+//      being visible in front of it.
 //
 // IMPORTANT about this image: unlike the OTHER sections' background
 // photos (Art/Computer/Achievement/Bonus/Hobby/InBetween1, all opaque
@@ -135,7 +306,12 @@
 // this exact same reason — it needs to sit fully behind the image and
 // match its box exactly, without contributing any height of its own
 // that would make `.education-visual` taller than the image alone
-// makes it.
+// makes it. Since step 13, its OWN height is a measured percentage of
+// `.education-visual`'s box again (`64.5%`, matching the courtyard
+// floor line — see that history entry) — `position: absolute` here is
+// what stops that height from ALSO contributing back into
+// `.education-visual`'s own size, the same circular-dependency risk
+// `.content` avoids the same way.
 //
 // Positioning `.content` inside the gap (desktop/default — no media
 // query): measured directly off the source file's alpha channel (a
@@ -172,19 +348,20 @@
 // same overlaid position at every width, so nothing about the text
 // jumps or shifts when this breakpoint hits; only the image crops in
 // underneath it. `.education-clouds-wrap` doesn't need its own media
-// query either — it's `inset: 0` against `.education-visual`, and
-// `.education-visual`'s height still comes from `.education-image-wrap`
-// (the only in-flow-height-contributing child), so the clouds layer
-// automatically matches whatever height the image wrap ends up at,
-// cropped breakpoint included. The percentages still land correctly in
-// the gap even against the cropped image — worked out by hand (and
-// confirmed with Playwright): `object-position: center` crops the
-// image symmetrically around its own middle, and `.content`'s
-// `left: 47%` is already close enough to that midpoint (47% vs. 50%)
-// that the remapping from "percentage of the cropped box" back to
-// "percentage of the original image" barely moves it (`~47.8%` instead
-// of `47%`) — nowhere near enough to visibly drift off the gap.
-// `aspect-ratio`
+// query either (see step 13's history entry): its height is `64.5%`
+// of `.education-visual`, the same measured courtyard-floor
+// percentage `.content` already uses — so it automatically re-scales
+// together with `.education-visual` at this breakpoint exactly the
+// same way `.content`'s own percentages do, rather than needing a
+// separate override here.
+// The percentages on `.content` still land correctly in the gap even
+// against the cropped image — worked out by hand (and confirmed with
+// Playwright): `object-position: center` crops the image symmetrically
+// around its own middle, and `.content`'s `left: 47%` is already close
+// enough to that midpoint (47% vs. 50%) that the remapping from
+// "percentage of the cropped box" back to "percentage of the original
+// image" barely moves it (`~47.8%` instead of `47%`) — nowhere near
+// enough to visibly drift off the gap. `aspect-ratio`
 //     (rather than a `vh`-based height, which is what
 //     OtherIslandSection.astro's mobile breakpoint uses) is deliberate
 //     here: since the wrap's width is already a definite `100vw`, an
@@ -266,49 +443,64 @@
 // class — no markup/script needed here for it), same as before.
 //
 // Clouds background (`cloudsBackground`, step 8, reprocessed in step
-// 9): a single wide clouds illustration, doubled up side-by-side
-// inside a `200%`-wide flex track and scrolled with one CSS
-// `animation`, the same "duplicate + translateX" loop technique used
-// for any seamless horizontal marquee — this ONLY reads as seamless
-// because the source file itself was made to tile horizontally first
-// (see step 9's history entry above); the CSS technique alone can't
-// paper over a source image whose edges don't match.
+// 9, loop fixed in step 10, sizing fixed in steps 11–13): a single wide
+// clouds illustration, doubled up side-by-side inside a `200%`-wide
+// flex track and scrolled with one CSS `animation`, the same
+// "duplicate + translateX" loop technique used for any seamless
+// horizontal marquee — this ONLY reads as seamless because (a) the
+// source file itself was made to tile horizontally first (see step
+// 9's history entry), AND (b) each copy renders at its own natural
+// width-mapped aspect ratio rather than being `object-fit: cover`-
+// cropped (see step 10's history entry) — a CSS loop technique alone
+// can't paper over a source image whose edges don't match, and
+// cropping the source's width per copy defeats even a perfectly
+// tileable source.
 // `.education-clouds-track` holds two `<img>` copies of the exact same
 // file, each pinned to `width: 50%` (i.e. exactly one wrap-width each)
-// so the two sit edge-to-edge with no gap. The keyframes animate
-// `transform` from `translateX(-50%)` to `translateX(0%)` — since the
-// percentage in a `translateX` on the track resolves against the
-// TRACK's own width (200% of the wrap), `-50%` of that is exactly one
-// wrap-width, so animating UP to `0%` slides the track rightward by
-// exactly one wrap-width over the loop. Concretely: at the start, copy
-// 2 fills the visible wrap and copy 1 sits one wrap-width to its left,
-// off-screen; as the track slides right, copy 1 enters from the left
-// edge and copy 2 exits off the right edge — i.e. any given cloud
-// shape visibly travels from left to right across the section, per
-// your request. Once the track finishes sliding (copy 1 now exactly
-// fills the wrap, in the same position copy 2 started in), the
-// `infinite` animation restarts at `-50%` — which, because copy 1 and
-// copy 2 are pixel-identical, is visually indistinguishable from where
-// the previous cycle just ended, so the loop reads as continuous with
-// no visible seam or snap. `linear` easing keeps the drift at a
-// constant speed rather than easing in/out at the loop boundary, which
-// would otherwise read as a stutter every cycle. `.education-clouds-wrap`
-// itself needs `overflow: hidden` so only one wrap-width of the
-// always-200%-wide track is ever visible at a time — without it the
-// second copy would spill out past the section's own edges instead of
-// being clipped by them. It sits BEHIND `.education-image-wrap` purely
-// by DOM order (it's the first child of `.education-visual`, and
-// neither it nor the plain `<img>` inside `.education-image-wrap` sets
-// a `z-index`, so normal painting order already puts it underneath) —
-// no `z-index` needed, same as how `.education-image-wrap`'s own
-// `<img>` doesn't need one to sit below `.content`/the glitch frames,
-// which DO set one. Not gated behind `prefers-reduced-motion`, for the
-// same reason the glitch bursts below aren't: Firefox and Brave both
-// report "reduce" by default for privacy reasons unrelated to the
-// viewer's actual motion preference, which would otherwise silently
-// hide this on a CV meant to be seen by whoever an employer happens to
-// open it with. Entirely optional — like the glitch-square props, it
-// only renders (and only pays for the extra `<img>` requests) when
+// so the two sit edge-to-edge with no gap, and `height: auto` so each
+// renders at its own natural aspect ratio, never cropped horizontally.
+// The keyframes animate `transform` from `translateX(-50%)` to
+// `translateX(0%)` — since the percentage in a `translateX` on the
+// track resolves against the TRACK's own width (200% of the wrap),
+// `-50%` of that is exactly one wrap-width, so animating UP to `0%`
+// slides the track rightward by exactly one wrap-width over the loop.
+// Concretely: at the start, copy 2 fills the visible wrap and copy 1
+// sits one wrap-width to its left, off-screen; as the track slides
+// right, copy 1 enters from the left edge and copy 2 exits off the
+// right edge — i.e. any given cloud shape visibly travels from left to
+// right across the section, per your request. Once the track finishes
+// sliding (copy 1 now exactly fills the wrap, in the same position
+// copy 2 started in), the `infinite` animation restarts at `-50%` —
+// which, because copy 1 and copy 2 are pixel-identical AND each now
+// shows its full, genuinely-tileable width (step 10), is visually
+// indistinguishable from where the previous cycle just ended, so the
+// loop reads as continuous with no visible seam or snap. `linear`
+// easing keeps the drift at a constant speed rather than easing
+// in/out at the loop boundary, which would otherwise read as a
+// stutter every cycle. `.education-clouds-track-row` (see step 13's
+// history entry) needs its own `overflow: hidden` so only one
+// wrap-width of the always-200%-wide track is ever visible at a time —
+// without it the second copy would spill out past the section's own
+// edges instead of being clipped by them. `.education-clouds-fill`
+// (also step 13) is a plain white sibling below the track row, sized
+// via `flex: 1 1 auto` to fill whatever's left of the wrap's `64.5%`
+// total height once the clouds row has taken what it needs — see step
+// 13's history entry for why that total is `64.5%` specifically. The
+// outer `.education-clouds-wrap`'s own `overflow: hidden` is what
+// clips the whole column back down to that `64.5%` box. It sits BEHIND
+// `.education-image-wrap` purely by DOM order
+// (it's the first child of `.education-visual`, and neither it nor the
+// plain `<img>` inside `.education-image-wrap` sets a `z-index`, so
+// normal painting order already puts it underneath) — no `z-index`
+// needed, same as how `.education-image-wrap`'s own `<img>` doesn't
+// need one to sit below `.content`/the glitch frames, which DO set
+// one. Not gated behind `prefers-reduced-motion`, for the same reason
+// the glitch bursts below aren't: Firefox and Brave both report
+// "reduce" by default for privacy reasons unrelated to the viewer's
+// actual motion preference, which would otherwise silently hide this
+// on a CV meant to be seen by whoever an employer happens to open it
+// with. Entirely optional — like the glitch-square props, it only
+// renders (and only pays for the extra `<img>` requests) when
 // `cloudsBackground` is actually passed in.
 //
 // Glitch "burst" spots (`glitchSquare1Frame1/2/3`,
@@ -525,10 +717,13 @@ const {
   <div class="education-visual">
     {cloudsBackground && (
       <div class="education-clouds-wrap" aria-hidden="true">
-        <div class="education-clouds-track">
-          <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
-          <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+        <div class="education-clouds-track-row">
+          <div class="education-clouds-track">
+            <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+            <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+          </div>
         </div>
+        <div class="education-clouds-fill"></div>
       </div>
     )}
 
@@ -584,40 +779,47 @@ const {
   }
 
   /* Looping clouds layer, behind everything else — see the dedicated
-     top-of-file comment ("Clouds background") for the full loop
+     top-of-file comment ("Clouds background") for the full history and
      mechanics. Same full-bleed breakout as `.education-image-wrap`
-     below. Pinned to the TOP (`top: 0`) with a fixed `height: 58%` of
-     `.education-visual`'s own box — NOT the full `inset: 0` height
-     this used in the previous version. That change is what fixes "the
-     white part of the clouds showing at the bottom, beneath the
-     illustration": the source `education_island_clouds_background.webp`
-     itself was reprocessed to crop off its old solid-white bottom band
-     and fade smoothly to fully transparent at its own new bottom edge
-     instead (see the top-of-file comment for the file history) — but
-     `object-fit: cover` below still stretches that source to fill
-     whatever height this wrap is given, so leaving it at full height
-     would have re-stretched the fade to end at the very bottom of the
-     illustration again, right where it'd be most likely to peek past
-     the buildings. Capping the wrap at `58%` keeps the whole cloud
-     band (fade-out included) well up in the top portion — comfortably
-     inside where the courtyard gap is transparent (the gap runs to
-     ~64%, see the top-of-file comment) — with the remaining ~42% of
-     the box below it left empty (no clouds, no white — just whatever
-     the flat `#40CAEC`/opaque illustration underneath already show).
-     `position: absolute` still contributes no height to
-     `.education-visual` itself, same trick `.content` uses.
-     `overflow: hidden` clips the always-200%-wide scrolling track back
-     down to one wrap-width. Sits behind `.education-image-wrap` purely
-     by DOM order — no `z-index` needed, see the top-of-file comment. */
+     below. Height is `64.5%` of `.education-visual` — measured
+     directly off `education_island_ver3.webp`'s own alpha channel
+     (see step 13's history entry), matching exactly where the
+     courtyard floor turns opaque, the SAME percentage `.content`'s own
+     vertical bounds already use — so the wrap always reaches down to
+     that line, at any breakpoint, without needing its own media query
+     (see the top-of-file "Narrow-window" comment). `position: absolute`
+     still contributes no height to `.education-visual` itself, same
+     trick `.content` uses. A column flex container with two stacked
+     children (step 13): the clouds themselves, sized to their own
+     natural height only and never stretched or cropped (so step 10's
+     tileable-seam fix stays intact), and a plain white fill below them
+     that grows to soak up whatever's left of this `64.5%` box — see
+     `.education-clouds-track-row` and `.education-clouds-fill` below.
+     `overflow: hidden` clips the whole column back down to this box.
+     Sits behind `.education-image-wrap` purely by DOM order — no
+     `z-index` needed, see the top-of-file comment. */
   .education-clouds-wrap {
     position: absolute;
     top: 0;
-    height: 80%;
+    height: 64.5%;
     left: 50%;
     right: 50%;
     width: 100vw;
     margin-left: -50vw;
     margin-right: -50vw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Sized to its own content only (`flex: 0 0 auto`) — exactly as
+     tall as the clouds artwork renders at, whatever that works out to
+     at the current viewport width, never stretched to fill the rest
+     of `.education-clouds-wrap`. Its own `overflow: hidden` clips the
+     always-200%-wide scrolling track back down to one wrap-width. */
+  .education-clouds-track-row {
+    flex: 0 0 auto;
+    width: 100%;
     overflow: hidden;
   }
 
@@ -627,8 +829,8 @@ const {
      right, seamlessly." */
   .education-clouds-track {
     display: flex;
+    align-items: flex-start; /* don't let images get flex-stretched vertically */
     width: 200%;
-    height: 100%;
     animation: education-clouds-scroll 60s linear infinite;
   }
 
@@ -636,9 +838,27 @@ const {
     display: block;
     flex: 0 0 50%;
     width: 50%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;   /* natural aspect ratio — full source width per copy, never cropped; see step 10's history entry */
     pointer-events: none;
+  }
+
+  /* Grows to fill whatever vertical space is left in
+     `.education-clouds-wrap` once the clouds row above has taken what
+     it needs (`flex: 1 1 auto`) — see step 13's history entry for why
+     this is a separate box (rather than one shared background behind
+     both the clouds row and this space) and why the wrap's total is
+     `64.5%` specifically. `margin-top: -1vw` (step 14) pulls it up to
+     deliberately overlap the bottom edge of `.education-clouds-track-
+     row` by a small, fixed amount — since this element comes AFTER
+     the track row in DOM order, its opaque white paints on top of
+     that overlap, guaranteeing there's never a razor-thin gap for the
+     flat `#40CAEC` behind everything to show through at the seam,
+     regardless of sub-pixel rounding or which clouds image ends up
+     passed in as `cloudsBackground`. See step 14's history entry. */
+  .education-clouds-fill {
+    flex: 1 1 auto;
+    margin-top: -1vw;
+    background: #ffffff;
   }
 
   @keyframes education-clouds-scroll {
@@ -821,8 +1041,9 @@ const {
      top/left/transform as the default rule) at every width, including
      here — only the image itself changes at this breakpoint. The
      clouds layer needs no rule here at all — see the top-of-file
-     comment ("Narrow-window") for why it automatically tracks
-     whatever height the image wrap ends up at. */
+     comment ("Narrow-window") for why its own `aspect-ratio` keeps it
+     unaffected by whatever this breakpoint does to
+     `.education-image-wrap`. */
   @media (max-width: 1024px) {
     /* `aspect-ratio` (not a `vh` height) so the crop fraction stays
        consistent across phones regardless of their own screen aspect
