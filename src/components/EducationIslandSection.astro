@@ -353,6 +353,132 @@
 //          building, less crop); let me know if `75vh` still isn't the
 //          right amount either way, since I can't preview the live
 //          result myself.
+//  17. THIS VERSION, per your follow-up — "for the mobile version just
+//      make the clouds a bit lower so it kinda matches the perspective
+//      like they have on wide big screens please." Root cause: step
+//      16's mobile crop effectively ZOOMS IN on `.education-image-wrap`
+//      (on a narrow/tall phone, `object-fit: cover` scales the image
+//      up to `75vh` tall before cropping the sides down to `100vw` —
+//      noticeably larger than the image's natural, un-zoomed `100vw`-
+//      wide size), but `.education-clouds-wrap` stayed unconditionally
+//      `100vw` at every breakpoint, so its own `height: auto` clouds
+//      kept rendering at their natural, un-zoomed height — tiny
+//      relative to the now-zoomed buildings below, leaving a big flat
+//      white gap under a thin sliver of clouds instead of the clouds
+//      reaching down toward the courtyard floor the way they do on
+//      desktop (where nothing is zoomed, so the clouds' natural height
+//      already nearly fills the `64.5%` band). Fixed by widening
+//      `.education-clouds-wrap` inside this breakpoint by the EXACT
+//      same zoom factor the image above it is undergoing — computed
+//      via `calc()` from the same numbers step 16 already uses
+//      (`max(75vh, 72vw)` reconstructs the box height `.education-
+//      image-wrap` resolves to, `* 25 / 18` converts that back to the
+//      equivalent un-cropped width) — rather than a guessed constant,
+//      so it stays correct across every phone/tablet size this
+//      breakpoint covers, not just one test size. See the dedicated
+//      comment on `.education-clouds-wrap` inside the media query
+//      further down for the full derivation.
+//  18. THIS VERSION, per your follow-up — "the text area positioning in
+//      the educationislandsection is a lot different than the text
+//      position place for all the other sections... adjust the text
+//      area positioning... to be the same like it is for all the
+//      other sections please." Before this, `.content` sat at a fixed
+//      spot measured off the courtyard gap (`top: 33%; left: 47%`) —
+//      every other section in this family instead just centers
+//      `.content` dead in the middle of the whole section via
+//      `display: grid; place-items: center;` plus a plain `position:
+//      relative` `.content`. I flagged that adopting that exact
+//      technique would move the text off its old gap-specific spot,
+//      possibly over parts of the buildings, since the gap isn't
+//      necessarily centered in the image — you confirmed you wanted
+//      the family-standard dead-center placement anyway, even with
+//      that tradeoff.
+//        Implemented by moving `display: grid; place-items: center;`
+//      onto `.education-visual` rather than the section itself (so it
+//      centers `.content` within the VISUAL's own box — matching the
+//      rendered image exactly — rather than the section's box, which
+//      also includes this component's own padding), and giving both
+//      `.education-image-wrap` and `.content` `grid-area: 1 / 1` so
+//      they share that one grid cell instead of stacking in separate
+//      rows (grid auto-placement's default for two in-flow children).
+//      `.education-image-wrap` is real, in-flow content, so it's still
+//      what sizes that cell (exactly as it sized `.education-visual`
+//      before this step); `.content` just centers itself inside
+//      whatever box that works out to, painting on top of it.
+//      `.content` itself now uses the exact same rule every other
+//      section's `.content` uses, copied verbatim: `position:
+//      relative; z-index: 2; width: min(32ch, 100%); margin: 0 auto;
+//      text-align: left;`. `.education-clouds-wrap` needed no change —
+//      it's `position: absolute`, already excluded from grid layout
+//      entirely, and keeps resolving its own `64.5%` height against
+//      `.education-visual`'s box exactly as before. See the
+//      "Positioning `.content`" section below for the current
+//      placement (and what it replaced). None of the image cropping,
+//      mobile-zoom (steps 15-17), or clouds-loop mechanics changed —
+//      this was purely a `.content` positioning change.
+//  19. THIS VERSION, per your follow-up — "the education_island is
+//      completely at a wrong place now." Step 18's approach (sharing
+//      a single CSS Grid cell — `grid-area: 1 / 1` — between
+//      `.education-image-wrap` and `.content`, both inside a
+//      `.education-visual` now set to `display: grid; place-items:
+//      center;`) broke the image itself: `.education-image-wrap`'s
+//      full-bleed breakout (`position: relative; left: 50%; width:
+//      100vw; margin-left: -50vw; margin-right: -50vw;`) depends on
+//      its offsets and width resolving against the VIEWPORT the way
+//      normal block layout resolves them — but a grid item's `left`/
+//      `right` percentages resolve against its own grid AREA instead,
+//      and `place-items: center` additionally tries to self-align the
+//      item's margin box within that area, which a ±50vw margin pair
+//      does not survive predictably. Net result: the browser computed
+//      a wrong size/position for the image instead of the intended
+//      edge-to-edge box. Fixed by decoupling the two concerns again:
+//      `.education-visual` is back to plain `position: relative` (no
+//      grid), `.education-image-wrap` lost its `grid-area: 1 / 1`, and
+//      `.content` moved into a brand-new sibling wrapper,
+//      `.education-content-overlay` (`position: absolute; inset: 0;
+//      display: grid; place-items: center;`), which spans
+//      `.education-visual`'s box independently and contains nothing
+//      but `.content` — so it gets the exact same `place-items:
+//      center` dead-centering as before, but the breakout image is
+//      nowhere near a grid context any more. `.content`'s own CSS
+//      rule (the family-standard `position: relative; z-index: 2;
+//      width: min(32ch, 100%); margin: 0 auto; text-align: left;`
+//      from step 18) is completely unchanged — only the mechanism
+//      centering it changed.
+//  20. THIS VERSION, per your follow-up — "no even worse...make the
+//      island like it was, so from left to right present all the
+//      time in the middle the text, but so that the text area is the
+//      same as it is for all other sections please." Step 19's fix
+//      (a dedicated `.education-content-overlay` grid wrapper for
+//      `.content`, meant to keep the fragile full-bleed image away
+//      from any grid layout) still wasn't right — two attempts at
+//      giving `.content` this family's literal CSS-Grid centering
+//      technique both caused real damage to the image, so this
+//      version stops trying: `.education-visual`, `.education-image-
+//      wrap`, and `.education-clouds-wrap` are all back to EXACTLY
+//      their step-8-through-17 form (no `display: grid` anywhere in
+//      this component any more, no `.education-content-overlay`
+//      wrapper) — "the island like it was." `.content` is back to the
+//      plain `position: absolute` + `transform: translate(-50%,
+//      -50%)` mechanism this file used from step 4 through step 17,
+//      just re-anchored to `top: 50%; left: 50%` (dead center of
+//      `.education-visual`, i.e. always in the middle, left to right,
+//      matching your request) instead of the old gap-specific `33%`/
+//      `47%`. `.content`'s own declarations (`width: min(32ch, 100%);
+//      text-align: left;`) are the same values every other section's
+//      `.content` uses — matching "the text area is the same as it
+//      is for all other sections," just reached via this file's own
+//      proven positioning mechanism rather than the literal grid
+//      technique, since that technique has now broken the image twice
+//      in a row and I have no way to preview a third attempt at it.
+//  21. THIS VERSION, per your follow-up — "move the text area a
+//      little bit higher please." Simple retune of step 20's `top`
+//      value: `50%` (dead-center) to `42%` — still the same plain
+//      `position: absolute` + `transform: translate(-50%, -50%)`
+//      mechanism, just a smaller anchor percentage, which moves the
+//      text upward. Easy to keep nudging by feel: smaller than `42%`
+//      moves it higher still, closer to `50%` brings it back toward
+//      dead-center.
 //
 // IMPORTANT about this image: unlike the OTHER sections' background
 // photos (Art/Computer/Achievement/Bonus/Hobby/InBetween1, all opaque
@@ -366,63 +492,87 @@
 // background instead of your flat `#40CAEC` fill, which looked broken.
 // As a foreground image sitting on top of the section's own flat-color
 // background, the transparent parts correctly show that color through
-// instead — which is also exactly what makes step 4 possible: `.content`
-// can sit inside that same see-through gap and read cleanly against the
-// flat color, framed by the two buildings on either side. Since step 8
-// above, the transparent gap shows the looping clouds layer instead of
-// the flat color directly — the flat `#40CAEC` on `.education-section`
-// is still there underneath everything, as a fallback for the split
-// second before the clouds image itself has loaded in, and for anyone
-// who didn't pass `cloudsBackground` at all.
+// instead — which is also exactly what made step 4 possible in the
+// first place: `.content` sitting inside that same see-through gap,
+// framed by the two buildings on either side, read cleanly against
+// the flat color instead of needing a solid card behind it. Since
+// step 18, `.content` no longer specifically targets that gap (see
+// the "Positioning `.content`" section below for the current,
+// family-standard placement) — but the same transparency is still
+// what lets it read cleanly wherever it lands, on top of whatever's
+// directly behind that spot. Since step 8 above, the transparent gap
+// shows the looping clouds layer instead of the flat color directly —
+// the flat `#40CAEC` on `.education-section` is still there
+// underneath everything, as a fallback for the split second before
+// the clouds image itself has loaded in, and for anyone who didn't
+// pass `cloudsBackground` at all.
 //
 // Structure: `.education-visual` > (`.education-clouds-wrap`,
 // `.education-image-wrap` > `<img>`, `.content`) — i.e. `.content` is
-// a SIBLING of the image wrap, not nested inside it any more. That
-// split exists purely for step 5's mobile crop: `.education-image-wrap`
-// gets a real `aspect-ratio` on mobile (see below) so the browser knows
-// exactly how tall to make it, but a block only honors that if nothing
-// forces it taller — and `.content` in normal flow (which is what
-// mobile needs, see below) counts as exactly that kind of forcing
-// content. With `.content` nested inside the wrap, its own text height
-// was inflating the wrap past its aspect-ratio size, confirmed with
-// Playwright (measured height came out ~40% taller than the
-// aspect-ratio math predicted). Pulling `.content` out to be a sibling
-// under `.education-visual` fixes that: the wrap now contains ONLY the
-// `<img>`, so nothing stops its `aspect-ratio` from being honored
-// exactly, on any screen size. `.education-visual` has
-// `position: relative` and is what `.content`'s percentage-based
-// desktop position resolves against — since `.content` is
-// `position: absolute` there (removed from flow, contributing no
-// height), `.education-visual`'s rendered box ends up exactly matching
-// the image wrap's own box, so the same percentages that used to be
-// measured against the wrap directly still land in the same place now
-// that they're measured against its sibling wrapper instead.
-// `.education-clouds-wrap` (step 8) is ALSO `position: absolute` for
-// this exact same reason — it needs to sit fully behind the image and
-// match its box exactly, without contributing any height of its own
-// that would make `.education-visual` taller than the image alone
-// makes it. Since step 13, its OWN height is a measured percentage of
-// `.education-visual`'s box again (`64.5%`, matching the courtyard
-// floor line — see that history entry) — `position: absolute` here is
-// what stops that height from ALSO contributing back into
-// `.education-visual`'s own size, the same circular-dependency risk
-// `.content` avoids the same way.
+// a SIBLING of the image wrap, not nested inside it. That split
+// originally existed purely for step 5's mobile crop (`.education-
+// image-wrap` needs an unobstructed `aspect-ratio` on mobile — a
+// block only honors that if nothing else forces it taller, and
+// `.content` nested inside it, in normal flow, was exactly that kind
+// of forcing content — confirmed with Playwright, the wrap rendered
+// ~40% taller than the aspect-ratio math predicted until `.content`
+// was pulled out).
+//   Steps 18-19 twice tried to give `.content` the exact same CSS
+// technique the rest of this family uses (a `display: grid; place-
+// items: center;` ancestor with `.content` as a plain `position:
+// relative` grid item) instead of `.content`'s own long-standing
+// `position: absolute` + `transform` approach — first by making
+// `.education-visual` itself the grid container with `.education-
+// image-wrap` AND `.content` sharing one `grid-area: 1 / 1` cell,
+// then, after that broke the image ("the education_island is
+// completely at a wrong place"), by moving `.content` into a
+// dedicated `.education-content-overlay` grid wrapper instead. Both
+// attempts caused real regressions you reported, the second one
+// "even worse" than the first — root cause in both cases traces back
+// to `.education-image-wrap`'s full-bleed breakout (`position:
+// relative; left: 50%; width: 100vw; margin-left: -50vw; margin-
+// right: -50vw;`, see its own comment below): that trick depends on
+// its offsets and width resolving against the VIEWPORT the way
+// normal block layout resolves them, and grid layout (directly, or
+// even just being a sibling inside a `display: grid` ancestor)
+// changes enough about how those percentages and self-alignment
+// resolve that the browser stopped producing the intended edge-to-
+// edge box.
+//   Step 20 abandons the grid approach entirely: `.education-visual`
+// is a plain `position: relative` block again (no `display: grid`
+// anywhere in this component), `.education-image-wrap` is back to
+// exactly its step-8-through-17 form, and `.content` is back to being
+// its plain sibling, positioned with `position: absolute` + a
+// `transform` — the same mechanism that worked reliably for 17
+// straight iterations before steps 18-19's detour, just re-anchored
+// to dead-center (`top: 50%; left: 50%`) instead of the old gap-
+// specific coordinates. `.education-clouds-wrap` (step 8) was never
+// affected by any of this either way — it's `position: absolute`,
+// which keeps it out of `.education-visual`'s layout regardless of
+// whether that's grid or block — its own `64.5%` height (step 13)
+// keeps resolving against `.education-visual`'s box exactly as
+// before.
 //
-// Positioning `.content` inside the gap (desktop/default — no media
-// query): measured directly off the source file's alpha channel (a
-// column is "in the gap" once it's transparent for more than half the
-// image's height) — the gap runs horizontally from ~26% to ~68% of
-// the image's width (center ~47%), and vertically from the very top
-// down to ~64% (below that, the courtyard floor/steps become opaque).
-// `.content` is positioned at `left: 47%; top: 33%;` with
-// `transform: translate(-50%, -50%)` — i.e. centered on that point.
-// `width: min(32ch, 100%)` is the same formula every other section in
-// this family uses for `.content` — 32ch alone already comes out
-// narrower than the ~42%-wide gap at any realistic viewport width, so
-// it fits without its own bespoke cap, matching your reference photo
-// (cross-checked against it: the box in your photo sits at roughly the
-// same 47%-center, 4%-62% vertical span once you exclude the section's
-// own top/bottom padding).
+// Positioning `.content` (steps 20-21): slightly above dead-center of
+// `.education-visual`'s own box via plain `position: absolute; top:
+// 42%; left: 50%; transform: translate(-50%, -50%);` — the same
+// mechanism this file has used for `.content` since step 4. Step 20
+// re-anchored it to dead-center (`50%`/`50%`) instead of the old
+// gap-specific `33%`/`47%`; step 21 then nudged `top` up to `42%` per
+// your follow-up asking for the text a bit higher. See the "Structure"
+// paragraph above for why steps 18-19's CSS-Grid attempts at centering
+// this were abandoned in favor of sticking with this proven
+// technique.
+//   Before step 18, this used to be a hand-measured spot inside the
+// courtyard gap instead: `.content` at `left: 47%; top: 33%;`,
+// derived by scanning the source file's alpha channel for where the
+// gap between the two buildings runs (horizontally ~26%-68%, center
+// ~47%; vertically from the top down to ~64%, cross-checked against
+// your reference photo). That measurement is kept here for the record
+// in case a future request ever wants the text back inside the gap
+// specifically — the `64.5%` figure baked into `.education-clouds-
+// wrap`'s height (step 13) comes from this same alpha-channel scan
+// and is unaffected by this step.
 //
 // No background/scrim behind the text — per your feedback, `.content`
 // (and `.eyebrow`/`h2`/`.body-text`) keep the exact same plain styling
@@ -451,23 +601,21 @@
 // against that `75vh`-tall box — tuned (per step 16) to show a real
 // sliver of both buildings alongside the courtyard rather than
 // cropping in tight enough to show only the gap itself. `.content`
-// does NOT change here any more (see step 6 above) — it keeps the
-// exact same overlaid position at every width, so nothing about the
-// text jumps or shifts when this breakpoint hits; only the image
-// crops in underneath it. `.education-clouds-wrap` doesn't need its
-// own media query either (see step 13's history entry): its height is
-// `64.5%` of `.education-visual`, the same measured courtyard-floor
-// percentage `.content` already uses — so it automatically re-scales
-// together with `.education-visual` at this breakpoint exactly the
-// same way `.content`'s own percentages do, rather than needing a
-// separate override here.
-// The percentages on `.content` still land correctly in the gap even
-// against the cropped image — worked out by hand: `object-position:
-// center` crops the image symmetrically around its own middle, and
-// `.content`'s `left: 47%` is already close enough to that midpoint
-// (47% vs. 50%) that the remapping from "percentage of the cropped
-// box" back to "percentage of the original image" barely moves it —
-// nowhere near enough to visibly drift off the gap.
+// does NOT change position here any more (see step 6 above) — it's
+// still the same grid-centered `.content` from step 18 at every
+// width, painted on top of whatever `.education-image-wrap` crops to
+// at this breakpoint, so nothing about the text jumps or shifts when
+// this breakpoint hits; only the image crops in underneath it.
+// `.education-clouds-wrap`'s HEIGHT still doesn't need its own media
+// query (see step 13's history entry): it's `64.5%` of `.education-
+// visual`, measured directly off the courtyard floor line, so that
+// stays automatic at every width. Its WIDTH, though, does get a
+// step-17 override in this media query — see that history entry and
+// the dedicated comment on `.education-clouds-wrap` inside the media
+// query below for why (short version: matching the same "zoom" this
+// breakpoint applies to `.education-image-wrap`, so the clouds reach
+// proportionally as far down the `64.5%` band on mobile as they do on
+// desktop).
 //
 // History of this breakpoint's crop, if you ever want to revisit any
 // of it: `aspect-ratio: 1 / 1` originally (step 5) — chosen so the
@@ -869,11 +1017,14 @@ const {
     background: #40CAEC;
   }
 
-  /* Positioning context for `.content` and `.education-clouds-wrap`
-     (see the top-of-file comment for why both live here as siblings of
-     the image wrap rather than nested inside it). Otherwise a plain,
-     unstyled block — it just wraps the pieces so their percentages
-     have something stable to resolve against. */
+  /* Positioning context for `.content`, `.education-image-wrap`, and
+     `.education-clouds-wrap` (see the top-of-file "Structure"
+     paragraph for the full reasoning) — otherwise a plain, unstyled
+     block. Steps 18-19 briefly routed `.content`'s centering through
+     CSS Grid here (first directly, then via a dedicated overlay
+     wrapper); step 20 reverted both attempts after they broke the
+     image, so this is back to the same plain `position: relative` it
+     had from step 8 all the way through step 17. */
   .education-visual {
     position: relative;
   }
@@ -884,12 +1035,13 @@ const {
      below. Height is `64.5%` of `.education-visual` — measured
      directly off `education_island_ver3.webp`'s own alpha channel
      (see step 13's history entry), matching exactly where the
-     courtyard floor turns opaque, the SAME percentage `.content`'s own
-     vertical bounds already use — so the wrap always reaches down to
+     courtyard floor turns opaque — so the wrap always reaches down to
      that line, at any breakpoint, without needing its own media query
      (see the top-of-file "Narrow-window" comment). `position: absolute`
-     still contributes no height to `.education-visual` itself, same
-     trick `.content` uses. A column flex container with two stacked
+     excludes it from `.education-visual`'s grid layout entirely (step
+     18), the same way it always kept this element from contributing
+     height back into `.education-visual` itself even before that
+     step. A column flex container with two stacked
      children (step 13): the clouds themselves, sized to their own
      natural height only and never stretched or cropped (so step 10's
      tileable-seam fix stays intact), and a plain white fill below them
@@ -1097,19 +1249,31 @@ const {
     100% { transform: translate(0, 0); }
   }
 
-  /* Positioned inside the courtyard gap between the two buildings —
-     see the top-of-file comment for how these percentages were
-     measured off the source image's alpha channel and cross-checked
-     against your reference photo. Percentages here resolve against
-     `.education-visual`'s own box, which matches the image wrap's box
-     exactly at this breakpoint (see the top-of-file comment for why),
-     so the text stays centered in the gap at every viewport width. */
+  /* Slightly above dead-center of `.education-visual`'s own box —
+     plain `position: absolute` + `transform: translate(-50%, -50%)`,
+     the same proven mechanism this file used from step 4 all the way
+     through step 17 (re-anchored to dead-center, `top: 50%; left:
+     50%`, in step 20, then nudged up to `top: 42%` in step 21 per
+     your follow-up — see the top-of-file "Positioning `.content`"
+     section for that history). Steps 18-19 tried to reach a similar
+     centered result via CSS Grid (first sharing a grid cell directly
+     with `.education-image-wrap`, then via a dedicated `.education-
+     content-overlay` wrapper) — both attempts caused real visible
+     regressions you reported ("the education_island is completely at
+     a wrong place", then "even worse"), so step 20 abandoned the grid
+     approach entirely in favor of this simple absolute-positioning
+     technique, which never once broke the image across 17 earlier
+     iterations. `z-index: 2` paints it above `.education-image-wrap`'s
+     plain `<img>` (which sets none) and above the page-wide cursor-
+     spotlight, the same reason the glitch frames' own `z-index: 1`
+     needs one — see the `.halftone-spotlight` comment in
+     Layout.astro. */
   .content {
     position: absolute;
-    top: 33%;
-    left: 47%;
+    top: 42%;
+    left: 50%;
     transform: translate(-50%, -50%);
-    z-index: 1;
+    z-index: 2;
 
     width: min(32ch, 100%);
     text-align: left;
@@ -1139,11 +1303,11 @@ const {
   /* `1024px`, not the family's usual `640px` — see the top-of-file
      comment for why. `.content` stays overlaid (absolute, same
      top/left/transform as the default rule) at every width, including
-     here — only the image itself changes at this breakpoint. The
-     clouds layer needs no rule here at all — see the top-of-file
-     comment ("Narrow-window") for why its own `aspect-ratio` keeps it
-     unaffected by whatever this breakpoint does to
-     `.education-image-wrap`. */
+     here (step 20) — only the image (and, per step 17, the clouds
+     layer's width) change at this breakpoint. See the top-of-file
+     comment ("Narrow-window") for the image-crop reasoning, and the
+     dedicated comment on `.education-clouds-wrap` a little further
+     down for the step-17 clouds-zoom addition. */
   @media (max-width: 1024px) {
     /* `min-height` + `aspect-ratio` together (step 16) — whichever of
        the two computes the TALLER box wins, per the CSS sizing spec.
@@ -1172,6 +1336,65 @@ const {
       height: 100%;
       object-fit: cover;
       object-position: center;
+    }
+
+    /* Step 17: the clouds "sitting too high" / leaving too much plain
+       white below them on mobile, per this step's history entry.
+       `.education-clouds-wrap` (see its own comment above) is
+       otherwise always exactly `100vw` wide at every breakpoint, so
+       its `height: auto` clouds image renders at its own natural,
+       un-zoomed height. But `.education-image-wrap` right above this
+       comment gets effectively ZOOMED IN on narrow/tall phones (the
+       `min-height: 75vh` branch wins over `aspect-ratio: 5000/3600`,
+       so `object-fit: cover` scales the image up until it's 75vh
+       tall, THEN crops the sides down to 100vw — the image is
+       rendered noticeably larger than its natural 100vw-wide size
+       before that crop happens). The clouds layer wasn't getting the
+       same treatment, so on a typical phone it stayed tiny relative
+       to the now-zoomed buildings below it, occupying only a thin
+       strip at the very top of the 64.5% band instead of reaching
+       down toward the courtyard floor the way it does on wide
+       desktop screens (where nothing is zoomed, so the clouds'
+       natural height already nearly fills that band). Fixed by
+       widening `.education-clouds-wrap` here to match the SAME zoom
+       factor `.education-image-wrap` is undergoing, computed exactly
+       rather than guessed: `max(75vh, 72vw)` recomputes the exact
+       height `.education-image-wrap`'s own dual constraint above
+       resolves to at any viewport size (`72vw` is `100vw` at this
+       image's `3600/5000` ratio, i.e. the `aspect-ratio` branch's
+       height when width is `100vw` — the same math the browser does
+       internally for that rule), then `* 25 / 18` (`5000/3600`
+       simplified) converts that box height back into the equivalent
+       "un-cropped" width the browser would have scaled the image to
+       before `object-fit: cover` cropped it down to `100vw` — i.e.
+       exactly how much wider than `100vw` the buildings image is
+       effectively being rendered at. Applying that identical width to
+       the clouds wrap makes its `height: auto` image scale up by the
+       same factor, so it reaches proportionally the same distance
+       into the `64.5%` band as it does on desktop — "matches the
+       perspective," per this step's request. `left: 50%` +
+       `margin-left: <half the new width, negative>` re-centers it on
+       the viewport for this new, wider-than-100vw size (the default
+       `right: 50%` / `margin-right: -50vw` above would fight a
+       non-100vw width, so both are neutralized here); the extra
+       overflow bleeding past both viewport edges is caught by the
+       same page-wide `overflow-x: hidden`/`clip` on `html` in
+       Layout.astro that every other full-bleed element in this file
+       already relies on (see the top-of-file comment), so nothing
+       here needs its own horizontal scroll guard. Nothing below
+       `.education-clouds-wrap` needs a matching override:
+       `.education-clouds-track-row`, `.education-clouds-track`, and
+       its two `<img>`s are all sized in percentages of this wrap (see
+       their own comments above), so they inherit the wider box
+       automatically, and the seamless loop mechanic (step 10) is
+       scale-invariant either way. */
+    .education-clouds-wrap {
+      --edu-clouds-zoom-width: calc(max(75vh, 72vw) * 25 / 18);
+      width: var(--edu-clouds-zoom-width);
+      left: 50%;
+      right: auto;
+      margin-left: calc(var(--edu-clouds-zoom-width) / -2);
+      margin-right: 0;
     }
   }
 </style>
