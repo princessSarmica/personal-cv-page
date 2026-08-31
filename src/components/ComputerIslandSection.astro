@@ -33,16 +33,28 @@
 // as a plain <img> with loading="lazy" for now so it doesn't block
 // anything above it, but that doesn't shrink the download itself.
 //
-// Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover`, `min-height: 100vh` — same technique
-// every other section in this family uses. The goal, per your
-// clarification: every section keeps a CONSISTENT height across every
-// screen size, with `cover` cropping whichever dimension needs it
-// least to make that happen with no gaps. Briefly tried sizing by
-// height only (`auto 100%`, cropping only the sides) per your request
-// to stop shortening backgrounds vertically on wide screens, but that
-// left visible white space on screens wider (in aspect ratio) than the
-// image itself, which you didn't want either — back to `cover`.
+// Background: originally a real image (`backgroundImage` prop), via
+// `background-image` + `background-size: cover`, `min-height: 100vh`
+// — same technique every other section in this family uses. The
+// goal, per your clarification: every section keeps a CONSISTENT
+// height across every screen size, with `cover` cropping whichever
+// dimension needs it least to make that happen with no gaps. Briefly
+// tried sizing by height only (`auto 100%`, cropping only the sides)
+// per your request to stop shortening backgrounds vertically on wide
+// screens, but that left visible white space on screens wider (in
+// aspect ratio) than the image itself, which you didn't want either —
+// back to `cover`.
+//
+// New: swapped that background image for a plain CSS gradient
+// (`linear-gradient`, see `.computer-section` below), matching a
+// reference photo you sent — a deep-blue-to-cyan vertical sky gradient.
+// The `backgroundImage` prop is gone entirely (removed from `Props`,
+// the destructuring, the `<section>`'s inline style, and this file's
+// own `Usage` example below) rather than left unused, since nothing
+// in this section needs an image file any more. This also retires the
+// long-standing "I still don't have the actual background image file"
+// caveat that used to sit lower in this comment — there's no image to
+// not-have any more.
 //
 // One more layer on top of that: on a short/wide viewport, `cover`
 // still has to crop SOMETHING to avoid a gap, and per your follow-up
@@ -68,9 +80,6 @@
 // script needed here for it, since `body:has(.halftone-hover:hover)
 // .halftone-spotlight` is what actually turns the spotlight on.
 //
-// NOTE: I still don't have the actual background image file — this is
-// reasoned from first principles, not measured against the real file.
-//
 // New: `.computer-section` now has an explicit `z-index: -1;` (below)
 // — not for anything in THIS file, but because ArtIslandSection's
 // moon layer now deliberately bleeds down past its own section's
@@ -88,7 +97,7 @@
 //     text="Lorem ipsum dolor sit amet..."
 //     leftImage="/images/telephone_pole_island.svg"
 //     rightImage="/images/computer_island.gif"
-//     backgroundImage="/images/computer_island_background.webp"
+//     cloudsBackground="/images/computer_island_background_ver2.webp"
 //   />
 
 interface Props {
@@ -98,17 +107,23 @@ interface Props {
   text: string;
   leftImage: string;
   rightImage: string;
-  backgroundImage: string;
+  cloudsBackground: string;
 }
 
-const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Astro.props;
+const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = Astro.props;
 ---
 
 <section
   class="computer-section sky-chain halftone-hover"
   id={id}
-  style={`background-image: url(${backgroundImage});`}
 >
+  <div class="computer-clouds-bg" aria-hidden="true">
+    <div class="computer-clouds-track">
+      <img class="computer-clouds-tile" src={cloudsBackground} alt="" />
+      <img class="computer-clouds-tile" src={cloudsBackground} alt="" />
+    </div>
+  </div>
+
   <div class="computer-island computer-island-left" aria-hidden="true">
     <div class="computer-island-inner parallax-inner">
       <img src={leftImage} alt="" />
@@ -222,22 +237,24 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
        before. */
     z-index: -1;
     min-height: 100vh;
-    /* `aspect-ratio: 16 / 9` matches the background image (measured at
-       3840x2160) — combined with `width: 100%` and `min-height`, the
-       browser uses whichever constraint needs MORE height: on a
-       viewport wider-than-16:9 (mainly short/wide windows), the
-       aspect-ratio wins and this section grows taller than one
-       screen, showing the FULL image at its native ratio with no
-       cropping — you scroll to see the rest, per your request,
-       instead of `cover` shortening (cropping) the image's height to
-       fit a too-short viewport. On a taller-than-16:9 viewport (e.g.
-       mobile portrait), `min-height: 100vh` wins instead, so the
-       section stays exactly one screen tall and `cover` crops the
-       sides only — unchanged from before. `width: 100%` is required
-       alongside `aspect-ratio` — without it, on the min-height-wins
-       branch the browser would stretch this section's WIDTH to
-       satisfy the ratio instead of its height, overflowing past the
-       viewport edges. */
+    /* `aspect-ratio: 16 / 9` used to matter for matching the old
+       background image's own real dimensions (3840x2160) so `cover`
+       never had to crop it top/bottom — with the image gone in favor
+       of a gradient (see the top-of-file comment), there's nothing
+       left to protect from cropping, but this section's overall SHAPE
+       (how tall it grows on unusual viewports) is a separate concern
+       from what paints inside it, and changing it wasn't asked for,
+       so it's left in place as a plain fixed target ratio: combined
+       with `width: 100%` and `min-height`, the browser uses whichever
+       constraint needs MORE height — on a viewport wider-than-16:9
+       (mainly short/wide windows), the aspect-ratio wins and this
+       section grows taller than one screen; on a taller-than-16:9
+       viewport (e.g. mobile portrait), `min-height: 100vh` wins
+       instead, so the section stays exactly one screen tall. `width:
+       100%` is required alongside `aspect-ratio` — without it, on the
+       min-height-wins branch the browser would stretch this section's
+       WIDTH to satisfy the ratio instead of its height, overflowing
+       past the viewport edges. */
     width: 100%;
     aspect-ratio: 16 / 9;
     display: grid;
@@ -247,12 +264,90 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
        hidden` on `html` in Layout.astro. That handles horizontal
        clipping page-wide, so an island that needs more vertical room
        than this section provides isn't hard-clipped. */
-    /* `cover` — always fills the section edge-to-edge with no gaps,
-       cropping whichever dimension needs it least (see the top-of-file
-       comment for why this isn't sized by height alone). */
-    background-size: cover;
-    background-position: top;
-    background-repeat: no-repeat;
+    /* Swapped from an image (`backgroundImage` prop, now removed)
+       to a plain CSS gradient, matching the reference photo you sent
+       — colors sampled directly from that file (top-to-bottom bands
+       at 0/15/30/45/60/75/90/100% height): a deep blue at the top
+       easing into a bright cyan that's mostly settled in by the
+       60-70% mark and stays flat the rest of the way down, which is
+       why the stops below cluster earlier (0/25/50%) and spread out
+       later (75/100%) rather than sitting at even intervals — an
+       evenly-spaced gradient would wash out that "settles into cyan
+       early, stays cyan" shape the photo actually has. Plain gradients
+       don't need `cover`/`position`/`repeat` (nothing to crop or
+       tile), so those three rules are gone along with the image. */
+    background-image: linear-gradient(
+      to bottom,
+      #2d50ea 0%,
+      #2e76ed 25%,
+      #CFD7FC 50%,
+      #38d5fa 75%,
+      #1adef9 100%
+    );
+  }
+
+  /* Looping clouds layer, sitting on top of the gradient (the
+     gradient is this section's own `background-image`, which always
+     paints furthest back regardless of any child's z-index — no
+     negative z-index needed here to keep it behind, unlike
+     ArtIslandSection's moon/clouds pair, which had each other AND a
+     background image to stack against). `z-index: 0` just keeps this
+     explicit and in front of the plain gradient, behind the
+     foreground islands (`z-index: 1`) and text (`z-index: 2`) below.
+     Same two-tile `translateX` loop as ArtIslandSection's
+     `.art-clouds-bg` / InBetweenSection2's `.in-between-2-clouds-bg`
+     — see either file's top-of-file comment for the full mechanics
+     (real `<img>` tiles sized by `height: 100%; width: auto` rather
+     than `background-image` + `cover`, animated `transform:
+     translateX` from -50% to 0% on a `width: max-content` track).
+     `computer_island_background_ver2.webp` (3840x2160, RGBA) had the
+     same kind of seam problem `in_between_2_clouds_background.webp`
+     needed fixing for earlier — its own left and right edges didn't
+     match (measured ~27.5 average, ~249 max per-channel difference) —
+     so it went through the identical roll-to-center +
+     mirrored-cross-fade reprocessing before being wired up here; the
+     edge mismatch is now ~0.27 average, ~0.8 max. `overflow: hidden`
+     clips the track (wider than the section, holding two full tiles)
+     down to the section's own bounds. */
+  .computer-clouds-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .computer-clouds-track {
+    display: flex;
+    width: max-content;
+    height: 100%;
+    /* Back to animated drift. Briefly set to `none` right after this
+       first went in, on a request to stop "the background gradient"
+       from moving — turned out that was about this clouds layer, not
+       the CSS gradient underneath (which was never animated to begin
+       with, so it needed no change either time); you clarified you
+       do want `computer_island_background_ver2.webp` itself drifting,
+       so this is back to the same two-tile `translateX` loop as
+       ArtIslandSection's `.art-clouds-bg` / InBetweenSection2's
+       `.in-between-2-clouds-bg`. */
+    animation: computer-clouds-drift 90s linear infinite;
+  }
+
+  .computer-clouds-tile {
+    display: block;
+    height: 100%;
+    width: auto;
+    max-width: none;
+    flex-shrink: 0;
+  }
+
+  @keyframes computer-clouds-drift {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0%);
+    }
   }
 
   .content {
@@ -329,6 +424,10 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
   @media (prefers-reduced-motion: reduce) {
     .computer-island-left,
     .computer-island-right {
+      animation: none;
+    }
+
+    .computer-clouds-track {
       animation: none;
     }
   }
