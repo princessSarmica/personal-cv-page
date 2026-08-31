@@ -174,6 +174,105 @@
 // unconditionally in CSS, so the final artwork just shows immediately
 // and stays put.
 //
+// New: you'd previously added a whole separate InBetweenSection2
+// between EducationIslandSection and this one, just to get its own
+// looping clouds texture to poke up above the seam and partly behind
+// Education's building artwork. After living with it, you decided
+// that was more section than the effect needed and asked instead for
+// THIS section's own `.art-clouds-bg` to simply bleed a bit higher —
+// so InBetweenSection2 has been removed from the page (the component
+// file itself is left in place, unused, rather than deleted, since
+// deleting files needs your explicit go-ahead) and `.art-clouds-bg`
+// now reaches above this section's own top edge to produce the same
+// overlap directly, with no extra section in between.
+//
+// Mechanically this is the exact technique InBetweenSection2 used for
+// its overlap, just applied to `.art-clouds-bg` instead of a
+// dedicated wrapper: swapping its old `inset: 0` for an explicit
+// `top: -35vh; left: 0; right: 0; bottom: 0;` keeps the bottom edge
+// pinned to the section's own bottom (unchanged) while extending the
+// top edge up above the section's top border. This started at -12vh
+// (the amount InBetweenSection2 used), but after seeing it live you
+// sent a screenshot with a red line marking the actual building base
+// of EducationIslandSection and asked for the clouds to reach all the
+// way up to that line — the sandy ground strip between the education
+// building and where the clouds used to start was still showing
+// through at -12vh, so the offset was increased to -35vh to close
+// that gap. If -35vh over- or under-shoots the red line on your
+// screen, the fix is just nudging this one number further (more
+// negative reaches higher, less negative reaches less high) — nothing
+// else about the technique changes. Because `.art-clouds-track`
+// and `.art-clouds-tile` are both sized relative to their container's
+// height (`height: 100%`), taller container -> taller (and
+// proportionally wider, since tile width is `auto`) clouds tiles: the
+// same source texture simply renders larger within a taller box, so
+// more of its vertical extent reaches above the section's own edge
+// instead of being confined flush to it.
+//
+// Follow-up bug: going from -12vh to -35vh looked IDENTICAL on your
+// screen — no visible change at all, not just "not enough." That
+// dead giveaway meant the geometry was never the problem: something
+// was fully occluding the clouds in that zone regardless of how far
+// up they reached. The culprit was `.education-section`'s own
+// `background: #40CAEC` fallback color (see EducationIslandSection.astro),
+// which covers that section's ENTIRE box, not just the parts its
+// artwork doesn't paint over — that flat blue, showing through the
+// artwork's transparent cutout notches, is what you were actually
+// seeing, not empty space Art's clouds could already reach into.
+//
+// Root cause, precisely: `.art-section` had NO explicit `z-index` of
+// its own (it's plain `position: relative`), which meant it never
+// created its own local stacking context — so `.art-clouds-bg`'s
+// `z-index: -2` escaped all the way up to the page's ROOT stacking
+// context, where "negative z-index" is its own paint step that
+// happens strictly BEFORE "in-flow / positioned-but-z-index-auto"
+// content — the step `.education-section`'s own box (also `position:
+// relative`, z-index left at its default `auto`) falls into. Painting
+// order, not DOM order, decides this: negative-z-index descendants
+// always paint before z-index:auto ones at the same stacking level,
+// no matter which one comes later in the markup. So Art's clouds were
+// structurally incapable of ever appearing in front of Education's
+// flat background — extending them further up couldn't fix that,
+// which is exactly the "same place as before" you saw.
+//
+// Fix: `.art-section` now gets an explicit `z-index: 0;` of its own
+// (below), the same pattern InBetweenSection2 used for the same
+// reason. This makes `.art-section` establish its OWN local stacking
+// context, so everything inside it — clouds at -2, moon at -1,
+// foreground content at 1/2 — keeps its existing relative order,
+// completely unaffected. What changes is how `.art-section` AS A
+// WHOLE now competes at the root level: an explicit `z-index: 0`
+// stacking context and a `z-index: auto` positioned box (Education's
+// section) are painted in the SAME step, and same-step ties break by
+// DOM order — Art comes after Education in the markup, so Art's
+// entire composited section now paints in FRONT of Education's own
+// background layer, letting the clouds show through in the overlap
+// zone. Education's actual foreground artwork is unaffected and stays
+// on top regardless, since its `z-index: 1` is a genuinely higher
+// number than Art's new `0` — the building/ground drawing itself
+// still visually covers the clouds exactly where it's opaque; it's
+// only Education's flat fallback color, behind that artwork, that
+// Art's clouds now win against.
+//
+// No `overflow: hidden` on `.art-section` itself (see the comment on
+// that rule below) is what lets the taller clouds layer bleed upward
+// at all once it's no longer being hidden behind Education's
+// background. -35vh is untested with this fix in place (the earlier
+// attempts were invisible regardless of the number), so treat it as a
+// first guess to react to rather than a tuned value.
+//
+// New: you separately edited `art_island_moon_background.webp` to add
+// a fade at its bottom (and a shorter one at its top) via the alpha
+// channel, wanting the moon to bleed into ComputerIslandSection below
+// instead of being cropped at this section's bottom edge. Two attempts
+// at rescaling the image to compensate for that fade (so the "real"
+// artwork stayed the same apparent size) both missed what you
+// actually wanted, and you reverted this file back to the plain
+// `background-image` + `cover` version. The fix that's actually in
+// place now is much simpler — see the comment on `.art-moon-bg`
+// itself, below: its box is just shifted down by `20vh` as a whole,
+// same height, same `cover` scale as always, nothing recalculated.
+//
 // Usage:
 //   <ArtIslandSection
 //     id="art-skills"
@@ -474,6 +573,17 @@ const {
 <style>
   .art-section {
     position: relative;
+    /* Explicit (not `auto`) so this section establishes its OWN local
+       stacking context — needed so its `.art-clouds-bg` (z-index: -2)
+       can win against EducationIslandSection's own flat fallback
+       background-color in their overlap zone, instead of that
+       negative z-index escaping to the page root and structurally
+       losing to ANY z-index:auto positioned box on the page,
+       Education's included. See the top-of-file comment ("Follow-up
+       bug" / "Root cause, precisely" / "Fix") for the full reasoning
+       — short version: without this, raising `.art-clouds-bg` higher
+       had zero visible effect no matter the number. */
+    z-index: 0;
     min-height: 100vh;
     /* `aspect-ratio: 16 / 9` matches the moon background image
        (measured at 3840x2160) — combined with `width: 100%` and
@@ -506,25 +616,68 @@ const {
   /* Looping clouds layer, furthest back (z-index: -2) so the moon
      renders in front of it. `overflow: hidden` clips the track (which
      is wider than the section, since it holds two full-width tiles)
-     down to the section's own bounds. */
+     down to the section's own bounds horizontally. Vertically, this
+     used to be a plain `inset: 0` (flush to all four edges of the
+     section) — now `top: -35vh` in place of the top part of that
+     `inset` lets this layer extend above the section's own top edge
+     instead, so the clouds bleed up into the seam with
+     EducationIslandSection above (replacing the separate
+     InBetweenSection2 component that used to sit there — see the
+     top-of-file comment). Started at -12vh, increased to -35vh per
+     your follow-up (screenshot with a red line marking Education's
+     building base) so the clouds reach all the way up to that line
+     instead of leaving a strip of Education's own sandy ground
+     showing between the building and the clouds. `bottom: 0` keeps
+     the bottom edge exactly where it always was. */
   .art-clouds-bg {
     position: absolute;
-    inset: 0;
+    top: -35vh;
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: -2;
     overflow: hidden;
     pointer-events: none;
   }
 
-  /* Static moon layer — full-bleed, unanimated, sitting in front of
-     the clouds (z-index: -1) so it stays visible instead of being
-     covered by the drifting clouds texture, while both still stay
-     behind the foreground content/islands (z-index: 1/2).
-     `background-size: cover` — guarantees full edge-to-edge coverage
-     with no gaps, cropping whichever dimension needs it least (see the
-     top-of-file comment for why this isn't sized by height alone). */
+  /* Static moon layer, sitting in front of the clouds (z-index: -1)
+     so it stays visible instead of being covered by the drifting
+     clouds texture, while both still stay behind the foreground
+     content/islands (z-index: 1/2). `background-size: cover` —
+     guarantees full edge-to-edge coverage with no gaps, cropping
+     whichever dimension needs it least (see the top-of-file comment
+     for why this isn't sized by height alone).
+     Previous two attempts at "let it bleed into ComputerIslandSection"
+     tried rescaling the image (via a fixed `width` instead of `cover`)
+     to compensate for a fade you'd added to the source file — both
+     went sideways trying to be clever about preserving an exact old
+     scale. This is the simple version you actually asked for instead:
+     `top`/`bottom` in place of `inset: 0` shift this layer's own box
+     DOWN as a unit — top edge moves below the section's top (opening
+     a gap there that shows whatever's behind, i.e. the clouds), bottom
+     edge moves below the section's bottom by the same amount (bleeding
+     into ComputerIslandSection). Box HEIGHT stays unchanged (both
+     edges move by the same amount), so `cover` computes the exact same
+     scale it always has — the moon isn't resized at all, just moved
+     down as a whole. No fixed `width`, no extra wrapper: same
+     mechanism this box always used, only offset.
+     Started at 20vh — per your follow-up that the clouds still weren't
+     showing through (the source file's own transparent top padding
+     starts about 28% into its height, so with only a 20vh shift the
+     clear/fading-in region only opened up starting around the
+     section's own halfway point), bumped to 45vh so a clearly bigger
+     share of the section's TOP reads as pure clouds before the moon
+     fades in. Then brought back down to 35vh per your follow-up to
+     move the moon a bit higher again. If it still needs adjusting,
+     it's the one number to change (same value in both `top` and
+     `bottom`, opposite sign, keeps the box the same height while it
+     moves). */
   .art-moon-bg {
     position: absolute;
-    inset: 0;
+    top: 35vh;
+    left: 0;
+    right: 0;
+    bottom: -35vh;
     z-index: -1;
     background-size: cover;
     background-position: bottom;
@@ -620,10 +773,21 @@ const {
   }
 
   .art-island-top {
-    /* Anchors: -3rem at 640px viewport width, -12rem at 1280px. */
-    top: clamp(-12rem, calc(96px - 22.5vw), -3rem);
-    /* Anchors: -3rem at 640px viewport width, 16rem at 1280px. */
-    left: clamp(-3rem, calc(-352px + 47.5vw), 16rem);
+    /* Anchors: -1rem at 640px viewport width, -10rem at 1280px —
+       shifted down 2rem from the original -3rem/-12rem anchors (same
+       slope, intercept moved from 96px to 128px, i.e. +32px = +2rem
+       at every viewport width) per your request to move this island a
+       little lower. Nudge both anchor values together (and re-derive
+       the intercept the same way) for further adjustment — see the
+       top-of-file comment for the general derivation method. */
+    top: clamp(-8rem, calc(128px - 22.5vw), -1rem);
+    /* Anchors: -6rem at 640px viewport width, 13rem at 1280px —
+       shifted 3rem further left (more negative / smaller) from the
+       original -3rem/16rem anchors, same slope, per your follow-up.
+       Intercept moved from -352px to -400px (-48px = -3rem at every
+       viewport width). Same nudge-both-anchors approach for further
+       adjustment. */
+    left: clamp(-6rem, calc(-400px + 47.5vw), 13rem);
     width: clamp(320px, 34vw, 520px);
     animation: bob-top 7s ease-in-out infinite;
   }

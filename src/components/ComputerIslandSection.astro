@@ -71,6 +71,15 @@
 // NOTE: I still don't have the actual background image file — this is
 // reasoned from first principles, not measured against the real file.
 //
+// New: `.computer-section` now has an explicit `z-index: -1;` (below)
+// — not for anything in THIS file, but because ArtIslandSection's
+// moon layer now deliberately bleeds down past its own section's
+// bottom edge into this one, and this section's own full-bleed
+// background image was winning a DOM-order stacking tie and painting
+// over it. See the comment on `.computer-section` itself for the full
+// reasoning, and ArtIslandSection.astro's own top-of-file comment for
+// the moon-bleed side of this.
+//
 // Usage:
 //   <ComputerIslandSection
 //     id="section-cs"
@@ -190,6 +199,28 @@ const { id, eyebrow, title, text, leftImage, rightImage, backgroundImage } = Ast
 <style>
   .computer-section {
     position: relative;
+    /* Explicit (not the default `auto`) so this section establishes
+       its OWN local stacking context — needed so ArtIslandSection's
+       moon (which now deliberately bleeds down past ITS OWN section's
+       bottom edge, per your request) can actually show through here
+       instead of being hidden behind this section's own full-bleed
+       background image. Without this, `.computer-section` (position:
+       relative, z-index left at auto) and `.art-section` (explicit
+       z-index: 0, see its own comment) painted at the SAME stacking
+       tier, and same-tier ties break by DOM order — this section
+       comes AFTER Art in the markup, so it was winning that tie and
+       painting its own background image on top of Art's bleeding moon
+       every time, which is exactly why the moon looked "cut off" right
+       at the seam instead of fading out naturally past it. `z-index:
+       -1` makes the comparison unambiguous (`0 > -1`) instead of a
+       DOM-order tie, so Art's section now reliably wins in their
+       overlap zone. This section's OWN foreground content (the two
+       islands at z-index: 1, the text at z-index: 2, below) is
+       unaffected — those z-index values are now scoped locally to
+       this section's new stacking context, so they still correctly
+       paint in front of this section's own background, exactly as
+       before. */
+    z-index: -1;
     min-height: 100vh;
     /* `aspect-ratio: 16 / 9` matches the background image (measured at
        3840x2160) — combined with `width: 100%` and `min-height`, the

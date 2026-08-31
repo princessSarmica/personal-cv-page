@@ -1,0 +1,322 @@
+---
+// src/components/InBetweenSection2.astro
+//
+// Second "in-between" section — sits between EducationIslandSection
+// and ArtIslandSection, per your request: "a new in-between section
+// for the place between the education and art island section."
+// Unlike InBetweenSection1.astro (a static photo + a dot-grid canvas,
+// no motion in the background image itself), this one is built around
+// a single looping "clouds" texture — you asked for it to "move the
+// same speed as the clouds background for the artislandsection," so
+// the clouds mechanism here is a direct copy of ArtIslandSection's own
+// `.art-clouds-bg`/`.art-clouds-track`/`.art-clouds-tile` technique,
+// not a new one: two identical `<img>` copies of `cloudsBackground`,
+// side by side in a `width: max-content` flex track, `translateX`ed by
+// exactly one tile-width per loop (`-50%` -> `0%`) so the seam between
+// the two copies is invisible as long as the source image's own left
+// and right edges already match (same requirement ArtIslandSection's
+// clouds image has) — and the SAME `90s linear infinite` timing, so it
+// drifts at the same visual speed. `your in_between_2_clouds_
+// background.webp` happens to already be 7679x2160 — the exact same
+// pixel dimensions as `art_island_clouds_background.webp` — so no
+// extra scaling/cropping was needed to line the two up.
+//
+// No moon layer (this section doesn't have one), and no discrete
+// foreground artwork/island either — this is purely a looping-sky
+// backdrop, so there's only the one clouds layer plus an optional
+// `<slot />` for text if you ever want to add any (same escape hatch
+// InBetweenSection1.astro offers, unused by default).
+//
+// Overlap with EducationIslandSection (the section directly above
+// this one in index.astro): per your request, "part of this
+// background overlaps with the upper educationislandsection and its
+// partly behind the education_island_ver3.webp." `.in-between-2-
+// clouds-bg` below is NOT a plain `inset: 0` box like ArtIslandSection
+// uses for its own clouds — its `top` is a NEGATIVE value (`-12vh`),
+// so the box (and the looping tiles inside it) extends 12vh above
+// this section's own top edge, physically reaching up into
+// EducationIslandSection's box. Nothing clips that: no section in
+// this codebase sets its own `overflow: hidden` (see the `overflow-x:
+// hidden`/`clip` comment on `html` in Layout.astro) specifically so
+// vertical bleed like this stays uncropped — the exact same page-wide
+// rule that already lets islands overflow their own section's
+// top/bottom edge is what makes this cross-section overlap possible.
+// This section and EducationIslandSection both carry `.sky-chain`
+// (see Layout.astro), so they already sit perfectly flush with zero
+// gap between them — the `-12vh` overlap is layered on top of that
+// flush seam, not compensating for a gap.
+//
+// Getting Education's building artwork to stay ON TOP of this
+// overlap (rather than this section's clouds painting over the
+// bottom of the building, which is what plain DOM order would do,
+// since this section comes AFTER EducationIslandSection in the page)
+// needed one small change over in EducationIslandSection.astro:
+// `.education-image-wrap` there didn't have an explicit `z-index`
+// before now — nothing forced it to, since it never needed to be
+// compared against another SECTION's content, only against its own
+// siblings inside `.education-visual`, where plain DOM order already
+// put it above `.education-clouds-wrap`. But DOM order alone can't
+// help across a section boundary in the OTHER direction: this section
+// comes AFTER EducationIslandSection, so without an explicit z-index,
+// normal paint order would put this section's overlap on TOP of
+// Education's image, not behind it. Giving `.education-image-wrap` a
+// `z-index: 1` (see its own comment there) — matching the SAME
+// `z-index: 1` convention Layout.astro's `.halftone-spotlight`
+// comment already documents for every other family member's own
+// foreground artwork (`.art-island`, `.computer-island`, etc.) —
+// settles it unconditionally: a positioned element with an explicit
+// positive z-index always paints above a plain `z-index: 0`/`auto`
+// sibling, regardless of which one comes later in the DOM. This
+// section itself doesn't need any special z-index for that to work —
+// only Education's own artwork needed elevating.
+// `.in-between-2-section` DOES still need its own explicit z-index
+// (alongside `position: relative`) for a narrower, purely LOCAL
+// reason — the exact same one documented on `.in-between-section` in
+// InBetweenSection1.astro: `.in-between-2-clouds-bg` below sits at
+// `z-index: -1`, and without this section establishing its own
+// stacking context, that negative z-index would escape past this
+// section entirely and get compared against far-away content
+// site-wide instead of just this section's own background. Any
+// non-`auto` value establishes that local context — it was `0` when
+// this section originally sat right after EducationIslandSection; now
+// that it sits after ArtIslandSection instead, it's `-1` (see the
+// "New" paragraph below for why the exact number had to change when
+// the section's position on the page did). Either way, the point of
+// this rule is the same: it keeps the whole `.in-between-2-section`
+// subtree self-contained, so `.in-between-2-clouds-bg`'s `-1` only
+// ever means "behind this section's OWN other content" (there isn't
+// any right now besides the optional slot), not "behind some
+// unrelated part of the page."
+//
+// A note on `in_between_2_clouds_background.webp` itself: you swapped
+// in a new version of this image after the section above first
+// shipped, and its own left and right edges no longer matched each
+// other closely enough for the loop to read as seamless ("a ruff cut
+// at the end and beginning of a new loop") — the two-tile `translateX`
+// technique above only ever looks seamless if the source image's own
+// edges already agree; it can't fix a source-level mismatch by itself.
+// Measured directly (average of the 5 leftmost vs. 5 rightmost
+// columns): the two edges differed by ~21 levels per channel on
+// average, spiking to ~147 in places — a real, visible jump, not a
+// rounding artifact.
+//   Fixed by reprocessing the file itself, the same kind of source-
+// level fix EducationIslandSection.astro's own clouds image needed
+// earlier (see that file's history): rolled the whole image
+// horizontally by exactly half its width so the mismatched edge-to-
+// edge seam relocates to the dead center of the canvas, where there's
+// full context on both sides to smooth it — then, in a narrow ~600px-
+// wide band straddling that center point, cross-faded each column
+// with its mirror partner on the opposite side of the seam (a true
+// 50/50 average exactly at the seam, tapering by a cosine curve back
+// to 0% blend — i.e. the untouched original — by the band's edges),
+// and finally rolled the image back by the same half-width so the
+// smoothed seam lands back at the image's own true left/right edges
+// instead of sitting in the middle. A first attempt used a Gaussian
+// blur instead of a mirrored cross-fade to smooth the seam — technically
+// seamless (edges matched), but it visibly de-grained that one band,
+// leaving an obvious smoother "stripe" standing out against this
+// image's own fairly heavy film-grain texture everywhere else.
+// Cross-fading with real (mirrored) image content instead of blurred
+// content keeps the grain intact through the blend zone, so the seam
+// no longer stands out either by color mismatch OR by texture
+// mismatch. Re-measured after the fix: the same edge comparison above
+// dropped to ~0.2 average, ~0.8 max — effectively identical, well
+// under one level of typical 8-bit rounding noise. The vast majority
+// of the image (everything outside that ~600px band) is pixel-for-
+// pixel identical to what you uploaded; only the seam itself changed.
+//
+// New: this section originally lived between EducationIslandSection
+// and ArtIslandSection, then got pulled out of the page entirely when
+// you decided ArtIslandSection's own clouds bleeding upward achieved
+// the same overlap more simply (see ArtIslandSection.astro's own
+// history for that whole detour). It's now been put back on the page,
+// but in a NEW spot — between ArtIslandSection and ComputerIslandSection
+// instead. This component's own markup/CSS needed no changes for the
+// move (there's nothing Education-specific baked into it, just a
+// looping clouds section), except one: the z-index below.
+//
+// `.in-between-2-section` used to be `z-index: 0`, which was enough
+// back when the section right before it (Education) had no explicit
+// z-index of its own to compete with. ArtIslandSection, which now
+// precedes this section instead, DOES have an explicit `z-index: 0`
+// of its own — deliberately, so its own moon layer can bleed down
+// past its bottom edge into whatever comes next (see the "Follow-up
+// bug" / "Fix" paragraphs in ArtIslandSection.astro's history). With
+// both sections tied at the same explicit `0`, the tie would break by
+// DOM order — this section, coming after Art, would win and paint
+// its own background over Art's bleeding moon, recreating the exact
+// "cut off at the bottom" bug that was just fixed for
+// ComputerIslandSection (see that file's own comment on
+// `.computer-section`). So this section's z-index dropped from `0` to
+// `-1`, the same fix, for the same reason: it still establishes its
+// own local stacking context (any non-`auto` z-index does, negative
+// included), so `.in-between-2-clouds-bg`'s own `-1` stays correctly
+// scoped to just this section's own content — nothing about this
+// section's INTERNAL layering changes. What changes is that Art's
+// moon now wins outright (`0 > -1`) instead of losing a DOM-order tie,
+// so it should bleed through into this section instead of getting cut
+// off at the seam. (ComputerIslandSection's own `z-index: -1` fix is
+// probably no longer doing anything now that this section sits
+// between them and Art's bleed likely doesn't reach that far — no
+// harm in leaving it as-is.)
+//
+// This section's OWN clouds still bleed 12vh upward past ITS top edge
+// (`.in-between-2-clouds-bg`'s `top: -12vh`, unchanged) — that used to
+// overlap with Education's building artwork specifically; now it'll
+// overlap with the bottom of ArtIslandSection instead (its moon/clouds
+// decorative background, not any foreground content, so nothing
+// should visually clash) — untested visually since I can't preview
+// the live page, so flag it if that seam looks off.
+//
+// Usage:
+//   <InBetweenSection2
+//     id="section-in-between-2"
+//     cloudsBackground="/images/in_between_2_clouds_background.webp"
+//   />
+//   <!-- or, if you want to put something in it: -->
+//   <InBetweenSection2
+//     id="section-in-between-2"
+//     cloudsBackground="/images/in_between_2_clouds_background.webp"
+//   >
+//     <p>Optional content here.</p>
+//   </InBetweenSection2>
+
+interface Props {
+  id: string;
+  cloudsBackground: string;
+}
+
+const { id, cloudsBackground } = Astro.props;
+---
+
+<section class="in-between-2-section sky-chain halftone-hover" id={id}>
+  <div class="in-between-2-clouds-bg" aria-hidden="true">
+    <div class="in-between-2-clouds-track">
+      <img class="in-between-2-clouds-tile" src={cloudsBackground} alt="" />
+      <img class="in-between-2-clouds-tile" src={cloudsBackground} alt="" />
+    </div>
+  </div>
+
+  <div class="content">
+    <slot />
+  </div>
+</section>
+
+<style>
+  /* An explicit z-index alongside `position: relative` is required,
+     not decorative — see the top-of-file comment for why (keeps
+     `.in-between-2-clouds-bg`'s negative z-index contained to just
+     this section instead of escaping to compare against unrelated
+     content elsewhere on the page). `-1` (not `0`) specifically so
+     ArtIslandSection's own explicit `z-index: 0` — now the section
+     immediately before this one — wins outright in their overlap
+     zone, letting Art's moon bleed down into this section instead of
+     this section's own background winning a DOM-order tie and
+     covering it back up. */
+  .in-between-2-section {
+    position: relative;
+    z-index: -1;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
+    /* No `aspect-ratio` dual-constraint here, unlike most of this
+       family — that pattern exists elsewhere to guarantee a discrete
+       illustration (a moon, a building) is never cropped top/bottom.
+       This section's background is a seamlessly-tileable, endlessly-
+       looping strip instead, so there's no "full picture" to protect;
+       letting `cover`-style sizing (via the clouds tiles' own
+       `height: 100%`) crop left/right on any viewport shape is
+       exactly what a tileable texture is for. */
+  }
+
+  /* Full-bleed by default (an absolutely-positioned box with `inset`-
+     style offsets is positioned against its containing block's
+     PADDING edge, not its content edge — so this already ignores
+     `.in-between-2-section`'s own left/right padding without needing
+     the manual `left: 50%; width: 100vw; margin: -50vw` breakout trick
+     EducationIslandSection's `.education-image-wrap` needs for its
+     `position: relative` image; see that file's comment on why THAT
+     one needs the extra trick and this one doesn't).
+     `top: -12vh` (instead of a plain `inset: 0`) is the actual overlap
+     mechanism — see the top-of-file comment for the full reasoning.
+     `12vh` is a single easily-retunable number: raise it for more
+     overlap into whatever section now precedes this one (Art, since
+     the move — was Education), lower it (or drop to `0` for no
+     overlap at all) if this turns out to be more than you wanted —
+     I can't preview the live result myself. `overflow: hidden` clips
+     the always-`max-content`-wide scrolling track back down to this
+     box's own width, same as ArtIslandSection's `.art-clouds-bg`.
+     `z-index: -1` sits it behind this section's own `.content` (in
+     case you ever add any via the slot) — contained to just this
+     section by `.in-between-2-section`'s own explicit z-index above
+     (now `-1`, see that rule's own comment for why). */
+  .in-between-2-clouds-bg {
+    position: absolute;
+    top: -12vh;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* Two identical clouds tiles side by side, animated by exactly one
+     tile-width via `transform: translateX` — the exact same technique
+     ArtIslandSection's `.art-clouds-track` uses (see its own comment
+     there for the full reasoning), copied here rather than shared,
+     matching this codebase's existing convention of each section
+     owning its own copy of whatever it needs. `width: max-content`
+     sizes the track to exactly fit its two `<img>` children, so
+     `translateX(-50%)` always shifts by precisely one tile's rendered
+     width. Same `90s linear infinite` timing as Art's clouds, per your
+     request that these move "the same speed." */
+  .in-between-2-clouds-track {
+    display: flex;
+    width: max-content;
+    height: 100%;
+    animation: in-between-2-clouds-drift 90s linear infinite;
+  }
+
+  /* Sizing purely by `height` (with `width: auto`) keeps each tile's
+     full, uncropped width at its natural aspect ratio, so the image's
+     own genuinely-matching left/right edges are what meet at the tile
+     boundary — same reasoning as `.art-clouds-tile`. */
+  .in-between-2-clouds-tile {
+    display: block;
+    height: 100%;
+    width: auto;
+    max-width: none;
+    flex-shrink: 0;
+  }
+
+  /* FROM -50% TO 0% (not the reverse) reads as left-to-right drift,
+     since the track's resting position places tile 1 in view and tile
+     2 immediately to its right — identical to `art-clouds-drift`. */
+  @keyframes in-between-2-clouds-drift {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0%); }
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+
+    width: min(32ch, 100%);
+    margin: 0 auto;
+
+    text-align: left;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Freeze the clouds on their resting frame instead of looping —
+       matches ArtIslandSection's own reduced-motion behavior exactly
+       (unlike EducationIslandSection's clouds, which deliberately stay
+       animated regardless — see that file's comment on why; this
+       section is modeled on Art's clouds, not Education's). */
+    .in-between-2-clouds-track {
+      animation: none;
+    }
+  }
+</style>

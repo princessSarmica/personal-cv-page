@@ -479,6 +479,16 @@
 //      text upward. Easy to keep nudging by feel: smaller than `42%`
 //      moves it higher still, closer to `50%` brings it back toward
 //      dead-center.
+//  22. THIS VERSION, per your follow-up adding InBetweenSection2.astro
+//      between this section and ArtIslandSection, with its own
+//      looping clouds background deliberately overlapping up into
+//      this section's bottom edge and needing to sit BEHIND this
+//      section's building artwork where they overlap. `.education-
+//      image-wrap` below picked up an explicit `z-index: 1` for this
+//      (see its own comment) — it never needed one before, since
+//      everything it was compared against was a sibling inside this
+//      same component, where plain DOM order already sufficed.
+//      Nothing else in this file changed for this step.
 //
 // IMPORTANT about this image: unlike the OTHER sections' background
 // photos (Art/Computer/Achievement/Bonus/Hobby/InBetween1, all opaque
@@ -1122,9 +1132,28 @@ const {
      this section's own left/right padding is — same trick as
      OtherIslandSection.astro (see the component-level comment above).
      `line-height: 0` avoids the couple of stray px an inline <img>
-     otherwise leaves below itself. */
+     otherwise leaves below itself.
+       `z-index: 1` (step 22) is new — this box previously had none,
+     since it never needed comparing against anything beyond its own
+     siblings inside `.education-visual`, where plain DOM order already
+     put it above `.education-clouds-wrap`. It's needed now that
+     InBetweenSection2.astro sits directly after this section in
+     index.astro and deliberately overlaps its own looping clouds
+     background up into this section's bottom edge (see that
+     component's top-of-file comment for the full request/reasoning) —
+     without an explicit z-index here, plain DOM order would let THAT
+     section's overlap paint over this image instead of behind it,
+     since it comes later in the page. `z-index: 1` matches the exact
+     convention Layout.astro's `.halftone-spotlight` comment already
+     documents for every other family member's own foreground artwork
+     (`.art-island`, `.computer-island`, etc.) — a positioned element
+     with an explicit positive z-index always paints above a plain
+     `z-index: 0`/`auto` sibling, regardless of DOM order, which is
+     what keeps this image safely in front of InBetweenSection2's
+     clouds in their overlap zone. */
   .education-image-wrap {
     position: relative;
+    z-index: 1;
     left: 50%;
     right: 50%;
     width: 100vw;
