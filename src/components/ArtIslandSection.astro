@@ -270,8 +270,20 @@
 // actually wanted, and you reverted this file back to the plain
 // `background-image` + `cover` version. The fix that's actually in
 // place now is much simpler — see the comment on `.art-moon-bg`
-// itself, below: its box is just shifted down by `20vh` as a whole,
-// same height, same `cover` scale as always, nothing recalculated.
+// itself, below: its box is just shifted down as a whole (currently
+// `--art-moon-leak: 75vh`, after three rounds of position requests —
+// first to 45vh after you updated the moon image itself, then
+// doubled to 90vh per your follow-up that you wanted it a LOT
+// lower (enough that it's still visibly, if partly faded, sitting
+// in ComputerIslandSection's own background rather than just barely
+// leaking in), then eased back up slightly to 75vh per your latest
+// "a bit higher") — same height, same `cover` scale as
+// always, nothing recalculated. New: the part that leaks past this
+// section's bottom edge now fades to fully transparent via a
+// `mask-image`, and ComputerIslandSection's clouds now render in
+// front of that leak instead of behind it — see that box's own
+// comment for the fade math, and `.computer-clouds-bg` in
+// ComputerIslandSection.astro for the front/behind change.
 //
 // Usage:
 //   <ArtIslandSection
@@ -668,20 +680,67 @@ const {
      section's own halfway point), bumped to 45vh so a clearly bigger
      share of the section's TOP reads as pure clouds before the moon
      fades in. Then brought back down to 35vh per your follow-up to
-     move the moon a bit higher again. If it still needs adjusting,
-     it's the one number to change (same value in both `top` and
-     `bottom`, opposite sign, keeps the box the same height while it
-     moves). */
+     move the moon a bit higher again, and now, after you updated the
+     moon image itself, bumped back up to 45vh per your new "put it
+     lower" request. It's the one number to change (same value in both
+     `top` and `bottom`, opposite sign, keeps the box the same height
+     while it moves) — currently pulled out as `--art-moon-leak: 75vh`
+     just below so the position AND the fade mask right after it always
+     move together instead of drifting out of sync. Because the fade
+     (right below) spans this ENTIRE leak length linearly, a bigger
+     leak also means a slower, more gradual fade — most of a 75vh leak
+     still reads at meaningfully high opacity, only dropping to fully
+     transparent right at the very tip, which is what actually makes
+     the moon "still be seen (partly faded)" well into Computer's own
+     background rather than reading as already-gone by the time it
+     crosses the section boundary.
+     New: `mask-image` fades this layer to fully transparent by its
+     very bottom edge, but ONLY across the leaking part — the stretch
+     that hangs past this section's own bottom edge into
+     ComputerIslandSection — per your request that the leak should
+     fade out and sit behind Computer's clouds instead of showing as a
+     hard-edged shape on top of them. `calc(100% - var(--art-moon-
+     leak))` is what targets exactly the leak: this box's own rendered
+     height always equals the SECTION's height (see above — both edges
+     move by the same amount, so top/bottom offsets cancel out of the
+     height calculation), and the leak is exactly `--art-moon-leak`
+     tall by construction (`bottom: calc(-1 * var(--art-moon-leak))`),
+     so "100% of this box's height, minus the leak's own height" lands
+     exactly on the section's bottom edge — everything above that point
+     (the part actually inside ArtIslandSection) stays fully opaque
+     (`black` in a mask means "fully shown"), everything below fades
+     linearly to `transparent` (fully hidden) by the box's true bottom
+     edge, i.e. the tip of the leak. This stays correct even on a wide/
+     short viewport where `aspect-ratio` makes the section (and so this
+     box) taller than 100vh — it's an exact subtraction of a fixed
+     length from the box's own actual height, not a hardcoded
+     percentage. `-webkit-mask-image` alongside the unprefixed property
+     for Safari. See `.computer-clouds-bg` in ComputerIslandSection.
+     astro for the other half of "behind Computer's clouds" — that's a
+     z-index change over there, not anything in this file. */
   .art-moon-bg {
+    --art-moon-leak: 75vh;
     position: absolute;
-    top: 35vh;
+    top: var(--art-moon-leak);
     left: 0;
     right: 0;
-    bottom: -35vh;
+    bottom: calc(-1 * var(--art-moon-leak));
     z-index: -1;
     background-size: cover;
     background-position: bottom;
     background-repeat: no-repeat;
+    mask-image: linear-gradient(
+      to bottom,
+      black 0,
+      black calc(100% - var(--art-moon-leak)),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      black 0,
+      black calc(100% - var(--art-moon-leak)),
+      transparent 100%
+    );
     pointer-events: none;
   }
 

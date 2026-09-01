@@ -31,26 +31,19 @@
 // sections in this family, treat these as starting values to nudge
 // once you see it live.
 //
-// Background: real image (`backgroundImage`), via `background-image`
-// + `background-size: cover`, `min-height: 100vh` — same technique
-// every section in this family uses. Every section keeps a CONSISTENT
-// height across every screen size, with `cover` cropping whichever
-// dimension needs it least to make that happen with no gaps. Briefly
-// tried sizing by height only (`auto 100%`, cropping only the sides)
-// per your request to stop shortening backgrounds vertically on wide
-// screens, but that left visible white space on screens wider (in
-// aspect ratio) than the image itself, which you didn't want either —
-// back to `cover`.
-//
-// One more layer on top of that: on a short/wide viewport, `cover`
-// still has to crop SOMETHING to avoid a gap, and per your follow-up
-// that "something" shouldn't ever be the image's own height either —
-// you'd rather scroll than see it shortened. Fixed by adding
-// `aspect-ratio: 16 / 9` (the image's real ratio) alongside
-// `min-height`/`width: 100%` on `.achievement-section` below, so the
-// section itself grows taller than one screen on those viewports
-// instead of asking `cover` to crop into the height — see the comment
-// there.
+// Background: was a real image (`backgroundImage`) via `background-
+// image` + `background-size: cover`, same technique every section in
+// this family used. New: swapped for a flat `background-color:
+// #2ddcfc;` on `.achievement-section` per your request — no image to
+// crop or position any more, so `background-size`/`background-
+// position`/`background-repeat` and the `backgroundImage` prop are
+// gone entirely (same kind of swap ComputerIslandSection.astro's
+// gradient background went through earlier). `min-height`/`aspect-
+// ratio` below are UNCHANGED by this — they were always about this
+// section's own SHAPE (how tall it grows on unusual viewports), a
+// separate concern from what paints inside it, so a flat color still
+// benefits from the section never getting squashed shorter than
+// 16:9 on a short/wide viewport, exactly as the image did.
 //
 // No seam-fade classes any more — the shared fade-band system that
 // used to blend section edges together was removed per your request,
@@ -171,9 +164,10 @@
 // Ask if you'd rather the chunks show up (smaller, repositioned) on
 // mobile too.
 //
-// NOTE: I still don't have the actual background/chunk/glitch image
-// files for this section — this is reasoned from first principles,
-// not measured against the real files.
+// NOTE: I still don't have the actual chunk/glitch image files for
+// this section — this is reasoned from first principles, not
+// measured against the real files. (The background itself is no
+// longer an image, see above.)
 //
 // Usage:
 //   <AchievementIslandSection
@@ -187,7 +181,6 @@
 //     rightImageGlitched="/images/right_achievements_island_glitched.webp"
 //     rightChunk1Image="/images/right_achievement_island_first_front_chunk.webp"
 //     rightChunk2Image="/images/right_achievement_island_second_front_chunk.webp"
-//     backgroundImage="/images/achievement_island_background.webp"
 //   />
 
 interface Props {
@@ -201,7 +194,6 @@ interface Props {
   rightImageGlitched?: string;
   rightChunk1Image?: string;
   rightChunk2Image?: string;
-  backgroundImage: string;
 }
 
 const {
@@ -215,14 +207,12 @@ const {
   rightImageGlitched,
   rightChunk1Image,
   rightChunk2Image,
-  backgroundImage,
 } = Astro.props;
 ---
 
 <section
   class="achievement-section sky-chain halftone-hover"
   id={id}
-  style={`background-image: url(${backgroundImage});`}
 >
   <div class="achievement-island achievement-island-left" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
@@ -540,12 +530,13 @@ const {
        hidden` on `html` in Layout.astro. That handles horizontal
        clipping page-wide, so an island that needs more vertical room
        than this section provides isn't hard-clipped. */
-    /* `cover` — always fills the section edge-to-edge with no gaps,
-       cropping whichever dimension needs it least (see the top-of-file
-       comment for why this isn't sized by height alone). */
-    background-size: cover;
-    background-position: top;
-    background-repeat: no-repeat;
+    /* New: flat color instead of an image (see the top-of-file
+       comment) — nothing to crop or position, so `background-size`/
+       `background-position`/`background-repeat` are gone; a plain
+       `background-color` always paints at this section's own
+       furthest-back layer regardless of any child's z-index, same as
+       ComputerIslandSection's gradient. */
+    background-color: #2ddcfc;
   }
 
   .content {

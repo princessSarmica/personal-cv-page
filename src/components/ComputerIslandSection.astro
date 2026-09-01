@@ -80,14 +80,22 @@
 // script needed here for it, since `body:has(.halftone-hover:hover)
 // .halftone-spotlight` is what actually turns the spotlight on.
 //
-// New: `.computer-section` now has an explicit `z-index: -1;` (below)
-// — not for anything in THIS file, but because ArtIslandSection's
-// moon layer now deliberately bleeds down past its own section's
-// bottom edge into this one, and this section's own full-bleed
-// background image was winning a DOM-order stacking tie and painting
-// over it. See the comment on `.computer-section` itself for the full
-// reasoning, and ArtIslandSection.astro's own top-of-file comment for
-// the moon-bleed side of this.
+// New: this section's background/clouds layers (`.computer-gradient-
+// bg`, `.computer-clouds-bg`, both explicit `z-index: -1`) exist so
+// ArtIslandSection's moon — which deliberately bleeds down past its
+// own section's bottom edge into this one — can paint over them
+// instead of them winning a stacking tie and covering it. That
+// negative z-index USED to live on `.computer-section` itself, but
+// that trapped this section's own foreground content (the islands,
+// the text) in the same local stacking context, so they were also
+// losing to Art's moon without anyone asking for that — invisible
+// until the mobile layout moved the right-hand computer island up
+// into the overlap zone, which is the "island behind the moon" bug
+// you reported. Fixed by moving the negative z-index down onto just
+// the background/clouds layers instead of the whole section — see
+// the comment on `.computer-section` itself for the full reasoning,
+// and ArtIslandSection.astro's own top-of-file comment for the
+// moon-bleed side of this.
 //
 // Usage:
 //   <ComputerIslandSection
@@ -117,6 +125,8 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
   class="computer-section sky-chain halftone-hover"
   id={id}
 >
+  <div class="computer-gradient-bg" aria-hidden="true"></div>
+
   <div class="computer-clouds-bg" aria-hidden="true">
     <div class="computer-clouds-track">
       <img class="computer-clouds-tile" src={cloudsBackground} alt="" />
@@ -214,29 +224,68 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
 <style>
   .computer-section {
     position: relative;
-    /* Explicit (not the default `auto`) so this section establishes
-       its OWN local stacking context — needed so ArtIslandSection's
-       moon (which now deliberately bleeds down past ITS OWN section's
-       bottom edge, per your request) can actually show through here
-       instead of being hidden behind this section's own full-bleed
-       background image. Without this, `.computer-section` (position:
-       relative, z-index left at auto) and `.art-section` (explicit
-       z-index: 0, see its own comment) painted at the SAME stacking
-       tier, and same-tier ties break by DOM order — this section
-       comes AFTER Art in the markup, so it was winning that tie and
-       painting its own background image on top of Art's bleeding moon
-       every time, which is exactly why the moon looked "cut off" right
-       at the seam instead of fading out naturally past it. `z-index:
-       -1` makes the comparison unambiguous (`0 > -1`) instead of a
-       DOM-order tie, so Art's section now reliably wins in their
-       overlap zone. This section's OWN foreground content (the two
-       islands at z-index: 1, the text at z-index: 2, below) is
-       unaffected — those z-index values are now scoped locally to
-       this section's new stacking context, so they still correctly
-       paint in front of this section's own background, exactly as
-       before. */
-    z-index: -1;
-    min-height: 100vh;
+    /* New: no explicit `z-index` here any more (used to be `-1` —
+       see the git-blame-shaped history in this comment if you're
+       reading an old copy). That value was needed back when this
+       section's own full-bleed background image sat directly on
+       `.computer-section` itself: giving the SECTION an explicit
+       z-index made it establish its own local stacking context,
+       which correctly kept that background from covering
+       ArtIslandSection's bleeding moon (`0 > -1`, unambiguous) — but
+       it had a side effect nobody asked for and didn't show up until
+       you tried the site on mobile: EVERY descendant of this section,
+       including the two foreground islands (`z-index: 1` — see
+       `.computer-island` below) and the text (`z-index: 2`), got
+       trapped inside that same local stacking context too. A trapped
+       descendant can't out-rank anything outside its ancestor's own
+       context no matter how high its own z-index is set — the WHOLE
+       `.computer-section` subtree is compared to `.art-section` as
+       one flat unit, at `.computer-section`'s own z-index (-1) versus
+       `.art-section`'s (0). So the computer island — despite its own
+       `z-index: 1` — was ALWAYS painting behind Art's moon in their
+       overlap zone, not just the background; it just wasn't visible
+       until the mobile layout (`top: 4vh` below, versus 24vh on
+       desktop) moved the right-hand computer island up into that
+       overlap zone, which is exactly the "island behind the moon"
+       bug you reported.
+
+       Fix: stop trying to solve this at the SECTION level. This
+       element no longer sets its own z-index, so it no longer
+       establishes a stacking context — every descendant below now
+       competes directly against `.art-section`'s unit (z-index: 0)
+       instead of being trapped as a group first. The two elements
+       that actually need to LOSE that comparison (the gradient and
+       the clouds — see `.computer-gradient-bg` and `.computer-clouds-
+       bg` below, both now `z-index: -1` themselves) carry their OWN
+       explicit negative z-index directly, so they alone stay behind
+       Art's moon, exactly as before. Everything that should WIN
+       (the islands at `z-index: 1`, the text at `z-index: 2`) is left
+       untouched and, no longer trapped, now correctly out-ranks Art's
+       moon on its own merits (`1 > 0`, `2 > 0`) — fixing the reported
+       bug on every viewport, not just mobile, since the same trapping
+       applied everywhere, it just wasn't visible until something sat
+       up near the top of this section on the overlap zone. */
+    /* Bumped up from 100vh to 130vh, then to 150vh, per your two
+       earlier requests to make this section longer — the first
+       matched the fix already used on BonusIslandSection.astro's
+       `.bonus-section` for the same ask; the second was purely to
+       give the section more breathing room once the right-hand island
+       became correctly visible again, so it didn't feel cramped right
+       up against the top edge. New: 150vh is now the MOBILE value
+       only (below 641px) — per your follow-up that it should be a
+       bit shorter on big screens, there's now a `min-width: 641px`
+       override right after the mobile media query below that brings
+       it back down to 130vh there, splitting what used to be one
+       value in two: mobile keeps the extra room (especially since
+       `.content` just got pushed further down there too, and needs
+       the space), desktop doesn't carry height it didn't need. Note
+       `top: 4vh` / `24vh` below are `vh` units, not percentages of
+       this section's own box, so neither of these min-height values
+       relocates the two islands relative to the section's own top
+       edge — that's a separate, purely literal "make the section
+       longer/shorter" change; adjust either value directly if you
+       want more/less on either breakpoint. */
+    min-height: 150vh;
     /* `aspect-ratio: 16 / 9` used to matter for matching the old
        background image's own real dimensions (3840x2160) so `cover`
        never had to crop it top/bottom — with the image gone in favor
@@ -248,13 +297,14 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
        with `width: 100%` and `min-height`, the browser uses whichever
        constraint needs MORE height — on a viewport wider-than-16:9
        (mainly short/wide windows), the aspect-ratio wins and this
-       section grows taller than one screen; on a taller-than-16:9
-       viewport (e.g. mobile portrait), `min-height: 100vh` wins
-       instead, so the section stays exactly one screen tall. `width:
-       100%` is required alongside `aspect-ratio` — without it, on the
-       min-height-wins branch the browser would stretch this section's
-       WIDTH to satisfy the ratio instead of its height, overflowing
-       past the viewport edges. */
+       section grows taller than whichever `min-height` applies at
+       that width; on a taller-than-16:9 viewport (e.g. mobile
+       portrait), `min-height` wins instead, so the section stays
+       exactly at that value. `width: 100%` is required alongside
+       `aspect-ratio` — without it, on the min-height-wins branch the
+       browser would stretch this section's WIDTH to satisfy the
+       ratio instead of its height, overflowing past the viewport
+       edges. */
     width: 100%;
     aspect-ratio: 16 / 9;
     display: grid;
@@ -264,55 +314,79 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
        hidden` on `html` in Layout.astro. That handles horizontal
        clipping page-wide, so an island that needs more vertical room
        than this section provides isn't hard-clipped. */
-    /* Swapped from an image (`backgroundImage` prop, now removed)
-       to a plain CSS gradient, matching the reference photo you sent
-       — colors sampled directly from that file (top-to-bottom bands
-       at 0/15/30/45/60/75/90/100% height): a deep blue at the top
-       easing into a bright cyan that's mostly settled in by the
-       60-70% mark and stays flat the rest of the way down, which is
-       why the stops below cluster earlier (0/25/50%) and spread out
-       later (75/100%) rather than sitting at even intervals — an
-       evenly-spaced gradient would wash out that "settles into cyan
-       early, stays cyan" shape the photo actually has. Plain gradients
-       don't need `cover`/`position`/`repeat` (nothing to crop or
-       tile), so those three rules are gone along with the image. */
+  }
+
+  /* New: the gradient background moved off `.computer-section` itself
+     and onto its own dedicated, absolutely-positioned layer — see the
+     comment on `.computer-section` above for why (in short: so this
+     layer alone can carry the explicit negative z-index needed to
+     stay behind ArtIslandSection's bleeding moon, without trapping
+     the section's foreground content along with it). Colors are
+     unchanged — still sampled from the reference photo you sent
+     (top-to-bottom bands at 0/15/30/45/60/75/90/100% height): a deep
+     blue at the top easing into a bright cyan that's mostly settled
+     in by the 60-70% mark and stays flat the rest of the way down,
+     which is why the stops below cluster earlier (0/25/50%) and
+     spread out later (75/100%) rather than sitting at even intervals.
+     Plain gradients don't need `cover`/`position`/`repeat` (nothing
+     to crop or tile). */
+  .computer-gradient-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
     background-image: linear-gradient(
       to bottom,
       #2d50ea 0%,
       #2e76ed 25%,
       #CFD7FC 50%,
       #38d5fa 75%,
-      #1adef9 100%
+      #2ddcfc 100%
     );
+    pointer-events: none;
   }
 
-  /* Looping clouds layer, sitting on top of the gradient (the
-     gradient is this section's own `background-image`, which always
-     paints furthest back regardless of any child's z-index — no
-     negative z-index needed here to keep it behind, unlike
-     ArtIslandSection's moon/clouds pair, which had each other AND a
-     background image to stack against). `z-index: 0` just keeps this
-     explicit and in front of the plain gradient, behind the
-     foreground islands (`z-index: 1`) and text (`z-index: 2`) below.
-     Same two-tile `translateX` loop as ArtIslandSection's
-     `.art-clouds-bg` / InBetweenSection2's `.in-between-2-clouds-bg`
-     — see either file's top-of-file comment for the full mechanics
-     (real `<img>` tiles sized by `height: 100%; width: auto` rather
-     than `background-image` + `cover`, animated `transform:
-     translateX` from -50% to 0% on a `width: max-content` track).
-     `computer_island_background_ver2.webp` (3840x2160, RGBA) had the
-     same kind of seam problem `in_between_2_clouds_background.webp`
-     needed fixing for earlier — its own left and right edges didn't
-     match (measured ~27.5 average, ~249 max per-channel difference) —
-     so it went through the identical roll-to-center +
-     mirrored-cross-fade reprocessing before being wired up here; the
-     edge mismatch is now ~0.27 average, ~0.8 max. `overflow: hidden`
-     clips the track (wider than the section, holding two full tiles)
-     down to the section's own bounds. */
+  /* Looping clouds layer, sitting on top of the gradient. New:
+     `z-index` bumped from `-1` to `1` per your request that the part
+     of ArtIslandSection's moon leaking into this section should sit
+     BEHIND this clouds layer (previously it was the other way round —
+     the moon painted on top of the clouds, which made sense before it
+     had a fade, but now that its leaking part fades to transparent
+     over there, it reads better tucked behind the clouds instead of
+     in front of them). `.computer-section` doesn't trap its
+     descendants in their own stacking context (see its comment
+     above), so this layer competes DIRECTLY against ArtIslandSection's
+     unit (that section's own explicit `z-index: 0` — see its comment)
+     rather than against just the moon in isolation; `1 > 0` is what
+     makes clouds win that comparison now. `.computer-gradient-bg`
+     right above this is UNCHANGED at `z-index: -1` — the gradient
+     itself still stays behind the moon's leak (`-1 < 0`), only the
+     clouds moved in front of it, so the stacking order through the
+     overlap zone is now gradient (back) → moon's fading leak (middle)
+     → clouds (front), a proper three-layer sandwich instead of the
+     previous two-layer one. `1` also ties with the foreground islands
+     (`z-index: 1` below) rather than staying strictly under them, but
+     that tie still resolves correctly by DOM order (both islands come
+     AFTER this element in the markup, so they still paint on top of
+     it) — see `.computer-island` below. Still behind the text
+     (`z-index: 2`), no tie there. Same two-tile `translateX` loop as
+     ArtIslandSection's `.art-clouds-bg` / InBetweenSection2's
+     `.in-between-2-clouds-bg` — see either file's top-of-file comment
+     for the full mechanics (real `<img>` tiles sized by `height:
+     100%; width: auto` rather than `background-image` + `cover`,
+     animated `transform: translateX` from -50% to 0% on a `width:
+     max-content` track). `computer_island_background_ver2.webp`
+     (3840x2160, RGBA) had the same kind of seam problem `in_between_2
+     _clouds_background.webp` needed fixing for earlier — its own left
+     and right edges didn't match (measured ~27.5 average, ~249 max
+     per-channel difference) — so it went through the identical roll-
+     to-center + mirrored-cross-fade reprocessing before being wired
+     up here; the edge mismatch is now ~0.27 average, ~0.8 max.
+     `overflow: hidden` clips the track (wider than the section,
+     holding two full tiles) down to the section's own bounds. */
   .computer-clouds-bg {
     position: absolute;
     inset: 0;
-    z-index: 0;
+    z-index: 1;
     overflow: hidden;
     pointer-events: none;
   }
@@ -433,9 +507,22 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
   }
 
   @media (max-width: 640px) {
+    /* New: pushed down from the top of the section per your request.
+       `.content` is a normal (non-absolute) grid item inside
+       `.computer-section`'s `display: grid; place-items: center;`,
+       stacked above `.computer-island-left` (which drops into flow
+       right below it on mobile, see that rule's own comment) — with
+       no explicit row sizing, the grid just auto-places each item in
+       its own row sized to its own content, so `.content` was sitting
+       right at the top of that stack. A plain `margin-top` nudges it
+       down within that same stack without disturbing the centering or
+       the island below it (which keeps its own `margin: 2.5rem auto 0`
+       spacing relative to wherever `.content` ends up). Adjust this
+       value directly for more/less. */
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
+      margin-top: 17rem;
     }
 
     /* On mobile the powerline island's mid-left absolute position sits
@@ -445,8 +532,10 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
        it below the text visually — `.computer-section` still has
        `place-items: center`, which centers any normal-flow grid item,
        so no extra centering rule is needed once it's out of `absolute`
-       positioning. The right-hand computer island is untouched; it
-       wasn't reported as a problem. */
+       positioning. New: the right-hand computer island (the "upper
+       island") is no longer untouched — see its own mobile `top`
+       value further below, bumped down per your request alongside
+       `.content` above. */
     .computer-island-left {
       position: static;
       order: 1;
@@ -458,10 +547,29 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
 
     /* `right: 12vw` (the desktop value) leaves the computer island
        close enough to center that it overlaps the now full-width text
-       on narrow screens, hence the tighter `right` below. */
+       on narrow screens, hence the tighter `right` below. `top`
+       bumped from `4vh` to `10vh` per your request to move this
+       ("the upper island") lower on mobile too, alongside `.content`
+       above. */
     .computer-island-right {
       right: -8vw;
-      top: 4vh;
+      top: 10vh;
+    }
+  }
+
+  /* New: shortens the section on bigger screens per your request —
+     `.computer-section`'s base `min-height: 150vh` above is now
+     effectively the MOBILE value (below 641px); at 641px and up this
+     brings it back down to 130vh, the same value the section itself
+     used before its second "make it longer" bump, and the same value
+     BonusIslandSection.astro's `.bonus-section` uses. 641px (one more
+     than the `max-width: 640px` mobile query above) keeps the two
+     breakpoints from overlapping or leaving a gap between them.
+     Adjust this value directly if you want desktop taller/shorter
+     still, independent of the mobile value above. */
+  @media (min-width: 641px) {
+    .computer-section {
+      min-height: 130vh;
     }
   }
 </style>
