@@ -22,44 +22,62 @@
 // vertical scrollbar's width, which can introduce a few px of
 // horizontal overflow on some browsers.
 //
-// Height on wide screens is unconstrained (`height: auto`), so the
-// image keeps its own aspect ratio and the whole illustration shows —
-// your current source is a wide/landscape image, so this looks right
-// at desktop widths without any cropping.
+// Height is unconstrained on every breakpoint (`height: auto`), so
+// the image always keeps its own natural aspect ratio and the WHOLE
+// illustration shows, edge to edge, with no cropping and no gap down
+// either side — desktop's `image` is a wide/landscape piece, so this
+// looks right there without any special handling.
 //
-// On narrow screens that same wide aspect ratio flattens out into a
-// short strip (a ~16:9-ish image at 375px wide is only ~210px tall),
-// which read as "barely covers a third of the screen" — not enough
-// presence for a closing illustration.
+// Mobile went through several different approaches before landing
+// back on this same plain `height: auto` behavior — worth recording
+// why, so a future "make mobile look taller/shorter/etc." request
+// doesn't just re-walk the same dead ends:
+//   1. A `max-width: 640px` block gave the section a real `height:
+//      100vh` box and switched the image to `object-fit: cover` so it
+//      filled that box by CROPPING instead of flattening out (this
+//      was written back when mobile still showed the same wide
+//      `image` as desktop, which really did look too short/flattened
+//      at narrow widths — seed history, not current behavior).
+//   2. Per your request, `100vh` (which varies with each PHONE's own
+//      screen height) was swapped for a flat `700px`, so the section
+//      was the same height on every device regardless of that
+//      device's own viewport height.
+//   3. Once `mobileImage` (`other_island.webp`, a tall PORTRAIT piece
+//      painted specifically for phones — see the "New:" note below)
+//      replaced the old shared `image` on mobile, `cover` inside that
+//      `700px` box started cropping the BOTTOM off of it on wider
+//      mobile widths — so `object-fit: contain` replaced `cover`,
+//      trading the vertical crop for empty space beside or below the
+//      image instead (whichever dimension had room left over).
+//   4. Per your follow-up, that leftover space showed up as visible
+//      gaps down the LEFT/RIGHT sides on wider mobile widths, which
+//      you didn't want either — and that's the point where the fixed-
+//      height box itself had to go: a box that's simultaneously (a)
+//      always the exact same height AND (b) always exactly as wide as
+//      the viewport AND (c) never crops any of a portrait image is not
+//      achievable at the same time — (a) and (b) together pin the
+//      box's own aspect ratio, and only ONE image aspect ratio could
+//      ever fill that exact box with zero cropping and zero leftover
+//      space, which isn't true across a whole range of phone widths.
+//      Dropping the fixed height (back to plain `height: auto`, same
+//      as desktop) is what actually satisfies "no cropping" AND "no
+//      side gaps" AT ONCE — the trade-off is that the section's height
+//      now scales with the viewport's WIDTH (taller on a wider phone),
+//      same as it always has for desktop's `image`, rather than being
+//      a hardcoded constant. No more `max-width: 640px` block at all
+//      below — mobile and desktop now share the exact same sizing
+//      rules; only the source FILE differs between them (via
+//      `mobileImage`/`<picture>`, see below).
 //
-// Fixed the same way BonusIslandSection's background scales: under
-// `max-width: 640px`, the section gets a real viewport-height box, and
-// the image switches to `object-fit: cover` so it fills that box by
-// cropping instead of flattening out.
-//
-// That box has to be `height: 100vh`, not `min-height: 100vh` — this
-// tripped up the first attempt at this fix. `.other-section-image`
-// fills it via `height: 100%`, and a percentage height on a child only
-// resolves against a parent that has a DEFINITE height; a `min-height`
-// alone doesn't count as definite (per spec, it's a constraint, not a
-// used value), so the image's `100%` was computing back to `auto` —
-// meaning the image rendered at its natural (short) aspect-ratio
-// height same as before, while the section around it was genuinely
-// 100vh tall, and the gap between the two showed up as blank white
-// space at the bottom. `height: 100vh` gives the child something
-// definite to resolve against, so `height: 100%` on the image actually
-// means something. Safe to use a hard `height` here (rather than the
-// usual "prefer min-height" advice) because this section's only
-// content on mobile is the image itself — there's nothing else that
-// could need more room and get clipped.
-//
-// `object-position: top` (rather than `center`) is deliberate — this
-// image's TOP edge is the one that has to match BonusIslandSection's
-// bottom (see the shared `.sky-chain` seam-matching in Layout.astro),
-// so keeping that edge protected from cropping matters; whatever gets
-// trimmed off is the bottom of the illustration instead, which doesn't
-// need to line up with anything since this is the last section on the
-// page.
+// No `object-fit`/`object-position` anywhere any more (see the
+// numbered history above) — with plain `height: auto` on every
+// breakpoint, the image is never fit into a box that's a different
+// shape than itself in the first place, so there's nothing to crop or
+// position. `mobileImage` (`other_island.webp`, a tall PORTRAIT piece
+// — 3840x6320 — painted specifically for phones, see the "New:
+// optional `mobileImage` prop" note above) simply renders at whatever
+// height its own aspect ratio produces at the current viewport width,
+// same as desktop's `image` always has.
 //
 // No seam-fade classes any more — the shared fade-band system that
 // used to blend section edges together was removed per your request,
@@ -88,23 +106,52 @@
 // on the <img> below so it doesn't compete with anything above it for
 // bandwidth on initial load either way.
 //
+// New: optional `mobileImage` prop — per your request, on screens
+// `640px` and narrower (the same breakpoint the `.other-section`
+// mobile crop above already uses) the section now renders
+// `other_island.webp`, an illustration you made specifically for
+// mobile, instead of the desktop `other_island_2.webp`. This is done
+// with a `<picture>` + `<source media="...">` (see the template
+// below) rather than a CSS media query on a `background-image`, since
+// the section renders an actual `<img>` element, not a background —
+// `<picture>` is the standard, JS-free way to swap which image FILE
+// loads per breakpoint (a CSS approach could only swap how an
+// already-downloaded image is cropped/positioned, not which file the
+// browser fetches in the first place, which matters for mobile data
+// usage too: phones never even download `other_island_2.webp`). Both
+// images still go through the exact same `.other-section-image`
+// class and the `max-width: 640px` crop rules below, so this is
+// purely about which file loads, not how it's displayed once loaded.
+// `mobileImage` is optional — omit it and mobile just keeps using the
+// same `image` as every other breakpoint, same as before this prop
+// existed.
+//
 // Usage:
 //   <OtherIslandSection
 //     id="section-closing"
-//     image="/images/other_island.svg"
+//     image="/images/other_island_2.webp"
+//     mobileImage="/images/other_island.webp"
 //   />
 
 interface Props {
   id: string;
   image: string;
+  /** Optional mobile-specific replacement for `image`, used instead of
+   *  it on screens `640px` and narrower (see the "New:" note above).
+   *  Omit it and mobile just renders `image` like every other
+   *  breakpoint. */
+  mobileImage?: string;
   alt?: string;
 }
 
-const { id, image, alt = "" } = Astro.props;
+const { id, image, mobileImage, alt = "" } = Astro.props;
 ---
 
 <section class="other-section sky-chain halftone-hover" id={id}>
-  <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
+  <picture>
+    {mobileImage && <source media="(max-width: 640px)" srcset={mobileImage} />}
+    <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
+  </picture>
 </section>
 
 <style>
@@ -125,22 +172,11 @@ const { id, image, alt = "" } = Astro.props;
     height: auto;
   }
 
-  @media (max-width: 640px) {
-    /* height (not min-height) — see the component-level comment above
-       for why the distinction matters here. */
-    .other-section {
-      height: 100vh;
-    }
-
-    /* object-fit: cover fills that box by cropping (mostly the sides,
-       since the source is much wider than tall); object-position: top
-       keeps the crop anchored to the top edge specifically — see the
-       comment above for why that edge can't be the one that moves. */
-    .other-section-image {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: top;
-    }
-  }
+  /* New: no `max-width: 640px` block here any more — mobile used to
+     get its own `height: 100vh`, then a flat `700px`, box with
+     `object-fit: cover`/`contain` on the image inside it; see the
+     numbered history in the component-level comment above for why
+     all of that was removed. Mobile and desktop now share the exact
+     same two rules above (`width: 100%; height: auto;`) — only the
+     source FILE differs between them, via `mobileImage`/`<picture>`. */
 </style>
