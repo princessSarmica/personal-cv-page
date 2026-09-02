@@ -49,6 +49,36 @@
 // needs the mouse-repel parallax drift either, since there are no
 // islands.
 //
+// Clouds background (`cloudsBackground`, your bonus_island_background_
+// clouds.webp): same looping two-tile technique as every other clouds
+// layer in this project (ArtIslandSection's `.art-clouds-bg`,
+// ComputerIslandSection's `.computer-clouds-bg`,
+// AchievementIslandSection's `.achievement-clouds-bg`, etc. — see any
+// of those files' comments for the full mechanics: two pixel-identical
+// `<img>` tiles, sized `height: 100%; width: auto` inside a
+// `width: max-content` track, `translateX` animated from `-50%` to
+// `0%` for a seamless infinite drift). Measured this texture's own
+// left/right edge match before wiring it up (same check used for
+// every other clouds asset here): ~3.4-3.6 average per-channel edge
+// difference — softer than Achievement's ~0.92 but still a soft,
+// blurry cloud texture rather than a hard-edged one, so a faint seam
+// is unlikely to read as a hard line; flag it if a visible seam shows
+// up in practice and it can be reprocessed like some of the earlier
+// clouds assets in this project were.
+// UNLIKE every other section's clouds layer, this one sits IN FRONT
+// of the main artwork, not behind it — `backgroundImage` here
+// (bonus_island_background.webp) is a single fully-opaque photo with
+// no transparent regions (confirmed: no alpha channel at all), unlike
+// e.g. Achievement's ruins image, so there is no gap for a layer
+// behind it to show through. `.bonus-clouds-bg` sits between the
+// section's own `background-image` (which always paints at the
+// section's own furthest-back layer, regardless of z-index — same
+// reasoning used throughout this project) and `.content`, blended
+// into the scene with `mix-blend-mode: lighten` + reduced `opacity`
+// (see that rule's own comment) rather than layered flat on top, so
+// it reads as atmospheric drifting cloud cover instead of a hard
+// rectangle pasted over the artwork.
+//
 // Usage:
 //   <BonusIslandSection
 //     id="section-bonus"
@@ -56,6 +86,7 @@
 //     title="One More Thing"
 //     text="..."
 //     backgroundImage="/images/bonus_island_background.webp"
+//     cloudsBackground="/images/bonus_island_background_clouds.webp"
 //   />
 
 interface Props {
@@ -64,9 +95,10 @@ interface Props {
   title: string;
   text: string;
   backgroundImage: string;
+  cloudsBackground: string;
 }
 
-const { id, eyebrow, title, text, backgroundImage } = Astro.props;
+const { id, eyebrow, title, text, backgroundImage, cloudsBackground } = Astro.props;
 ---
 
 <section
@@ -74,6 +106,13 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
   id={id}
   style={`background-image: url(${backgroundImage});`}
 >
+  <div class="bonus-clouds-bg" aria-hidden="true">
+    <div class="bonus-clouds-track">
+      <img class="bonus-clouds-tile" src={cloudsBackground} alt="" />
+      <img class="bonus-clouds-tile" src={cloudsBackground} alt="" />
+    </div>
+  </div>
+
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
     <h2>{title}</h2>
@@ -118,6 +157,90 @@ const { id, eyebrow, title, text, backgroundImage } = Astro.props;
     background-size: cover;
     background-position: top;
     background-repeat: no-repeat;
+  }
+
+  /* Looping clouds layer — now the MAIN background for this section
+     (see the top-of-file "Clouds background" comment for the original
+     blended-overlay version, and the paragraph below for why it's
+     fully opaque now instead). `inset: 0` (no top/bottom shift like
+     Achievement's — this layer doesn't need to reach a specific point
+     behind other artwork, it just covers the section) plus
+     `overflow: hidden` clips the horizontally-drifting track back
+     down to the section's own box.
+     New: per your request to see how it looks with the clouds as the
+     MAIN background instead of a blended overlay — `mix-blend-mode`
+     removed and `opacity` set to `1`. Since this layer already
+     covers the section edge-to-edge (`inset: 0`) and sits in FRONT of
+     `background-image` in paint order, a fully opaque top layer with
+     no blending completely hides that image now rather than meshing
+     with it — `backgroundImage` (and its CSS below) is left wired up
+     untouched, just fully covered up, so reverting this experiment is
+     a two-line change: put `mix-blend-mode: lighten;` and
+     `opacity: 0.8;` back (see the git history in this comment, or
+     just ask).
+     New: `z-index` dropped from `1` to `0`, per your report that
+     HobbyIslandSection's islands (the section directly above this
+     one) were getting cut off. Same recurring stacking-context bug
+     as elsewhere in this project (see ComputerIslandSection.astro's
+     comments for the fullest writeup of the mechanism): neither
+     `.hobby-section` nor `.bonus-section` sets its own z-index, so
+     neither traps its children into one stacking unit — HobbyIsland-
+     Section's `.hobby-island-group` (its front group deliberately
+     bleeds below Hobby's own bottom edge into this section, at
+     `z-index: 1` — see that file's own comment on `.hobby-island-
+     group`) was competing DIRECTLY against this layer in their shared
+     overlap zone instead of losing to "Hobby" as one unit. Both were
+     tied at `z-index: 1`, and a tie breaks by DOM order — this
+     section comes AFTER Hobby in the page, so this (fully opaque,
+     covering the whole section edge-to-edge) layer was winning that
+     tie and painting straight over the bottom of Hobby's bleeding
+     islands, which is exactly what read as "cut off." `z-index: 0`
+     now loses outright to Hobby's `z-index: 1` in that overlap zone,
+     letting the islands render fully in front. This layer still beats
+     `background-image` underneath it (a plain `background-image`
+     always paints at its own element's furthest-back layer regardless
+     of z-index, same reasoning used throughout this project) and
+     still loses to `.content` (`z-index: 2`) locally, so nothing else
+     changes. */
+  .bonus-clouds-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .bonus-clouds-track {
+    display: flex;
+    /* Keeps the two tile images from being flex-stretched vertically
+       — same reasoning as every other clouds track in this project. */
+    align-items: flex-start;
+    width: max-content;
+    height: 100%;
+    animation: bonus-clouds-drift 90s linear infinite;
+  }
+
+  .bonus-clouds-tile {
+    display: block;
+    height: 100%;
+    width: auto;
+    max-width: none;
+    flex-shrink: 0;
+  }
+
+  @keyframes bonus-clouds-drift {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bonus-clouds-track {
+      animation: none;
+    }
   }
 
   .content {
