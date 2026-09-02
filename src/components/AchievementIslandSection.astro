@@ -788,11 +788,18 @@ const {
      `right` bumped from the temple's old `2vw`, first to `10vw`, then
      further to `18vw` per your follow-up to move the statue even
      further left — adjust this value directly for more/less.
-     `top` bumped from the temple's old `16vh` to `32vh` per your
-     follow-up to place the statue lower in this section — adjust
-     this value directly for more/less. */
+     `top` bumped from the temple's old `16vh`, through `32vh`,
+     `40vh`, `48vh`, and now — per your "much lower" follow-up — a
+     bigger jump to `65vh`. Each earlier bump was per a follow-up
+     request to place the statue lower in this section — adjust this
+     value directly for more/less. At `65vh` the statue sits in the
+     bottom third of the section; if a future request asks for lower
+     still, check it against `.achievement-section`'s own
+     `min-height` (currently `140vh`) — past roughly that much `top`
+     the statue starts pushing below the section's own bottom edge
+     rather than just sitting lower within it. */
   .achievement-island-right {
-    top: 32vh;
+    top: 65vh;
     right: 18vw;
     width: clamp(130px, 12vw, 200px);
     animation: bob-right 5.8s ease-in-out infinite;
@@ -940,12 +947,20 @@ const {
     /* New: per your report that the statue still reads too high on
        middle (tablet-ish) screens even after the base rule's `top`
        went from `16vh` to `32vh` — bumped further to `40vh` here,
-       specifically for this breakpoint. Desktop (above `1024px`)
-       keeps the base rule's `32vh` unchanged. Adjust this value
-       directly for more/less. */
+       specifically for this breakpoint. Desktop's own `top` moved on
+       independently after that (`40vh`, `48vh`, now `65vh`), and
+       each time you asked for middle screens lower too, this tablet
+       override was bumped to match — currently `65vh`, same as the
+       base rule again. Since these two now agree, moving the base
+       rule's `top` in the future will silently stop applying to
+       tablet unless this override is bumped to match at the same
+       time (or deleted, letting the base rule's own value apply here
+       directly) — kept as an explicit value for now so tablet and
+       desktop stay independently adjustable. `width: 100px` is still
+       tablet-specific and still needed either way. */
     .achievement-island-right {
       width: 100px;
-      top: 40vh;
+      top: 65vh;
     }
 
     /* New: the `.achievement-clouds-tile` width override (`1000px`,
