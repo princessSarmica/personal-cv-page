@@ -436,7 +436,23 @@ const {
 <style>
   .achievement-section {
     position: relative;
-    min-height: 100vh;
+    /* New: bumped from `100vh` to `140vh` per your report that this
+       section reads too small and overlaps too much with
+       ComputerIslandSection above it — same "extend the section"
+       request already applied to ComputerIslandSection (100vh →
+       130-150vh) and BonusIslandSection (100vh → 130vh) earlier in
+       this project, brought here too. This is the MIN-height floor
+       only (see the `aspect-ratio` comment just below for the other
+       branch); a taller floor means more of the page's own scroll
+       distance is spent inside this section's own box before
+       BonusIslandSection starts, which is what actually reduces how
+       much of the overlap zone with Computer is visible relative to
+       Achievement's own content — the overlap ITSELF (Computer's
+       clouds/gradient vs. Achievement's bled ruins image and clouds,
+       see those rules' own comments) is unchanged in absolute size,
+       there's just proportionally more Achievement below it now.
+       Adjust this value directly for taller/shorter still. */
+    min-height: 140vh;
     /* `aspect-ratio: 16 / 9` matches the background image (measured at
        3840x2160) — combined with `width: 100%` and `min-height`, the
        browser uses whichever constraint needs MORE height: on a
@@ -446,8 +462,8 @@ const {
        cropping — you scroll to see the rest, per your request,
        instead of `cover` shortening (cropping) the image's height to
        fit a too-short viewport. On a taller-than-16:9 viewport (e.g.
-       mobile portrait), `min-height: 100vh` wins instead, so the
-       section stays exactly one screen tall and `cover` crops the
+       mobile portrait), `min-height: 140vh` wins instead, so the
+       section stays exactly that tall and `cover` crops the
        sides only — unchanged from before. `width: 100%` is required
        alongside `aspect-ratio` — without it, on the min-height-wins
        branch the browser would stretch this section's WIDTH to
@@ -765,16 +781,18 @@ const {
      is gone (see the top-of-file comment's "New: temple removed"),
      and the statue (`leftImage`, previously `.achievement-island-
      left`, positioned mid-left) moved into this exact spot instead.
-     `top`/`animation` are the temple's OLD values, unchanged; `width`
-     is the statue's own size (`clamp(130px, 12vw, 200px)`, not the
-     temple's `clamp(320px, 40vw, 560px)`) — it's still the statue
-     image, just relocated, not resized to match the temple's old
-     footprint. `right` bumped from the temple's old `2vw`, first to
-     `10vw`, then further to `18vw` per your follow-up to move the
-     statue even further left — adjust this value directly for
-     more/less. */
+     `animation` is the temple's OLD value, unchanged; `width` is the
+     statue's own size (`clamp(130px, 12vw, 200px)`, not the temple's
+     `clamp(320px, 40vw, 560px)`) — it's still the statue image, just
+     relocated, not resized to match the temple's old footprint.
+     `right` bumped from the temple's old `2vw`, first to `10vw`, then
+     further to `18vw` per your follow-up to move the statue even
+     further left — adjust this value directly for more/less.
+     `top` bumped from the temple's old `16vh` to `32vh` per your
+     follow-up to place the statue lower in this section — adjust
+     this value directly for more/less. */
   .achievement-island-right {
-    top: 16vh;
+    top: 32vh;
     right: 18vw;
     width: clamp(130px, 12vw, 200px);
     animation: bob-right 5.8s ease-in-out infinite;
@@ -919,8 +937,15 @@ const {
      effect in the gap between the two, roughly tablet-width screens.
      Adjust `100px` directly for a bigger/smaller look on that range. */
   @media (max-width: 1024px) {
+    /* New: per your report that the statue still reads too high on
+       middle (tablet-ish) screens even after the base rule's `top`
+       went from `16vh` to `32vh` — bumped further to `40vh` here,
+       specifically for this breakpoint. Desktop (above `1024px`)
+       keeps the base rule's `32vh` unchanged. Adjust this value
+       directly for more/less. */
     .achievement-island-right {
       width: 100px;
+      top: 40vh;
     }
 
     /* New: the `.achievement-clouds-tile` width override (`1000px`,
@@ -954,9 +979,28 @@ const {
        top-of-file comment's "New: temple removed" paragraph.
        `top` bumped from the original `0vh` to `20vh` per your later
        request to position the island lower on mobile screens —
-       adjust this value directly for more/less. */
+       adjust this value directly for more/less.
+       New: `right: -6vw` (hanging near/off the right edge) replaced
+       with `left: 50%; margin-left: -45px; right: auto;`, per your
+       follow-up that the statue should move left into the horizontal
+       CENTER of the screen on small screens, keeping the same `top`
+       (vertical position unchanged). `left: 50%` puts the element's
+       own left edge at the screen's horizontal center; `margin-left`
+       then pulls it back by exactly half its own width (`90px` below,
+       so `-45px`) so the CENTER of the statue lands on that midpoint
+       instead of its left edge — the standard fixed-width centering
+       trick, which is why `right` (the base rule's own anchor) has to
+       be set to `auto` here: `left` and `right` can't both apply at
+       once (this element would try to stretch to satisfy both).
+       `margin-left` is hard-coded to `90px`'s own half rather than a
+       relative value, so if `width` below ever changes on mobile,
+       update `margin-left` to match (half of the new width) to keep
+       it centered. Adjust `top` directly for more/less if the
+       vertical position needs its own tweak too. */
     .achievement-island-right {
-      right: -6vw;
+      left: 50%;
+      margin-left: -45px;
+      right: auto;
       top: 20vh;
       /* New: the base rule's `width: clamp(130px, 12vw, 200px)`
          bottoms out at its own `130px` MINIMUM on any narrow phone
