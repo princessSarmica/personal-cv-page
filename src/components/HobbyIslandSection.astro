@@ -89,14 +89,26 @@
 // overlap by construction, at any viewport size, so `width` is just a
 // plain `clamp()` now.
 //
-// Background: `hobby_island_background.webp` is a FLAT fill (sampled
-// at ≈#01d4f3), close enough to identical to AchievementIslandSection's
-// bottom edge / BonusIslandSection's top edge that this section always
-// met its neighbors cleanly even without any seam-blend help — the
-// shared fade-band system (`.seam-fade-top`/`.seam-fade-bottom`) that
-// used to exist for the sections where that WASN'T true has since been
-// removed entirely per your request, so this note is just historical
-// context for why this particular section never needed it.
+// Background: `hobby_island_background.webp` used to be rendered as a
+// FLAT fill (sampled at ≈#01d4f3), close enough to identical to
+// AchievementIslandSection's bottom edge / BonusIslandSection's top
+// edge that this section always met its neighbors cleanly even without
+// any seam-blend help — the shared fade-band system
+// (`.seam-fade-top`/`.seam-fade-bottom`) that used to exist for the
+// sections where that WASN'T true has since been removed entirely per
+// your request, so this note is just historical context for why this
+// particular section never needed it.
+//
+// New: per your request, `.hobby-section`'s background is now a
+// top-to-bottom CSS gradient (`#2dddfc` → `#00d4f4`) instead of that
+// flat-fill image — see the `.hobby-section` rule's own comment below
+// for the swap. `hobby_island_background.webp` itself, and the
+// `backgroundImage` prop that points to it, are both left in place
+// unused (rather than deleted) in case you ever want to go back to an
+// image-based fill here; nothing currently reads the prop's value.
+// `#00d4f4` at the bottom is close enough to the old flat fill's
+// ≈#01d4f3 that the seam with BonusIslandSection below still meets
+// cleanly, same as the note above describes.
 //
 // v6 — you swapped in your own re-exported CSP layers and the layout
 // broke ("look size and position of the site completely changes").
@@ -722,7 +734,6 @@ const {
 <section
   class="hobby-section sky-chain halftone-hover"
   id={id}
-  style={`background-image: url(${backgroundImage});`}
 >
   <div class="hobby-island-group hobby-island-group-back" aria-hidden="true">
     <div
@@ -1293,14 +1304,13 @@ const {
   .hobby-section {
     position: relative;
     min-height: 100vh;
-    /* `aspect-ratio: 16 / 9` matches the background image (measured at
-       3840x2160, though it's a flat fill so this doesn't change its
-       appearance either way) — combined with `width: 100%` and
-       `min-height`, the browser uses whichever constraint needs MORE
-       height, same reasoning as the rest of this family (see
-       ArtIslandSection.astro's fuller comment) — kept here mainly for
-       consistency, since a flat-fill background has no "shortening"
-       artifact to begin with. */
+    /* `aspect-ratio: 16 / 9` matches the background image this section
+       used to render (measured at 3840x2160) — combined with `width:
+       100%` and `min-height`, the browser uses whichever constraint
+       needs MORE height, same reasoning as the rest of this family
+       (see ArtIslandSection.astro's fuller comment) — kept here mainly
+       for consistency; it doesn't affect the gradient background
+       below, which just fills whatever box results either way. */
     width: 100%;
     aspect-ratio: 16 / 9;
     display: flex;
@@ -1312,14 +1322,16 @@ const {
        hidden` on `html` in Layout.astro. That handles horizontal
        clipping page-wide, so the island group is free to sit taller
        than this section's own box without being hard-clipped. */
-    /* `cover` — always fills the section edge-to-edge with no gaps,
-       same as the rest of this family (see EducationIslandSection.astro
-       for the fuller "why not size by height alone" reasoning) — though
-       since this background is a flat fill it won't look any different
-       either way. */
-    background-size: cover;
-    background-position: top;
-    background-repeat: no-repeat;
+    /* New: per your request, a top-to-bottom gradient instead of the
+       flat-fill `backgroundImage` this section used to render (see
+       this file's top-of-file "Background:" comment for the full
+       swap). `#2dddfc` at the top, `#00d4f4` at the bottom — plain
+       `to bottom` is all this needs since the section is a single
+       flex column with no separate top/bottom "bands" to align a
+       gradient against, unlike e.g. AchievementIslandSection's clouds
+       layer. Adjust either hex directly for a different pair of
+       shades, or the `to bottom` keyword for a different direction. */
+    background: linear-gradient(to bottom, #2dddfc, #00d4f4);
   }
 
   .content {
