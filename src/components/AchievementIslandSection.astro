@@ -1,49 +1,78 @@
 ---
 // src/components/AchievementIslandSection.astro
 //
-// Same family as ComputerIslandSection.astro: two flanking
-// illustrations sitting behind centered-ish text, one JS-driven
-// mouse-repel script, one CSS bob loop per island. Neither island
-// bleeds off the section's edges here either, so positioning is plain
-// vw/vh (same reasoning as ComputerIslandSection.astro — a vw/vh
-// offset already scales continuously with the viewport, so there's no
-// need for the clamp(mobileValue, calc(a + b*vw), desktopValue) trick
+// Same family as ComputerIslandSection.astro: one flanking
+// illustration sitting behind centered-ish text, one JS-driven
+// mouse-repel script, one CSS bob loop. It doesn't bleed off the
+// section's edges, so positioning is plain vw/vh (same reasoning as
+// ComputerIslandSection.astro — a vw/vh offset already scales
+// continuously with the viewport, so there's no need for the
+// clamp(mobileValue, calc(a + b*vw), desktopValue) trick
 // ArtIslandSection.astro needs for its bleeding corners).
 //
-// Per your reference screenshot, the arrangement is close to
-// ComputerIslandSection's but tuned differently:
-//
-//   - `leftImage`  (statue island, svg) -> mid-left, narrower and
-//     taller than the telephone-pole island was, sitting a little
-//     further in from the edge.
-//   - `rightImage` (temple island, svg) -> right side, large, sitting
-//     lower and tucked in much closer to the right edge than the
-//     computer island was.
+//   - `leftImage`  (statue island, svg) -> now sitting where the
+//     temple used to (see "New: temple removed" below), right side,
+//     tucked in close to the edge. The prop is still called
+//     `leftImage`/`leftImageGlitched` even though it no longer
+//     renders on the left — it names WHICH image this is (the
+//     statue), not where it's positioned, and renaming it would mean
+//     touching index.astro too for a change that was only ever about
+//     position. The CSS class doing the actual positioning is
+//     `.achievement-island-right` below, which DOES describe where
+//     it renders.
 //
 // (The mountain shape bottom-left in your screenshot is the
 // persistent CornerIsland.astro front island that's on every section
-// via Layout.astro — not one of this component's two images.)
+// via Layout.astro — not this component's own image.)
 //
-// Included a mobile media query mirroring ComputerIslandSection's:
-// left island drops into normal flow below the text (via `order`)
-// instead of overlaying it, right island gets a tighter `right` so it
-// doesn't creep under the now full-width text. Same as the other
-// sections in this family, treat these as starting values to nudge
-// once you see it live.
+// New: temple removed. `rightImage`/`rightImageGlitched` (the temple
+// island and its glitch swap) and `rightChunk1Image`/`rightChunk2Image`
+// (its two front rock chunks) are gone entirely per your request —
+// props, markup, CSS, and the JS that drove the chunks' proximity
+// show/hide are all removed, not just hidden, along with the temple's
+// own mobile tightened-`right` rule (its VALUES live on
+// `.achievement-island-right` below now, repurposed for the statue).
+// `leftImage` (the statue) moved into the temple's old spot instead
+// — see `.achievement-island-right` in the styles below, which used
+// to be the temple's rule and is now the statue's, position and
+// animation unchanged from what the temple had, only the image and
+// its size (the statue's own `clamp(130px, 12vw, 200px)`, not the
+// temple's `clamp(320px, 40vw, 560px)`) are different. The statue's
+// optional glitch swap (`leftImageGlitched`) still works exactly as
+// before, just relocated along with the rest of the island — see
+// "Glitch swap" below, now the only one of its kind in this file
+// (`glitch-pop`/`glitch-scan` and the `.achievement-glitch-swap*`
+// rules are all still here for it; everything `.achievement-glitch`-
+// prefixed, i.e. the CHUNKS' machinery specifically, is gone, not
+// reused).
 //
-// Background: was a real image (`backgroundImage`) via `background-
-// image` + `background-size: cover`, same technique every section in
-// this family used. New: swapped for a flat `background-color:
-// #2ddcfc;` on `.achievement-section` per your request — no image to
-// crop or position any more, so `background-size`/`background-
-// position`/`background-repeat` and the `backgroundImage` prop are
-// gone entirely (same kind of swap ComputerIslandSection.astro's
-// gradient background went through earlier). `min-height`/`aspect-
-// ratio` below are UNCHANGED by this — they were always about this
-// section's own SHAPE (how tall it grows on unusual viewports), a
-// separate concern from what paints inside it, so a flat color still
-// benefits from the section never getting squashed shorter than
-// 16:9 on a short/wide viewport, exactly as the image did.
+// Background: `background-color: #2ddcfc` (flat cyan) stays exactly
+// as it was — see the CSS comment on `.achievement-section` for why
+// that swap happened. New: `backgroundImage` (your
+// achievement_island_background_ver3.webp) is now layered ON TOP of
+// that color, not instead of it — a new `.achievement-background-
+// image` div, absolutely positioned to fill the section
+// (`background-size: cover; background-position: bottom;`, the same
+// full-bleed technique this family's OLD image backgrounds always
+// used), sitting at `z-index: 0` so it paints above the section's own
+// flat-color background (a plain `background-color` always paints at
+// an element's own furthest-back layer regardless of any child's
+// z-index, same reasoning as ComputerIslandSection's gradient) but
+// below the foreground island (`z-index: 1`) and text (`z-index: 2`).
+// The image itself is mostly transparent in its lower-right — sampled
+// its alpha channel directly: solid/opaque from about 65% down to 87%
+// of its own height (the ruins' ground plane), lighter and more
+// scattered above that (the ruins structure itself, denser on the
+// LEFT half of the image than the right), which is why `cover` +
+// `background-position: bottom` was the right anchor choice — it
+// keeps that solid ground plane flush with the section's own bottom
+// edge on every viewport, the same way every other full-bleed
+// background in this family anchors its own "floor" line, cropping
+// any excess from the top instead of the bottom if the section ends
+// up proportionally taller than the image. The transparent areas (the
+// sky, and the whole right side where the statue now sits) simply let
+// the flat cyan color underneath show through — that's the whole
+// point of layering it instead of replacing the color.
 //
 // No seam-fade classes any more — the shared fade-band system that
 // used to blend section edges together was removed per your request,
@@ -59,115 +88,61 @@
 // needed here for it, since `body:has(.halftone-hover:hover)
 // .halftone-spotlight` is what actually turns the spotlight on.
 //
-// Two optional "front chunk" images — `rightChunk1Image` /
-// `rightChunk2Image` (your right_achievement_island_first_front_
-// chunk.webp / right_achievement_island_second_front_chunk.webp) —
-// smaller rock fragments that sit in front of and below the main
-// temple island, per your reference screenshot: chunk 1 (the bigger
-// one) tucked just under-left of the temple's base, chunk 2 (smaller)
-// further down-left, partly overlapping chunk 1. Positioned with the
-// same plain vw/vh approach as the two main islands, as starting
-// values eyeballed off your screenshot — nudge once it's live, same
-// as everything else in this family.
+// Glitch swap: an optional `leftImageGlitched` (your
+// left_achievement_island_glitched.webp) CROSSFADES the statue from
+// its normal image to this glitched variant and back on cursor
+// proximity, instead of an element popping in/out of existence like
+// the (now-removed) chunks used to. Implemented as two stacked images
+// inside a `.achievement-glitch-swap` wrapper (same nested-stack
+// technique as `.intro-cloud-inner`/`.cloud-smile` in
+// IntroIslandSection.astro): the normal image sits in normal flow and
+// is always visible; the glitched image is absolutely positioned on
+// top of it at `opacity: 0`, and only shows (with the same
+// `glitch-pop`/`glitch-scan` "digital tear" flourish the chunks used
+// to share this with) while `.is-glitched` is applied. The prop is
+// optional — without it the island just renders its normal image with
+// no swap behavior.
 //
-// Both chunks get the SAME bob-loop + mouse-repel treatment as
-// `leftImage`/`rightImage` (own `.achievement-glitch` outer wrapper
-// for the CSS bob animation, `.achievement-glitch-inner.parallax-
-// inner` child for the JS drift — the existing script below already
-// picks these up for free, since it queries `.parallax-inner`
-// globally like every other section in this family). What's new is
-// that they're NOT always visible: per your reference (the small
-// symbols/pictures that flicker in and out as you move the cursor on
-// rossdraws.com), each chunk is normally invisible and only glitches
-// into view when the cursor is close to where it sits — moving away
-// lets it linger for a couple seconds before it hides again, rather
-// than vanishing the instant the cursor leaves, and it keeps
-// re-glitching at random intervals for as long as it lingers instead
-// of flashing once and then sitting there static. Each glitch plays a
-// quick "digital tear" flourish (a banded `clip-path` jump-cut plus a
-// brief hue-rotate flash, both using `steps()` easing so the
-// transition SNAPS between states instead of smoothly tweening) and a
-// scanline texture overlay that's only present mid-flash.
+// The proximity check driving the swap is `watchGlitchReveal()` in
+// the script below — a small generic helper (watch a distance, toggle
+// a class, re-glitch on an interval while in range, linger after
+// leaving) that used to also drive the two front chunks' whole-element
+// show/hide before they were removed; it's kept generic rather than
+// hard-coded to the statue specifically, so a second island picking
+// this up later needs no script changes, only the same markup
+// pattern. It's discovered generically too (every
+// `.achievement-glitch-swap` on the page that actually has a
+// `.achievement-glitch-swap-alt` inside it, currently just the
+// statue), with distance measured from its closest
+// `.achievement-island` ancestor (the whole island's footprint, not
+// just the swap wrapper) and a reveal radius that scales with that
+// island's own rendered size.
 //
-// Two optional `*Glitched` images — `leftImageGlitched` (your
-// left_achievement_island_glitched.webp) for the statue, and
-// `rightImageGlitched` (your right_achievements_island_glitched.webp)
-// for the temple. Same cursor-proximity trigger and same glitch
-// flourish as the two chunks, but a different effect — instead of an
-// element popping in/out of existence, this CROSSFADES an island from
-// its normal image to its glitched variant and back, i.e. the island
-// is always there, only its texture glitches. Implemented as two
-// stacked images inside a new `.achievement-glitch-swap` wrapper
-// (same nested-stack technique as `.intro-cloud-inner`/`.cloud-smile`
-// in IntroIslandSection.astro), used identically for both islands:
-// the normal image sits in normal flow and is always visible; the
-// glitched image is absolutely positioned on top of it at
-// `opacity: 0`, and only shows (with the same glitch-pop/glitch-scan
-// animations the chunks use) while `.is-glitched` is applied. Either
-// prop can be passed on its own — an island without its `*Glitched`
-// prop just renders its normal image with no swap behavior, same as
-// before this existed.
+// `pointer-events: none` stays on `.achievement-island` (same as every
+// other island) since it's purely decorative and `aria-hidden`, so
+// none of this can use native `:hover`/`mouseenter` — that requires
+// the element to actually receive pointer events. The distance-based
+// JS check works around that without needing anything here to be
+// interactive.
 //
-// The proximity check that drives all of this (both chunks + both
-// island swaps) is one shared `watchGlitchReveal()` helper in the
-// script below, rather than four copies of near-identical logic —
-// they're the same shape (watch a distance, toggle a class, re-glitch
-// on an interval while in range, linger after leaving) and only
-// differ in which element the class goes on and how the reveal radius
-// is computed. The two island swaps specifically are discovered
-// generically (every `.achievement-glitch-swap` on the page that
-// actually has a `.achievement-glitch-swap-alt` inside it), rather
-// than being wired up by hand per island — distance for each is
-// measured from its own closest `.achievement-island` ancestor (the
-// whole island's footprint, not just the swap wrapper), so hovering
-// anywhere near an island triggers it, and the radius scales with
-// THAT island's own rendered size rather than a shared fixed value,
-// since the statue (`clamp(130px, 12vw, 200px)` wide) and the temple
-// (`clamp(320px, 40vw, 560px)` wide) are very different sizes.
+// `.achievement-island-right` (the statue, see "New: temple removed"
+// above) stays at `z-index: 1` — this matters for the halftone
+// spotlight in Layout.astro: that element sits at `z-index: 0`
+// specifically so everything at `z-index: 1`+ paints over it,
+// untouched by its dot-pattern blend. Keeping the island at that tier
+// means it's excluded from the halftone tint exactly like every other
+// island in this family, rather than (accidentally) being treated as
+// part of the background.
 //
-// `pointer-events: none` stays on `.achievement-glitch`/`.achievement-
-// island` (same as every other island) since these are purely
-// decorative and `aria-hidden`, so none of this can use native
-// `:hover`/`mouseenter` — those require the element to actually
-// receive pointer events. The distance-based JS check works around
-// that without needing anything here to be interactive.
-//
-// Both chunks and the temple swap default to `z-index: 1` (or inherit
-// the temple island's own z-index 1, in the swap's case), same tier
-// as `.achievement-island` — this matters for the halftone spotlight
-// in Layout.astro: that element sits at `z-index: 0` specifically so
-// everything at `z-index: 1`+ paints over it, untouched by its
-// dot-pattern blend. Keeping everything here at that same tier means
-// it's excluded from the halftone tint exactly like the other islands
-// are, rather than (accidentally) being treated as part of the
-// background.
-//
-// Under `prefers-reduced-motion: reduce`: both chunks are shown
-// statically (no glitch animation, no scanline texture, no
-// proximity-gating) — popping in and out as the cursor moves is
-// exactly the kind of motion that setting is meant to suppress, so
-// this shows them plainly instead of just hiding them outright. The
-// temple swap needs no special handling for this — its default state
-// (no `.is-glitched`) already shows the normal `rightImage`, so
-// simply never attaching its proximity watcher under reduced motion
-// leaves it showing the normal image permanently, which is exactly
-// what's wanted.
-//
-// On narrow screens (`max-width: 640px`) both chunks are hidden
-// entirely rather than repositioned — they're purely decorative
-// flourish, not core content, and there isn't a clean spot for them
-// once the layout collapses to the mobile single-column treatment.
-// The temple swap stays active on mobile (it doesn't add any new
-// layout footprint, just crossfades in place) — though in practice it
-// won't trigger there anyway, since touch devices have no persistent
-// cursor to be "near" the island in the first place.
-// Ask if you'd rather the chunks show up (smaller, repositioned) on
-// mobile too.
-//
-// NOTE: I still don't have the actual chunk/glitch image files for
-// this section — this is reasoned from first principles, not
-// measured against the real files. (The background itself is no
-// longer an image, see above.)
+// New: on mobile (`max-width: 640px`) `.achievement-background-image`
+// gets a crop override instead of showing uncropped edge-to-edge —
+// same `min-height` + `aspect-ratio` + `object-fit: cover` technique
+// EducationIslandSection already uses for its own mobile background,
+// just with this image's real ratio (4044:3413) and `object-position:
+// bottom` instead of `center`, to keep anchoring the ruins' ground
+// plane (its opaque band, ~65-87% down the image) at the section's
+// own floor the same way the base rule already does. See the CSS
+// comment on that override for the full reasoning.
 //
 // Usage:
 //   <AchievementIslandSection
@@ -177,10 +152,8 @@
 //     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur..."
 //     leftImage="/images/left_achievement_island.svg"
 //     leftImageGlitched="/images/left_achievement_island_glitched.webp"
-//     rightImage="/images/right_achievement_island.svg"
-//     rightImageGlitched="/images/right_achievements_island_glitched.webp"
-//     rightChunk1Image="/images/right_achievement_island_first_front_chunk.webp"
-//     rightChunk2Image="/images/right_achievement_island_second_front_chunk.webp"
+//     backgroundImage="/images/achievement_island_background_ver3.webp"
+//     cloudsBackground="/images/achievement_island_background_clouds.webp"
 //   />
 
 interface Props {
@@ -190,10 +163,8 @@ interface Props {
   text: string;
   leftImage: string;
   leftImageGlitched?: string;
-  rightImage: string;
-  rightImageGlitched?: string;
-  rightChunk1Image?: string;
-  rightChunk2Image?: string;
+  backgroundImage: string;
+  cloudsBackground: string;
 }
 
 const {
@@ -203,10 +174,8 @@ const {
   text,
   leftImage,
   leftImageGlitched,
-  rightImage,
-  rightImageGlitched,
-  rightChunk1Image,
-  rightChunk2Image,
+  backgroundImage,
+  cloudsBackground,
 } = Astro.props;
 ---
 
@@ -214,7 +183,25 @@ const {
   class="achievement-section sky-chain halftone-hover"
   id={id}
 >
-  <div class="achievement-island achievement-island-left" aria-hidden="true">
+  <div class="achievement-clouds-bg" aria-hidden="true">
+    <div class="achievement-clouds-fill"></div>
+    <div class="achievement-clouds-track-row">
+      <div class="achievement-clouds-track">
+        <img class="achievement-clouds-tile" src={cloudsBackground} alt="" />
+        <img class="achievement-clouds-tile" src={cloudsBackground} alt="" />
+      </div>
+    </div>
+  </div>
+
+  <img class="achievement-background-image" src={backgroundImage} alt="" aria-hidden="true" />
+
+  <div class="content">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    <h2>{title}</h2>
+    <p class="body-text">{text}</p>
+  </div>
+
+  <div class="achievement-island achievement-island-right" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
       <div class="achievement-glitch-swap">
         <img class="achievement-glitch-swap-base" src={leftImage} alt="" />
@@ -226,41 +213,6 @@ const {
       </div>
     </div>
   </div>
-
-  <div class="content">
-    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
-    <h2>{title}</h2>
-    <p class="body-text">{text}</p>
-  </div>
-
-  <div class="achievement-island achievement-island-right" aria-hidden="true">
-    <div class="achievement-island-inner parallax-inner">
-      <div class="achievement-glitch-swap">
-        <img class="achievement-glitch-swap-base" src={rightImage} alt="" />
-        {rightImageGlitched && (
-          <div class="achievement-glitch-swap-alt">
-            <img src={rightImageGlitched} alt="" />
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-
-  {rightChunk1Image && (
-    <div class="achievement-glitch achievement-glitch-1" aria-hidden="true">
-      <div class="achievement-glitch-inner parallax-inner">
-        <img src={rightChunk1Image} alt="" />
-      </div>
-    </div>
-  )}
-
-  {rightChunk2Image && (
-    <div class="achievement-glitch achievement-glitch-2" aria-hidden="true">
-      <div class="achievement-glitch-inner parallax-inner">
-        <img src={rightChunk2Image} alt="" />
-      </div>
-    </div>
-  )}
 </section>
 
 <script>
@@ -440,50 +392,30 @@ const {
 
   const glitchTiming = { hideDelay: 2500, glitchIntervalMin: 500, glitchIntervalMax: 1400 };
 
-  // Front rock chunks (see `.achievement-glitch` in the <style>
-  // below): whole-element show/hide, `.is-visible` toggled on the
-  // same element the distance is measured from.
-  const glitchChunks = document.querySelectorAll<HTMLElement>(".achievement-glitch");
-
-  if (glitchChunks.length) {
-    if (prefersReducedMotion) {
-      // Show plainly, no glitch/texture/proximity-gating — see the
-      // component-level comment for why this shows the chunks instead
-      // of just leaving them hidden.
-      for (const chunk of glitchChunks) {
-        chunk.classList.add("is-visible", "no-motion");
-      }
-    } else {
-      watchGlitchReveal(
-        Array.from(glitchChunks).map((el) => ({ watch: el, toggle: el, radius: 180 })),
-        "is-visible",
-        glitchTiming
-      );
-    }
-  }
+  // New: the front rock chunks that used to be driven from here
+  // (`.achievement-glitch` whole-element show/hide) are gone — see
+  // the component-level comment's "New: temple removed" paragraph.
+  // `glitchTiming` above is kept; the island swap below still uses it.
 
   // Island glitch swaps (see `.achievement-glitch-swap` in the
   // <style> below): crossfades an island's normal image to its
   // glitched variant and back, instead of showing/hiding a whole
-  // element like the chunks do. Handles however many
-  // `.achievement-glitch-swap` instances exist — currently the
-  // statue (`leftImageGlitched`) and the temple
-  // (`rightImageGlitched`) — generically rather than querying each
-  // one by hand, so a third island picking this up later needs no
-  // script changes, only the same markup pattern. Each swap's
-  // distance is measured from its own closest `.achievement-island`
-  // ancestor (the whole island's footprint, not just the swap
+  // element like the (now-removed) chunks used to. Handles however
+  // many `.achievement-glitch-swap` instances exist — currently just
+  // the statue (`leftImageGlitched`) — generically rather than
+  // querying it by hand, so a second island picking this up later
+  // needs no script changes, only the same markup pattern. Each
+  // swap's distance is measured from its own closest `.achievement-
+  // island` ancestor (the whole island's footprint, not just the swap
   // wrapper), so hovering anywhere near an island triggers it, and
   // only swaps that actually have a `.achievement-glitch-swap-alt`
   // (i.e. a glitched image was actually passed for that island) get a
-  // watcher at all. Radius scales with each island's OWN rendered
-  // size rather than a shared fixed px value, since island sizes vary
-  // a lot in this family (the statue is
-  // `clamp(130px, 12vw, 200px)` wide, the temple
-  // `clamp(320px, 40vw, 560px)`). No `prefers-reduced-motion` branch
-  // needed — every swap's default (no `.is-glitched`) already shows
-  // its normal image, so simply not attaching a watcher leaves it
-  // that way.
+  // watcher at all. Radius scales with the island's own rendered size
+  // rather than a shared fixed px value (the statue is
+  // `clamp(130px, 12vw, 200px)` wide). No `prefers-reduced-motion`
+  // branch needed — the swap's default (no `.is-glitched`) already
+  // shows its normal image, so simply not attaching a watcher leaves
+  // it that way.
   if (!prefersReducedMotion) {
     const islandSwapTargets = Array.from(
       document.querySelectorAll<HTMLElement>(".achievement-glitch-swap")
@@ -530,13 +462,259 @@ const {
        hidden` on `html` in Layout.astro. That handles horizontal
        clipping page-wide, so an island that needs more vertical room
        than this section provides isn't hard-clipped. */
-    /* New: flat color instead of an image (see the top-of-file
-       comment) — nothing to crop or position, so `background-size`/
-       `background-position`/`background-repeat` are gone; a plain
-       `background-color` always paints at this section's own
-       furthest-back layer regardless of any child's z-index, same as
-       ComputerIslandSection's gradient. */
+    /* Flat color instead of an image on THIS element (see the
+       top-of-file comment) — nothing to crop or position here, so
+       `background-size`/`background-position`/`background-repeat`
+       stay gone; a plain `background-color` always paints at this
+       section's own furthest-back layer regardless of any child's
+       z-index, same as ComputerIslandSection's gradient. New:
+       `backgroundImage` is back, but as a SEPARATE layered element
+       (`.achievement-background-image` below) rather than a property
+       on this one — see that rule's own comment. */
     background-color: #2ddcfc;
+  }
+
+  /* New: `cloudsBackground` (your achievement_island_background_
+     clouds.webp) — a looping clouds layer sitting BEHIND the ruins
+     image below (`.achievement-background-image`), same two-tile
+     `translateX` loop technique as ArtIslandSection's `.art-clouds-
+     bg` / ComputerIslandSection's `.computer-clouds-bg` /
+     InBetweenSection2's `.in-between-2-clouds-bg` — see any of those
+     files' top-of-file comments for the full mechanics (real `<img>`
+     tiles sized by `height: 100%; width: auto` rather than
+     `background-image` + `cover`, since `cover` would crop each tile
+     to its own box and, because that crop lands centered, both tiles
+     would show the same cropped middle slice instead of their true
+     left/right edges — animated `transform: translateX` from -50% to
+     0% on a `width: max-content` track, looping seamlessly forever
+     because the two tiles are pixel-identical and the source texture
+     is already seamlessly tileable — this one measured at ~0.92
+     average per-channel edge difference as delivered, well within the
+     "looks seamless" range this codebase has used elsewhere, so no
+     seam reprocessing was needed before wiring it up). `z-index: 0`
+     keeps it above the flat-color background (which paints at its own
+     furthest-back layer regardless of any child's z-index) and below
+     the ruins image (`z-index: 1`).
+     New: `top`/`bottom` in place of `inset: 0` — first shifted `8vh`
+     per your first "a bit higher" request, then further to `20vh` per
+     your follow-up that you wanted it higher still. This shifts the
+     whole layer's own box UP by that amount as a unit (top edge moves
+     above the section's own top edge, bottom edge moves up by the
+     same amount too), same symmetric shift technique ArtIslandSection's
+     moon uses to reposition without resizing — total height is
+     unchanged (both edges move by the same amount), only WHERE that
+     height sits shifts. It also means this layer bleeds that same
+     amount above the section into ComputerIslandSection — unlike the
+     ruins image, no z-index special-casing was added for that overlap
+     zone (this layer stays at `z-index: 0`, so it can lose to
+     Computer's own clouds there exactly like it would anywhere else);
+     this wasn't asked for and is a side effect of the shift, not a
+     design goal.
+     New: brought back down from `20vh` to `5vh` per your follow-up to
+     put the clouds AND the fill lower — since `.achievement-clouds-fill`
+     (below) is what actually reads as "where the sky sits" now (see
+     its own comment for why it's the piece that soaks up leftover
+     space and pins the clouds row to this box's bottom edge), moving
+     this WHOLE box down is what moves both of them together as one
+     unit, rather than nudging the clouds row alone inside it. A
+     smaller shift means less of this layer sits above the section's
+     own top edge to begin with, so the box as a whole — fill and
+     clouds row alike — renders lower within (and below) the section.
+     New: bumped up to `10vh`, then further to `18vh` per your
+     follow-up, after the row/fill bug fix (see the comment on the
+     `display: flex` line above — the clouds row is genuinely
+     bottom-anchored to THIS box's own bottom edge now, not just in
+     theory), to move the clouds higher — since the clouds row anchors
+     to this box's bottom edge, moving the whole box UP by more also
+     drags that bottom edge (and the clouds sitting flush against it)
+     up along with it. Adjust this value directly for more/less; it
+     must stay mirrored on `bottom` below (same magnitude, opposite
+     intent — see the paragraph above for why) to keep the box's
+     total height constant while only its position shifts. */
+  .achievement-clouds-bg {
+    position: absolute;
+    top: -18vh;
+    left: 0;
+    right: 0;
+    bottom: 18vh;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* New (BUG FIX): `display: flex; flex-direction: column;` were
+       described in the comment below when this row/fill layout was
+       introduced, but never actually written as real declarations
+       here — the rule was still plain `display: block` this whole
+       time, which is why `.achievement-clouds-fill` collapsed to
+       `height: 0` (an empty block-level div has no content to size
+       itself by) and `.achievement-clouds-track-row` never got
+       pushed anywhere — it just sat in normal document flow at the
+       very TOP of this box instead of being bottom-anchored, which is
+       exactly "the clouds are high above where they need to be." */
+    display: flex;
+    flex-direction: column;
+    /* New: per your request to fix the "still some gap on some
+       screens" issue the same way EducationIslandSection's own clouds
+       layer was eventually fixed (see that file's dedicated "Clouds
+       background" top-of-file comment for the full history) -- this
+       box is now a column flex container holding two children in DOM
+       order: `.achievement-clouds-fill` first, `.achievement-clouds-
+       track-row` (the actual clouds) second. `.achievement-clouds-
+       track-row` sizes itself to `flex: 0 0 auto` -- exactly as tall
+       as the clouds texture naturally renders at, whatever that works
+       out to at the current viewport width -- and `.achievement-clouds-
+       fill` takes `flex: 1 1 auto`, soaking up every bit of vertical
+       space this box has left over. Because the fill comes FIRST and
+       only the clouds row is fixed-size, the fill (not the clouds)
+       absorbs all the slack, which pushes the clouds row down flush
+       against this box's own BOTTOM edge on every single breakpoint --
+       no more separately guessing a `margin-top` in vh per breakpoint
+       and hoping it lands close enough (see the git history in this
+       file's comments for how many rounds that took, and how a
+       too-large guess on mobile once pushed the clouds tile straight
+       past this box's own `overflow: hidden` and off-screen). The
+       fill is painted the section's own flat sky color (see
+       `.achievement-clouds-fill` below), so wherever it shows through
+       above the clouds it's indistinguishable from the plain
+       background -- there is no color/texture seam left to read as "a
+       gap" any more, on any screen size, by construction rather than
+       by tuning. */
+  }
+
+  /* Grows to fill whatever vertical space `.achievement-clouds-track-
+     row` below doesn't need (`flex: 1 1 auto`) -- see the comment on
+     `.achievement-clouds-bg` above for why this is what pins the
+     clouds to the BOTTOM of that box instead of the top. Painted the
+     same flat `#ECE4E0` as `.achievement-section`'s own background
+     (see that rule's comment), so this fill is invisible against the
+     sky behind it -- same idea as EducationIslandSection's own
+     `.education-clouds-fill`, just cyan here instead of white to
+     match THIS section's sky color instead of that one's. */
+  .achievement-clouds-fill {
+    flex: 1 1 auto;
+    background: #2ddcfc;
+  }
+
+  /* Sized to its own content only (`flex: 0 0 auto`) -- exactly as
+     tall as the clouds texture renders at, at whatever the current
+     viewport width works out to, never stretched to fill the rest of
+     `.achievement-clouds-bg` (that's `.achievement-clouds-fill`'s job,
+     above). `overflow: hidden` clips the horizontally-drifting track
+     inside back down to one box-width, same defensive reasoning as
+     EducationIslandSection's own `.education-clouds-track-row`. */
+  .achievement-clouds-track-row {
+    flex: 0 0 auto;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .achievement-clouds-track {
+    display: flex;
+    /* Keeps the two tile images from being flex-stretched vertically
+       to match each other or the row -- same reasoning as
+       EducationIslandSection's own clouds track. */
+    align-items: flex-start;
+    width: max-content;
+    animation: achievement-clouds-drift 90s linear infinite;
+  }
+
+  /* `width: 130vw` (with `height: auto` deriving from the source
+     texture's own ratio) ties this tile's rendered size to viewport
+     WIDTH, the same way `.achievement-background-image` scales via
+     `width: 100%; height: auto` -- see that rule's comment. This is
+     what makes the clouds shrink and grow together with the screen
+     instead of being pinned to a flat height regardless of how narrow
+     the viewport gets (the old `height: 55%` behavior this replaced).
+     `130vw` was picked to land close to the original desktop look;
+     narrower breakpoints below override it with fixed pixel widths
+     instead of letting it keep shrinking indefinitely, per your
+     request to keep the clouds the same size across small and middle
+     screens (see the `max-width: 1024px` block further down) -- adjust
+     any of those values directly for a bigger/smaller look.
+     No `margin-top` here any more -- vertical position is handled
+     entirely by `.achievement-clouds-bg`'s flex column + fill above
+     now, not by a per-breakpoint margin guess on this element. See
+     the removed mobile override's own note, further down, for that
+     history. */
+  .achievement-clouds-tile {
+    display: block;
+    width: 130vw;
+    height: auto;
+    max-width: none;
+    flex-shrink: 0;
+  }
+
+
+  @keyframes achievement-clouds-drift {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0%);
+    }
+  }
+
+  /* New: `backgroundImage` (your achievement_island_background_ver3.
+     webp) layered on top of the flat color above, not replacing it —
+     see the top-of-file comment for the full reasoning (in short:
+     the image is mostly transparent outside the ruins/ground shape,
+     so the cyan shows through everywhere it doesn't paint).
+     New: a real `<img>` now, not a CSS `background-image` — per your
+     follow-up that `cover` was cropping it (the image's own ratio,
+     4044x3413 ≈ 1.19:1, is far more square than this section's 16:9
+     box, so `cover` had to scale it up until its WIDTH matched the
+     section exactly, at which point its HEIGHT overflowed by roughly
+     50% — `background-position: bottom` was cropping all of that
+     excess off the TOP, which is exactly the ruins' distinctive
+     crossed-beam silhouette, the whole point of the image). A real
+     `<img>` sized by `width: 100%; height: auto` scales to that same
+     exact width with NO cropping at all — it just renders at its own
+     natural (taller) height instead, and since neither this section
+     nor its parent clip overflow (see the "No `overflow: hidden`
+     here" comment on `.achievement-section` above — same reasoning
+     applies to this image), that extra height is free to bleed
+     upward past this section's own top edge into ComputerIslandSection
+     above, exactly like ArtIslandSection's moon bleeds into THIS
+     family's sections. `bottom: 0` (in place of `inset: 0`) is what
+     anchors it there — the image's solid ground plane (measured via
+     its own alpha channel: fully opaque from ~65% to ~87% down its
+     height) stays flush with this section's own bottom edge on every
+     viewport, and the excess grows upward instead of down, same
+     anchor direction `background-position: bottom` used before, just
+     without the crop.
+     New: `z-index` bumped from `0` to `1` — turns out removing the
+     CROP wasn't the whole fix. Neither `.achievement-section` nor
+     `.computer-section` establishes its own stacking context (see
+     ComputerIslandSection.astro's comments for that mechanism), so
+     this image's z-index is compared DIRECTLY against Computer's own
+     children in their overlap zone rather than against Computer as
+     one unit. At `z-index: 0` it beat Computer's gradient (`z-index:
+     -1`, `0 > -1`) but LOST to Computer's clouds (`z-index: 1`,
+     `0 < 1`) — Computer's clouds layer covers its ENTIRE section,
+     bottom edge included, so it was painting straight over the top of
+     this bleeding image, which read as "still cut off" even though
+     nothing was cropping it any more. `z-index: 1` ties with
+     Computer's clouds (and islands) instead of losing outright; a tie
+     breaks by DOM order, and this section comes AFTER Computer in the
+     page, so it now wins — the bleed paints in front of Computer's
+     clouds, which is what makes it actually visible. It's still below
+     THIS section's own island (`z-index: 1` too, but DOM-later than
+     this image, so it wins their own local tie) and text (`z-index:
+     2`), so nothing here changes locally. It COULD, in principle, also
+     win against Computer's own islands/text if the bleed ever reached
+     that far up — in practice it doesn't: the excess height this
+     image needs is a little under half of THIS section's own height,
+     which only reaches partway into Computer's much taller box
+     (130-150vh), well short of where Computer's own foreground content
+     sits. */
+  .achievement-background-image {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 100%;
+    height: auto;
+    pointer-events: none;
   }
 
   .content {
@@ -582,30 +760,24 @@ const {
     height: auto;
   }
 
-  /* Statue island: narrower and taller than a typical flanking island,
-     mid-left but a bit further in from the edge than
-     ComputerIslandSection's telephone-pole island was. Doesn't bleed
-     off any edge. */
-  .achievement-island-left {
-    top: 30vh;
-    left: 22vw;
-    width: clamp(130px, 12vw, 200px);
-    animation: bob-left 6.5s ease-in-out infinite;
-  }
-
-  /* Temple island: large, sitting lower and tucked in much closer to
-     the right edge than the computer island was. Also doesn't bleed
-     off any edge. */
+  /* New: this used to be the temple island's rule (large, sitting
+     lower and tucked in close to the right edge) — the temple itself
+     is gone (see the top-of-file comment's "New: temple removed"),
+     and the statue (`leftImage`, previously `.achievement-island-
+     left`, positioned mid-left) moved into this exact spot instead.
+     `top`/`animation` are the temple's OLD values, unchanged; `width`
+     is the statue's own size (`clamp(130px, 12vw, 200px)`, not the
+     temple's `clamp(320px, 40vw, 560px)`) — it's still the statue
+     image, just relocated, not resized to match the temple's old
+     footprint. `right` bumped from the temple's old `2vw`, first to
+     `10vw`, then further to `18vw` per your follow-up to move the
+     statue even further left — adjust this value directly for
+     more/less. */
   .achievement-island-right {
     top: 16vh;
-    right: 2vw;
-    width: clamp(320px, 40vw, 560px);
+    right: 18vw;
+    width: clamp(130px, 12vw, 200px);
     animation: bob-right 5.8s ease-in-out infinite;
-  }
-
-  @keyframes bob-left {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
   }
 
   @keyframes bob-right {
@@ -613,14 +785,15 @@ const {
     50% { transform: translateY(-8px); }
   }
 
-  /* Temple glitch swap: the normal and glitched temple images stacked
-     on top of each other, same nested-stack technique as
-     `.intro-cloud-inner`/`.cloud-smile` in IntroIslandSection.astro.
-     `position: relative` so the absolutely positioned alt image lines
-     up exactly over the base one. Sized entirely by the base image
-     (normal document flow, `width: 100%; height: auto` via the
-     existing `.achievement-island-inner img` rule below) — the alt
-     image and its wrapper just stretch to match via `inset: 0`. */
+  /* Island glitch swap: the normal and glitched images (currently
+     just the statue's `leftImage`/`leftImageGlitched`) stacked on top
+     of each other, same nested-stack technique as `.intro-cloud-
+     inner`/`.cloud-smile` in IntroIslandSection.astro. `position:
+     relative` so the absolutely positioned alt image lines up exactly
+     over the base one. Sized entirely by the base image (normal
+     document flow, `width: 100%; height: auto` via `.achievement-
+     island-inner img` above) — the alt image and its wrapper just
+     stretch to match via `inset: 0`. */
   .achievement-glitch-swap {
     position: relative;
   }
@@ -637,11 +810,17 @@ const {
     animation: glitch-pop 0.45s steps(1, jump-end) both;
   }
 
-  /* Same scanline texture as the front chunks below, wrapped in its
-     own div (`.achievement-glitch-swap-alt`) rather than a
+  /* Scanline/static texture — plain CSS, no image asset. Only present
+     mid-flash (`.is-glitched .achievement-glitch-swap-alt::after`),
+     faded in via its own one-shot `glitch-scan` animation on the same
+     `steps()` snap timing as `glitch-pop` below, so the texture
+     itself flickers in rather than smoothly fading over the image.
+     `mix-blend-mode: overlay` lets it read as a texture ON the image
+     rather than a flat translucent sheet sitting on top of it. Lives
+     on its own div (`.achievement-glitch-swap-alt`) rather than a
      pseudo-element directly on an `<img>` — `<img>` is a replaced
      element and doesn't reliably support `::before`/`::after` across
-     browsers, unlike the chunks' own outer `<div>` wrapper. */
+     browsers. */
   .achievement-glitch-swap-alt::after {
     content: "";
     position: absolute;
@@ -662,75 +841,18 @@ const {
     animation: glitch-scan 0.45s steps(1, jump-end) both;
   }
 
-  /* Front rock chunks: same `position: absolute; z-index: 1;
-     pointer-events: none;` treatment as `.achievement-island` (see
-     the component-level comment above for why z-index 1 specifically
-     matters — it's what keeps these excluded from the halftone
-     spotlight's blend in Layout.astro, same as every other island).
-     `opacity: 0` by default — JS toggles `.is-visible` on/off based
-     on cursor proximity per chunk (see the <script> above); nothing
-     here shows them permanently. The bob animation still runs
-     continuously underneath regardless of visibility, so a chunk is
-     never caught mid-drift when it pops back in. */
-  .achievement-glitch {
-    position: absolute;
-    z-index: 1;
-    pointer-events: none;
-    opacity: 0;
-  }
-
-  .achievement-glitch-inner img {
-    display: block;
-    width: 100%;
-    height: auto;
-  }
-
-  /* Chunk 1 (bigger, closer to the temple): tucked just under-left of
-     the temple island's base. Eyeballed off your reference screenshot
-     — nudge once it's live. */
-  .achievement-glitch-1 {
-    top: 70vh;
-    right: 24vw;
-    width: clamp(140px, 20vw, 300px);
-    animation: bob-chunk-1 6.2s ease-in-out infinite;
-  }
-
-  /* Chunk 2 (smaller, further down-left): sits lower and further left
-     than chunk 1, partly below it, like it broke off and drifted
-     further from the main island. */
-  .achievement-glitch-2 {
-    top: 81vh;
-    right: 34vw;
-    width: clamp(110px, 17vw, 260px);
-    animation: bob-chunk-2 7s ease-in-out infinite;
-  }
-
-  @keyframes bob-chunk-1 {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-9px); }
-  }
-
-  @keyframes bob-chunk-2 {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-7px); }
-  }
-
-  /* One-shot "digital tear" that plays whenever `.is-visible` (chunks)
-     or `.is-glitched` (temple swap) is freshly (re)applied by the
-     script above: `animation-fill-mode: both` holds the handoff
-     cleanly at both ends (no flash of the un-animated state before
-     frame 0, no snap-back after the last frame), and
-     `steps(1, jump-end)` makes the browser HOLD each keyframe's
-     values for its whole segment and then jump straight to the next,
-     rather than smoothly tweening `clip-path`/`filter` between them —
-     that abrupt jump-cut is what actually reads as "glitchy" instead
-     of "fading in oddly." Shared by both the chunks and the temple
-     swap. */
-  .achievement-glitch.is-visible {
-    opacity: 1;
-    animation: glitch-pop 0.45s steps(1, jump-end) both;
-  }
-
+  /* One-shot "digital tear" that plays whenever `.is-glitched` is
+     freshly (re)applied by the script above: `animation-fill-mode:
+     both` holds the handoff cleanly at both ends (no flash of the
+     un-animated state before frame 0, no snap-back after the last
+     frame), and `steps(1, jump-end)` makes the browser HOLD each
+     keyframe's values for its whole segment and then jump straight to
+     the next, rather than smoothly tweening `clip-path`/`filter`
+     between them — that abrupt jump-cut is what actually reads as
+     "glitchy" instead of "fading in oddly." Used to also be shared by
+     the (now-removed) front chunks' `.is-visible` state — this
+     keyframe stayed as-is when they went, only their own consumer
+     rule was removed. */
   @keyframes glitch-pop {
     0% { clip-path: none; filter: none; }
     12% { clip-path: inset(8% 0 46% 0); filter: hue-rotate(25deg) saturate(2.2); }
@@ -744,44 +866,15 @@ const {
        establishes a real clip region exactly at this element's own
        box. `animation-fill-mode: both` locks whatever this 100%
        keyframe says for as long as the class stays applied (most of
-       the time something is on screen) — with an actual inset value
-       there, that lingering clip region was cropping the inner image
-       the moment the mouse-repel drift (a `transform` on the CHILD
-       `.achievement-glitch-inner`) pushed it visually past this
-       element's own edges, which is exactly the "looks like it's
-       trapped in a box" cut-off the chunks originally had. `none`
-       removes the clip region entirely instead of just visually
-       matching "no clip" at rest, so the drifting image is free to
-       render past this box's edges same as every other island's
-       does. */
+       the time the glitched image is showing) — with an actual inset
+       value there, that lingering clip region was cropping the inner
+       image the moment the mouse-repel drift (a `transform` on the
+       parent `.achievement-island-inner`) pushed it visually past
+       this element's own edges. `none` removes the clip region
+       entirely instead of just visually matching "no clip" at rest,
+       so the drifting image is free to render past this box's edges
+       same as every other island's does. */
     100% { clip-path: none; filter: none; }
-  }
-
-  /* Scanline/static texture — plain CSS, no image asset. Only present
-     while a chunk is visible (`.is-visible::after`), faded in via its
-     own one-shot `glitch-scan` animation on the same `steps()` snap
-     timing as `glitch-pop`, so the texture itself flickers in rather
-     than smoothly fading over the image. `mix-blend-mode: overlay`
-     lets it read as a texture ON the chunk rather than a flat
-     translucent sheet sitting on top of it. */
-  .achievement-glitch::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.4) 0px,
-      rgba(255, 255, 255, 0.4) 1px,
-      transparent 1px,
-      transparent 3px
-    );
-    mix-blend-mode: overlay;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .achievement-glitch.is-visible::after {
-    animation: glitch-scan 0.45s steps(1, jump-end) both;
   }
 
   @keyframes glitch-scan {
@@ -794,30 +887,56 @@ const {
     100% { opacity: 0.45; }
   }
 
-  /* Reduced motion: shown plainly, no flicker/glitch/texture — see
-     the component-level comment above for why this shows the chunk
-     rather than hiding it outright. The `.no-motion` class is only
-     ever added by the script above, and only when
-     `prefers-reduced-motion: reduce` is set, so this rule can't
-     accidentally fire for anyone else. The temple swap needs no
-     equivalent rule — its proximity watcher is simply never attached
-     under reduced motion, so it never leaves its default (normal
-     image showing) state in the first place. */
-  .achievement-glitch.no-motion {
-    animation: none;
-  }
-
-  .achievement-glitch.no-motion::after {
-    display: none;
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .achievement-island-left,
-    .achievement-island-right,
-    .achievement-glitch-1,
-    .achievement-glitch-2 {
+    .achievement-island-right {
       animation: none;
     }
+
+    .achievement-clouds-track {
+      animation: none;
+    }
+  }
+
+  /* A middle tier between the desktop default and the
+     `max-width: 640px` mobile block below, so the floating island is
+     also smaller on medium (tablet-ish) screens, not just phones.
+     `1024px` is the same "wider than phone-only" breakpoint
+     EducationIslandSection already uses for its own tablet-range
+     override (see that file's comment on its own `max-width: 1024px`
+     block). New: `140px` was wrong — the desktop base rule's `width:
+     clamp(130px, 12vw, 200px)` only actually renders `12vw` when
+     that's between its two bounds; at these tablet widths (641-
+     1024px) `12vw` works out to roughly 77-123px, already BELOW the
+     `130px` floor, so without any override at all this range was
+     already rendering at a flat `130px` (the floor winning) — `140px`
+     made it slightly BIGGER than that, the opposite of what was
+     asked. Fixed to `100px`, genuinely smaller than the un-overridden
+     `130px`, and between that and this file's mobile override further
+     down (`90px`, for `640px` and under). Because the more specific
+     `max-width: 640px` block comes AFTER this one in the file, phones
+     still end up with its own smaller `90px` instead (later rule wins
+     at equal specificity when both match) — this block only takes
+     effect in the gap between the two, roughly tablet-width screens.
+     Adjust `100px` directly for a bigger/smaller look on that range. */
+  @media (max-width: 1024px) {
+    .achievement-island-right {
+      width: 100px;
+    }
+
+    /* New: the `.achievement-clouds-tile` width override (`1000px`,
+       then `550px`, then `250px`) and the `.achievement-clouds-bg`
+       `top`/`bottom` override (`0`/`0`) that used to live here are
+       both gone. Per your screenshots -- mobile showing no visible
+       clouds at all next to a desktop view where they read nicely
+       against the ruins -- every round of shrinking/repositioning
+       them separately for this breakpoint was chasing the wrong
+       target: what you actually want is mobile matching the desktop
+       look, not a smaller/differently-placed version of it. With
+       both overrides gone, every screen size now uses the exact
+       same `.achievement-clouds-tile` (`width: 130vw; height: auto`)
+       and `.achievement-clouds-bg` (`top: -5vh; bottom: 5vh`) rules
+       from the base CSS above -- literally the same size and
+       position logic on mobile as on desktop, per your request. */
   }
 
   @media (max-width: 640px) {
@@ -826,37 +945,75 @@ const {
       padding-inline: 1.5rem;
     }
 
-    /* Same fix as ComputerIslandSection: the mid-left absolute
-       position sits right under the (now full-width) text on mobile,
-       so drop it into normal document flow below the content instead
-       of overlaying it. `order` moves it after `.content` visually
-       even though it's first in the DOM; `.achievement-section`'s
-       existing `place-items: center` centers it automatically once
-       it's back in flow. Margin-top is the knob for "how far below
-       the text it sits" — smaller value pulls it up closer to the
-       text. */
-    .achievement-island-left {
-      position: static;
-      order: 1;
-      top: auto;
-      left: auto;
-      width: clamp(80px, 24vw, 130px);
-      margin: 1rem auto 0;
-    }
-
-    /* Tighter `right` so the temple island doesn't creep under the
-       now full-width text on narrow screens. */
+    /* New: this used to be the temple's tighter-`right` mobile
+       override (per the component-level rule's own comment above,
+       these are its OLD values, unchanged) — now the statue's, so it
+       doesn't creep under the now full-width text on narrow screens.
+       The other island's (the statue's OLD mid-left) mobile
+       drop-into-flow rule is gone along with that position — see the
+       top-of-file comment's "New: temple removed" paragraph.
+       `top` bumped from the original `0vh` to `20vh` per your later
+       request to position the island lower on mobile screens —
+       adjust this value directly for more/less. */
     .achievement-island-right {
       right: -6vw;
-      top: 0vh;
+      top: 20vh;
+      /* New: the base rule's `width: clamp(130px, 12vw, 200px)`
+         bottoms out at its own `130px` MINIMUM on any narrow phone
+         screen — 12vw of a ~375px-wide screen is only ~45px, well
+         under that floor, so the clamp was always resolving to a
+         flat 130px on mobile regardless of viewport width, never
+         actually shrinking further. Per your request to make the
+         floating island smaller specifically on mobile, this
+         overrides that floor directly with a smaller flat size
+         instead of trying to coax the clamp lower (the `12vw` middle
+         term still won't win at these widths, so a clamp isn't doing
+         anything useful here) — adjust this value directly for a
+         bigger/smaller look. */
+      width: 90px;
     }
 
-    /* Hidden on mobile — see the component-level comment above for
-       why (purely decorative flourish, no clean spot for them once
-       the layout collapses to single-column). */
-    .achievement-glitch-1,
-    .achievement-glitch-2 {
-      display: none;
+    /* New: on mobile, crop `.achievement-background-image` left/right
+       instead of showing it uncropped edge-to-edge. Same technique
+       EducationIslandSection already uses for its own mobile
+       background (see its `.education-image-wrap` + `img` pair): a
+       `min-height` and an `aspect-ratio` on the same box, so whichever
+       one computes taller wins. On a wide/landscape phone the
+       `aspect-ratio` (this image's real 4044:3413 ratio) wins and the
+       full image still shows; on a narrow/tall phone `min-height: 75vh`
+       wins instead, which is shorter than the image's own ratio would
+       give at that width, so `object-fit: cover` has to crop the
+       excess off the SIDES to fill the box — left and right, exactly
+       as asked.
+
+       Education uses `object-position: center` since its photo has no
+       preferred anchor. This image does (see the big comment on the
+       base `.achievement-background-image` rule above): its alpha
+       channel is fully opaque only from ~65-87% down its height (the
+       ground plane the ruins sit on), so `object-position: bottom`
+       keeps that ground plane anchored at the section's own bottom
+       edge, matching how the base rule already anchors it there via
+       `bottom: 0`, instead of `center` potentially sliding the ground
+       plane up and reintroducing empty space underneath it. */
+    .achievement-background-image {
+      min-height: 75vh;
+      aspect-ratio: 4044 / 3413;
+      height: auto;
+      object-fit: cover;
+      object-position: bottom;
     }
+
+    /* New: the mobile-only `margin-top` override that used to live
+       here (`45vh`, then `95vh`, then `65vh` -- see the base rule's
+       own history for why each of those needed adjusting) is gone.
+       Per your request to fix this the same way EducationIslandSection's
+       clouds layer was eventually fixed (see that file's "Clouds
+       background" comment for the full story), `.achievement-clouds-bg`
+       now positions the clouds with a flex column + a solid-color
+       filler element instead of a hand-tuned `margin-top` guess --
+       see that rule's own comment above for the mechanics. That
+       technique already lands the clouds at the right spot on every
+       breakpoint by construction, so no mobile-specific override is
+       needed here any more. */
   }
 </style>
