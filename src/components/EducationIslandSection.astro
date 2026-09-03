@@ -938,20 +938,27 @@
 //     glitchSquare2Frame3="/images/glitch_gray_sq2_3.webp"
 //   />
 
+// New: every image prop below is now an imported src/images/ module
+// (`ImageMetadata`) instead of a public/images/ URL string, and every
+// <img> in this file that renders one of them now renders <Image />
+// instead — see src/pages/index.astro's frontmatter note for why.
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
   eyebrow?: string;
   title: string;
   text: string;
-  image: string;
+  image: ImageMetadata;
   alt?: string;
-  cloudsBackground?: string;
-  glitchSquare1Frame1?: string;
-  glitchSquare1Frame2?: string;
-  glitchSquare1Frame3?: string;
-  glitchSquare2Frame1?: string;
-  glitchSquare2Frame2?: string;
-  glitchSquare2Frame3?: string;
+  cloudsBackground?: ImageMetadata;
+  glitchSquare1Frame1?: ImageMetadata;
+  glitchSquare1Frame2?: ImageMetadata;
+  glitchSquare1Frame3?: ImageMetadata;
+  glitchSquare2Frame1?: ImageMetadata;
+  glitchSquare2Frame2?: ImageMetadata;
+  glitchSquare2Frame3?: ImageMetadata;
 }
 
 const {
@@ -977,8 +984,8 @@ const {
       <div class="education-clouds-wrap" aria-hidden="true">
         <div class="education-clouds-track-row">
           <div class="education-clouds-track">
-            <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
-            <img src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+            <Image src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+            <Image src={cloudsBackground} alt="" loading="lazy" decoding="async" />
           </div>
         </div>
         <div class="education-clouds-fill"></div>
@@ -986,20 +993,20 @@ const {
     )}
 
     <div class="education-image-wrap">
-      <img src={image} alt={alt} loading="lazy" decoding="async" />
+      <Image src={image} alt={alt} loading="lazy" decoding="async" />
 
       {glitchSquare1Frame1 && glitchSquare1Frame2 && glitchSquare1Frame3 && (
         <>
-          <img class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-a" src={glitchSquare1Frame1} alt="" aria-hidden="true" loading="lazy" decoding="async" />
-          <img class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-b" src={glitchSquare1Frame2} alt="" aria-hidden="true" loading="lazy" decoding="async" />
-          <img class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-c" src={glitchSquare1Frame3} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <Image class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-a" src={glitchSquare1Frame1} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <Image class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-b" src={glitchSquare1Frame2} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <Image class="education-glitch-frame education-glitch-frame-group-1 education-glitch-frame-c" src={glitchSquare1Frame3} alt="" aria-hidden="true" loading="lazy" decoding="async" />
         </>
       )}
       {glitchSquare2Frame1 && glitchSquare2Frame2 && glitchSquare2Frame3 && (
         <>
-          <img class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-a" src={glitchSquare2Frame1} alt="" aria-hidden="true" loading="lazy" decoding="async" />
-          <img class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-b" src={glitchSquare2Frame2} alt="" aria-hidden="true" loading="lazy" decoding="async" />
-          <img class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-c" src={glitchSquare2Frame3} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <Image class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-a" src={glitchSquare2Frame1} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <Image class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-b" src={glitchSquare2Frame2} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+          <Image class="education-glitch-frame education-glitch-frame-group-2 education-glitch-frame-c" src={glitchSquare2Frame3} alt="" aria-hidden="true" loading="lazy" decoding="async" />
         </>
       )}
     </div>
@@ -1101,6 +1108,12 @@ const {
     flex: 0 0 50%;
     width: 50%;
     height: auto;   /* natural aspect ratio — full source width per copy, never cropped; see step 10's history entry */
+    /* New: explicit `aspect-ratio` (cloudsBackground's own real size) —
+       <Image /> defaults to `loading="lazy"`, and Chrome specifically
+       flags a lazy image whose box isn't pinned by fixed width+height
+       or a declared `aspect-ratio`; `width: 50%; height: auto;` alone
+       doesn't count, so this states the real ratio directly. */
+    aspect-ratio: 7679 / 4320;
     pointer-events: none;
   }
 
@@ -1166,6 +1179,13 @@ const {
     display: block;
     width: 100%;
     height: auto;
+    /* New: explicit `aspect-ratio` for the base illustration (`image`
+       prop) — same reasoning as `.education-clouds-track img` above.
+       The more specific `.education-image-wrap img.education-glitch-
+       frame` rule below already sets fixed `width: 100%; height: 100%`
+       (both non-auto), so it doesn't need this and isn't affected by
+       it — this only reaches the plain base image. */
+    aspect-ratio: 2500 / 1800;
     pointer-events: none;
   }
 

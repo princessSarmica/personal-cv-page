@@ -665,45 +665,60 @@
 //     canvasHeight={2160}
 //   />
 
+// New: every image prop below is an imported src/images/ module
+// (`ImageMetadata`) instead of a public/images/ URL string, rendered
+// via <Image /> instead of a plain <img> — see src/pages/index.astro's
+// frontmatter note for why. `fountainImage` is the one prop used in
+// TWO places: the visual <Image /> layer itself, and as the source of
+// the `--fountain-mask` CSS custom property (a `url(...)`) used to
+// clip the sparkle animation to the fountain's own alpha shape.
+// <Image /> can't do that second, CSS-only job (it's an element, not
+// a URL), so `getImage()` — the same astro:assets pipeline underneath
+// <Image /> — runs it through Astro's optimizer once, up front, and
+// `optimizedFountainImage.src` below feeds the mask.
+import { Image } from 'astro:assets';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
   eyebrow?: string;
   title: string;
   text: string;
-  backIslandImage: string;
-  joyconImage?: string;
-  frontIslandImage: string;
-  backgroundImage: string;
+  backIslandImage: ImageMetadata;
+  joyconImage?: ImageMetadata;
+  frontIslandImage: ImageMetadata;
+  backgroundImage: ImageMetadata;
   /** Optional overlay that periodically reveals itself on top of the
    *  back island (see the v7 comment above). Must be exported at the
    *  same canvas size as the other layers to line up. Omit it and no
    *  overlay element is rendered at all. */
-  backIslandFrozenImage?: string;
+  backIslandFrozenImage?: ImageMetadata;
   /** Optional palm tree layer, pulled out of `frontIslandImage` (see
    *  the v8 comment above). Renders as a normal part of the front
    *  island if `palmTree80sImage` is omitted; pass both to enable the
    *  hover swap. Same canvas-size requirement as every other layer. */
-  palmTreeImage?: string;
+  palmTreeImage?: ImageMetadata;
   /** Optional hover-alternate for `palmTreeImage` — wipes in top-to-
    *  bottom on hover, reverses on mouse-out. Ignored if `palmTreeImage`
    *  isn't also provided. */
-  palmTree80sImage?: string;
+  palmTree80sImage?: ImageMetadata;
   /** Optional Monado sword layer, sitting in FRONT of the rest of the
    *  front island (see the v14 comment above). Same canvas-size
    *  requirement as every other layer. */
-  monadoImage?: string;
+  monadoImage?: ImageMetadata;
   /** Optional array of symbol images for the sword's gem — one is
    *  shown at a time, swapping to a random different one at random
    *  intervals for as long as the page is open. All must share the
    *  exact same painted position (yours do — same bounding box on all
    *  five). Ignored if `monadoImage` isn't also provided. */
-  monadoSymbolImages?: string[];
+  monadoSymbolImages?: ImageMetadata[];
   /** Optional fountain/water layer, part of the front island (see the
    *  v19 comment above) — gets an animated "flowing water" effect
    *  (looping streaks masked to this image's own alpha shape, so they
    *  never spill outside the water). Same canvas-size requirement as
    *  every other layer. */
-  fountainImage?: string;
+  fountainImage?: ImageMetadata;
   /** Your CSP document's canvas size in px — every layer export must
    *  share this exact size (see the v6 comment above). Defaults to
    *  3840x2160; override only if your actual CSP canvas differs. */
@@ -729,6 +744,9 @@ const {
   canvasWidth = 3840,
   canvasHeight = 2160,
 } = Astro.props;
+const optimizedFountainImage = fountainImage
+  ? await getImage({ src: fountainImage })
+  : undefined;
 ---
 
 <section
@@ -743,11 +761,11 @@ const {
       <div class="hobby-layer-slot hobby-layer-slot-back">
         <div class="hobby-layer-bob hobby-layer-bob-back">
           <div class="hobby-layer-drift parallax-inner" data-depth="0.55">
-            <img class="hobby-layer" src={backIslandImage} alt="" />
+            <Image class="hobby-layer" src={backIslandImage} alt="" />
             {backIslandFrozenImage && (
               <>
                 <div class="hobby-frost-hotspot" data-frost-hotspot></div>
-                <img
+                <Image
                   class="hobby-layer hobby-frozen-overlay"
                   src={backIslandFrozenImage}
                   alt=""
@@ -763,7 +781,7 @@ const {
         <div class="hobby-layer-slot hobby-layer-slot-joycon">
           <div class="hobby-layer-bob hobby-layer-bob-joycon">
             <div class="hobby-layer-drift parallax-inner" data-depth="0.85">
-              <img class="hobby-layer" src={joyconImage} alt="" />
+              <Image class="hobby-layer" src={joyconImage} alt="" />
             </div>
           </div>
         </div>
@@ -785,7 +803,7 @@ const {
       <div class="hobby-layer-slot hobby-layer-slot-front">
         <div class="hobby-layer-bob hobby-layer-bob-front">
           <div class="hobby-layer-drift parallax-inner" data-depth="1.2">
-            <img
+            <Image
               class="hobby-layer"
               src={frontIslandImage}
               alt=""
@@ -793,7 +811,7 @@ const {
             />
             {fountainImage && (
               <>
-                <img
+                <Image
                   class="hobby-layer hobby-fountain-image"
                   src={fountainImage}
                   alt=""
@@ -802,7 +820,7 @@ const {
                 <div
                   class="hobby-fountain-sparkle"
                   aria-hidden="true"
-                  style={`--fountain-mask: url(${fountainImage});`}
+                  style={`--fountain-mask: url(${optimizedFountainImage?.src});`}
                   data-fountain-sparkle
                 >
                   <span class="hobby-fountain-sparkle-dot" data-fx="0.62" data-fy="0.17" style="--sd: 0.5s; --sdur: 3.4s; --sw: 34px; --sh: 15px; --by: 4px;"></span>
@@ -816,7 +834,7 @@ const {
               </div>
             )}
             {palmTreeImage && (
-              <img
+              <Image
                 class="hobby-layer hobby-palm-base"
                 src={palmTreeImage}
                 alt=""
@@ -824,19 +842,19 @@ const {
               />
             )}
             {palmTreeImage && palmTree80sImage && (
-              <img
+              <Image
                 class="hobby-layer hobby-palm-80s"
                 src={palmTree80sImage}
                 alt=""
               />
             )}
             {monadoImage && (
-              <img class="hobby-layer hobby-monado" src={monadoImage} alt="" />
+              <Image class="hobby-layer hobby-monado" src={monadoImage} alt="" />
             )}
             {monadoImage &&
               monadoSymbolImages &&
               monadoSymbolImages.map((src) => (
-                <img
+                <Image
                   class="hobby-layer hobby-monado-symbol"
                   src={src}
                   alt=""
@@ -1530,6 +1548,41 @@ const {
   .hobby-layer {
     display: block;
     width: 100%;
+    /* New: explicit `height: auto` — needed now that these render via
+       <Image /> instead of a plain <img>. <Image /> adds real `width`/
+       `height` HTML attributes (the source file's own pixel size,
+       e.g. 3840x2160), and browsers treat unitless `width`/`height`
+       attributes as low-priority presentational size HINTS. Before,
+       with no such attributes at all, `height`'s initial value was
+       already `auto`, so nothing here overrode it and the comment
+       below ("each image's own intrinsic aspect ratio... takes care
+       of height") held true by default. Now that the attribute hint
+       exists, it wins for `height` specifically UNLESS an author rule
+       says otherwise — `width: 100%` above already overrides its
+       sibling width-hint the same way, but nothing was overriding the
+       height-hint, so every layer was rendering at a literal, fixed
+       2160px tall (the raw `height` attribute value) squeezed into a
+       ~100%-wide box instead of scaling proportionally — the
+       "squished" layers you spotted. Declaring `height: auto` here
+       explicitly restores the original behavior for every class that
+       shares this one (`.hobby-frozen-overlay`, `.hobby-palm-base`,
+       `.hobby-palm-80s`, `.hobby-monado`, `.hobby-monado-symbol`,
+       `.hobby-fountain-image` below) — none of them set their own
+       `height` either, so this single rule fixes all of them via the
+       normal CSS cascade. */
+    height: auto;
+    /* New: explicit `aspect-ratio` too, on top of `height: auto`
+       above. Every image sharing this class really is the same
+       3840x2160 canvas (that's the whole point of the technique — see
+       the top-of-file comment), so this is a separate concern from the
+       squish bug `height: auto` fixed: <Image /> defaults to
+       `loading="lazy"` for every one of these (nothing here passes an
+       explicit `loading` prop), and Chrome specifically flags a lazy
+       image whose box isn't pinned down by fixed width+height or a
+       declared `aspect-ratio` — the `width: 100%; height: auto;`
+       pair above doesn't count for that check even though it renders
+       correctly, so this states the real ratio directly. */
+    aspect-ratio: 3840 / 2160;
   }
 
   /* v12 — was a randomly-timed `.is-active` animation (see the removed

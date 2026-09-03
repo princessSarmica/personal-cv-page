@@ -133,24 +133,42 @@
 //     mobileImage="/images/other_island.webp"
 //   />
 
+// New: `image`/`mobileImage` are now imported src/images/ modules
+// (`ImageMetadata`) instead of public/images/ URL strings — see
+// src/pages/index.astro's frontmatter note for why. The fallback
+// <img> below is now <Image />. The mobile `<source srcset>`,
+// though, is plain HTML (Astro's <Picture /> component doesn't do
+// art-direction — a different SOURCE IMAGE per breakpoint — in one
+// call the way this file's hand-rolled <picture> does), and a
+// `srcset` attribute needs a plain URL string, not an image object —
+// so `getImage()` (the same astro:assets pipeline underneath
+// <Image />) runs `mobileImage` through Astro's optimizer once, up
+// front, and `optimizedMobileImage.src` feeds the `srcset` below.
+import { Image } from 'astro:assets';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
-  image: string;
+  image: ImageMetadata;
   /** Optional mobile-specific replacement for `image`, used instead of
    *  it on screens `640px` and narrower (see the "New:" note above).
    *  Omit it and mobile just renders `image` like every other
    *  breakpoint. */
-  mobileImage?: string;
+  mobileImage?: ImageMetadata;
   alt?: string;
 }
 
 const { id, image, mobileImage, alt = "" } = Astro.props;
+const optimizedMobileImage = mobileImage
+  ? await getImage({ src: mobileImage })
+  : undefined;
 ---
 
 <section class="other-section sky-chain halftone-hover" id={id}>
   <picture>
-    {mobileImage && <source media="(max-width: 640px)" srcset={mobileImage} />}
-    <img class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
+    {optimizedMobileImage && <source media="(max-width: 640px)" srcset={optimizedMobileImage.src} />}
+    <Image class="other-section-image" src={image} alt={alt} loading="lazy" decoding="async" />
   </picture>
 </section>
 
@@ -170,13 +188,40 @@ const { id, image, mobileImage, alt = "" } = Astro.props;
     display: block;
     width: 100%;
     height: auto;
+    /* New: explicit `aspect-ratio`, DESKTOP value (`image`'s own real
+       3840x2160 size) — <Image /> defaults to `loading="lazy"`, and
+       Chrome flags a lazy image whose box isn't pinned by fixed
+       width+height or a declared `aspect-ratio`; `width: 100%;
+       height: auto;` alone doesn't count, so this states the real
+       ratio directly. IMPORTANT: this can't just be one fixed value
+       for every width the way the other sections' single-source
+       images can — see the `max-width: 640px` override right below,
+       and the warning in this comment block's last paragraph. */
+    aspect-ratio: 3840 / 2160;
   }
 
-  /* New: no `max-width: 640px` block here any more — mobile used to
-     get its own `height: 100vh`, then a flat `700px`, box with
-     `object-fit: cover`/`contain` on the image inside it; see the
-     numbered history in the component-level comment above for why
-     all of that was removed. Mobile and desktop now share the exact
-     same two rules above (`width: 100%; height: auto;`) — only the
-     source FILE differs between them, via `mobileImage`/`<picture>`. */
+  /* New: no other `max-width: 640px` block here any more — mobile
+     used to get its own `height: 100vh`, then a flat `700px`, box
+     with `object-fit: cover`/`contain` on the image inside it; see
+     the numbered history in the component-level comment above for
+     why all of that was removed. Mobile and desktop now share the
+     exact same two base rules above (`width: 100%; height: auto;`) —
+     only the source FILE differs between them, via `mobileImage`/
+     `<picture>`.
+     New: the one exception is `aspect-ratio` — `image` (3840x2160,
+     landscape) and `mobileImage` (3840x7430, a tall PORTRAIT piece)
+     are nowhere near the same shape, so the `aspect-ratio` above has
+     to be overridden here, at the exact same `640px` breakpoint the
+     `<source media="(max-width: 640px)">` above already switches
+     files at, or mobile would render `mobileImage`'s real portrait
+     pixels squeezed into a box shaped for the desktop landscape file
+     — the same kind of squish HobbyIslandSection.astro's `.hobby-
+     layer` had, just from a hardcoded ratio this time instead of a
+     missing one. Keep this in sync any time `mobileImage`'s own
+     dimensions change. */
+  @media (max-width: 640px) {
+    .other-section-image {
+      aspect-ratio: 3840 / 7430;
+    }
+  }
 </style>

@@ -156,15 +156,22 @@
 //     cloudsBackground="/images/achievement_island_background_clouds.webp"
 //   />
 
+// New: every image prop below is an imported src/images/ module
+// (`ImageMetadata`) instead of a public/images/ URL string, rendered
+// via <Image /> instead of a plain <img> — see src/pages/index.astro's
+// frontmatter note for why.
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
   eyebrow?: string;
   title: string;
   text: string;
-  leftImage: string;
-  leftImageGlitched?: string;
-  backgroundImage: string;
-  cloudsBackground: string;
+  leftImage: ImageMetadata;
+  leftImageGlitched?: ImageMetadata;
+  backgroundImage: ImageMetadata;
+  cloudsBackground: ImageMetadata;
 }
 
 const {
@@ -187,13 +194,13 @@ const {
     <div class="achievement-clouds-fill"></div>
     <div class="achievement-clouds-track-row">
       <div class="achievement-clouds-track">
-        <img class="achievement-clouds-tile" src={cloudsBackground} alt="" />
-        <img class="achievement-clouds-tile" src={cloudsBackground} alt="" />
+        <Image class="achievement-clouds-tile" src={cloudsBackground} alt="" />
+        <Image class="achievement-clouds-tile" src={cloudsBackground} alt="" />
       </div>
     </div>
   </div>
 
-  <img class="achievement-background-image" src={backgroundImage} alt="" aria-hidden="true" />
+  <Image class="achievement-background-image" src={backgroundImage} alt="" aria-hidden="true" />
 
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
@@ -204,10 +211,10 @@ const {
   <div class="achievement-island achievement-island-right" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
       <div class="achievement-glitch-swap">
-        <img class="achievement-glitch-swap-base" src={leftImage} alt="" />
+        <Image class="achievement-glitch-swap-base" src={leftImage} alt="" />
         {leftImageGlitched && (
           <div class="achievement-glitch-swap-alt">
-            <img src={leftImageGlitched} alt="" />
+            <Image src={leftImageGlitched} alt="" />
           </div>
         )}
       </div>
@@ -657,6 +664,12 @@ const {
     height: auto;
     max-width: none;
     flex-shrink: 0;
+    /* New: explicit `aspect-ratio` (cloudsBackground's own real size)
+       — <Image /> defaults to `loading="lazy"`, and Chrome flags a
+       lazy image whose box isn't pinned by fixed width+height or a
+       declared `aspect-ratio`; `width: 130vw; height: auto;` alone
+       doesn't count, so this states the real ratio directly. */
+    aspect-ratio: 7680 / 3000;
   }
 
 
@@ -730,6 +743,12 @@ const {
     z-index: 1;
     width: 100%;
     height: auto;
+    /* New: explicit `aspect-ratio` (this image's real 4044x3413 size,
+       already used as the mobile override's own `aspect-ratio` further
+       down) — same lazy-loading-needs-a-declared-ratio reasoning as
+       `.achievement-clouds-tile` above, now stated on the desktop rule
+       too instead of only the mobile one. */
+    aspect-ratio: 4044 / 3413;
     pointer-events: none;
   }
 
@@ -774,6 +793,12 @@ const {
     display: block;
     width: 100%;
     height: auto;
+    /* New: explicit `aspect-ratio` — `leftImage` and `leftImageGlitched`
+       share the exact same 488x1228 size (that's what lets them
+       crossfade in place without any layout shift), so one ratio
+       covers both. Same lazy-loading-needs-a-declared-ratio reasoning
+       as `.achievement-clouds-tile` above. */
+    aspect-ratio: 488 / 1228;
   }
 
   /* New: this used to be the temple island's rule (large, sitting

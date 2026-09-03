@@ -108,14 +108,27 @@
 //     cloudsBackground="/images/computer_island_background_ver2.webp"
 //   />
 
+// New: `leftImage`/`cloudsBackground` are imported src/images/
+// modules (`ImageMetadata`) rendered via <Image /> — see
+// src/pages/index.astro's frontmatter note for why. `rightImage`
+// (computer_island.gif) is the one exception in the whole project:
+// Astro's built-in image service can't process animated GIFs (it
+// throws an "unsupported image format" build error), so per Astro's
+// own documented workaround it's still imported as a module — so it's
+// in the build via src/, hashed like everything else — but rendered
+// with a plain <img>, reading `.src`/`.width`/`.height` off the
+// import directly instead of going through <Image />.
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
   eyebrow?: string;
   title: string;
   text: string;
-  leftImage: string;
-  rightImage: string;
-  cloudsBackground: string;
+  leftImage: ImageMetadata;
+  rightImage: ImageMetadata;
+  cloudsBackground: ImageMetadata;
 }
 
 const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = Astro.props;
@@ -129,14 +142,14 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
 
   <div class="computer-clouds-bg" aria-hidden="true">
     <div class="computer-clouds-track">
-      <img class="computer-clouds-tile" src={cloudsBackground} alt="" />
-      <img class="computer-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="computer-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="computer-clouds-tile" src={cloudsBackground} alt="" />
     </div>
   </div>
 
   <div class="computer-island computer-island-left" aria-hidden="true">
     <div class="computer-island-inner parallax-inner">
-      <img src={leftImage} alt="" />
+      <Image src={leftImage} alt="" />
     </div>
   </div>
 
@@ -148,7 +161,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
 
   <div class="computer-island computer-island-right" aria-hidden="true">
     <div class="computer-island-inner parallax-inner">
-      <img src={rightImage} alt="" loading="lazy" decoding="async" />
+      <img src={rightImage.src} width={rightImage.width} height={rightImage.height} alt="" loading="lazy" decoding="async" />
     </div>
   </div>
 </section>
@@ -413,6 +426,12 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     width: auto;
     max-width: none;
     flex-shrink: 0;
+    /* New: explicit `aspect-ratio` (cloudsBackground's own real size)
+       — <Image /> defaults to `loading="lazy"`, and Chrome flags a
+       lazy image whose box isn't pinned by fixed width+height or a
+       declared `aspect-ratio`; `height: 100%; width: auto;` alone
+       doesn't count, so this states the real ratio directly. */
+    aspect-ratio: 3840 / 2160;
   }
 
   @keyframes computer-clouds-drift {
@@ -465,6 +484,21 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     display: block;
     width: 100%;
     height: auto;
+  }
+
+  /* New: explicit `aspect-ratio`, scoped separately per side since
+     `leftImage` and `rightImage` are different art at different real
+     sizes. Same reasoning as `.computer-clouds-tile` above — <Image />
+     (and, for `rightImage`, the plain <img> reading its dimensions
+     straight off the import) both default to lazy-loading via the
+     browser/`loading="lazy"`, and Chrome's check wants a declared
+     ratio, not just `width: 100%; height: auto;`. */
+  .computer-island-left .computer-island-inner img {
+    aspect-ratio: 731 / 1039;
+  }
+
+  .computer-island-right .computer-island-inner img {
+    aspect-ratio: 1680 / 1920;
   }
 
   /* Telephone-pole island: smaller, mid-left, roughly vertically

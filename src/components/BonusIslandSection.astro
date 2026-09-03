@@ -89,27 +89,40 @@
 //     cloudsBackground="/images/bonus_island_background_clouds.webp"
 //   />
 
+// New: `backgroundImage`/`cloudsBackground` are imported src/images/
+// modules (`ImageMetadata`) instead of public/images/ URL strings —
+// see src/pages/index.astro's frontmatter note for why.
+// `cloudsBackground`'s two tiles render via <Image />; `backgroundImage`
+// paints as this section's own CSS `background-image`, which <Image />
+// (an element, not a URL) can't do, so `getImage()` — the same
+// astro:assets pipeline underneath <Image /> — runs it through
+// Astro's optimizer at build time for the `url(...)` below.
+import { Image } from 'astro:assets';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
   eyebrow?: string;
   title: string;
   text: string;
-  backgroundImage: string;
-  cloudsBackground: string;
+  backgroundImage: ImageMetadata;
+  cloudsBackground: ImageMetadata;
 }
 
 const { id, eyebrow, title, text, backgroundImage, cloudsBackground } = Astro.props;
+const optimizedBackgroundImage = await getImage({ src: backgroundImage });
 ---
 
 <section
   class="bonus-section sky-chain halftone-hover"
   id={id}
-  style={`background-image: url(${backgroundImage});`}
+  style={`background-image: url(${optimizedBackgroundImage.src});`}
 >
   <div class="bonus-clouds-bg" aria-hidden="true">
     <div class="bonus-clouds-track">
-      <img class="bonus-clouds-tile" src={cloudsBackground} alt="" />
-      <img class="bonus-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="bonus-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="bonus-clouds-tile" src={cloudsBackground} alt="" />
     </div>
   </div>
 
@@ -226,6 +239,12 @@ const { id, eyebrow, title, text, backgroundImage, cloudsBackground } = Astro.pr
     width: auto;
     max-width: none;
     flex-shrink: 0;
+    /* New: explicit `aspect-ratio` (cloudsBackground's own real size)
+       — <Image /> defaults to `loading="lazy"`, and Chrome flags a
+       lazy image whose box isn't pinned by fixed width+height or a
+       declared `aspect-ratio`; `height: 100%; width: auto;` alone
+       doesn't count, so this states the real ratio directly. */
+    aspect-ratio: 7680 / 2160;
   }
 
   @keyframes bonus-clouds-drift {

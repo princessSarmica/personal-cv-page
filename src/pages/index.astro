@@ -10,6 +10,69 @@ import AchievementIslandSection from '../components/AchievementIslandSection.ast
 import HobbyIslandSection from '../components/HobbyIslandSection.astro';
 import BonusIslandSection from '../components/BonusIslandSection.astro';
 import OtherIslandSection from '../components/OtherIslandSection.astro';
+
+// New: every content image in the project now flows through Astro's
+// asset pipeline (astro:assets) instead of being a plain public/
+// URL string. Importing each file here (from src/images/, not
+// public/images/) hands Astro the actual file at build time, so it
+// can read real dimensions and — for the section components that
+// were updated to render <Image /> instead of a raw <img> — actually
+// resize/reformat the output. Each import below is handed to the
+// matching section as a prop; the section components' own top-of-
+// file comments explain what each prop does with it.
+//
+// computer_island.gif is the one exception: Astro's built-in image
+// service can't process animated GIFs (see ComputerIslandSection's
+// own comment on `rightImage`), so it's still imported here (to get
+// it into the build via src/, hashed like everything else) but
+// rendered with a plain <img> further down the tree, not <Image />.
+import inBetween1BackgroundImage from '../images/in_between_section_background_1.webp';
+
+import educationImage from '../images/education_island_background_ver3_small.webp';
+import educationCloudsBackground from '../images/education_island_clouds_background_original_backup.webp';
+import educationGlitchSq1Frame1 from '../images/glitch_gray_sq1_1.webp';
+import educationGlitchSq1Frame2 from '../images/glitch_gray_sq1_2.webp';
+import educationGlitchSq1Frame3 from '../images/glitch_gray_sq1_3.webp';
+import educationGlitchSq2Frame1 from '../images/glitch_gray_sq2_1.webp';
+import educationGlitchSq2Frame2 from '../images/glitch_gray_sq2_2.webp';
+import educationGlitchSq2Frame3 from '../images/glitch_gray_sq2_3.webp';
+
+import artTopImage from '../images/left_top_art_island.webp';
+import artTopImageLoading from '../images/left_top_art_island_loading_ver2.webp';
+import artBottomImage from '../images/right_bottom_art_island.webp';
+import artBottomImageLoading from '../images/right_bottom_art_island_loading_ver2.webp';
+import artMoonBackground from '../images/art_island_moon_background.webp';
+import artCloudsBackground from '../images/art_island_clouds_background.webp';
+
+import computerLeftImage from '../images/left_powerline_island.webp';
+import computerRightImage from '../images/computer_island.gif';
+import computerCloudsBackground from '../images/computer_island_background_ver2.webp';
+
+import achievementLeftImage from '../images/left_achievement_island.webp';
+import achievementLeftImageGlitched from '../images/left_achievement_island_glitched.webp';
+import achievementBackgroundImage from '../images/achievement_island_background_ver3.webp';
+import achievementCloudsBackground from '../images/achievement_island_background_clouds.webp';
+
+import hobbyBackIslandImage from '../images/hobby_back_island.webp';
+import hobbyFrontIslandImage from '../images/hobby_front_island.webp';
+import hobbyJoyconImage from '../images/joycon.webp';
+import hobbyBackgroundImage from '../images/hobby_island_background.webp';
+import hobbyBackIslandFrozenImage from '../images/hobby_back_island_frozen.webp';
+import hobbyPalmTreeImage from '../images/palm_tree.webp';
+import hobbyPalmTree80sImage from '../images/palm_tree_80s.webp';
+import hobbyMonadoImage from '../images/monado.webp';
+import hobbyMonadoSymbol1Image from '../images/monado_symbol_1.webp';
+import hobbyMonadoSymbol2Image from '../images/monado_symbol_2.webp';
+import hobbyMonadoSymbol3Image from '../images/monado_symbol_3.webp';
+import hobbyMonadoSymbol4Image from '../images/monado_symbol_4.webp';
+import hobbyMonadoSymbol5Image from '../images/monado_symbol_5.webp';
+import hobbyFountainImage from '../images/fountain.webp';
+
+import bonusBackgroundImage from '../images/bonus_island_background.webp';
+import bonusCloudsBackground from '../images/bonus_island_background_clouds.webp';
+
+import otherImage from '../images/other_island_2.webp';
+import otherMobileImage from '../images/other_island.webp';
 ---
 
 <Layout title="My CV">
@@ -21,7 +84,7 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
 
   <InBetweenSection1
     id="section-in-between-1"
-    backgroundImage="/personal-cv-page/images/in_between_section_background_1.webp"
+    backgroundImage={inBetween1BackgroundImage}
   />
 
   <EducationIslandSection
@@ -29,14 +92,14 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     eyebrow="Island 03"
     title="Sit Amet Consectetur"
     text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident."
-    image="/personal-cv-page/images/education_island_background_ver3_small.webp"
-    cloudsBackground="/personal-cv-page/images/education_island_clouds_background_original_backup.webp"
-    glitchSquare1Frame1="/personal-cv-page/images/glitch_gray_sq1_1.webp"
-    glitchSquare1Frame2="/personal-cv-page/images/glitch_gray_sq1_2.webp"
-    glitchSquare1Frame3="/personal-cv-page/images/glitch_gray_sq1_3.webp"
-    glitchSquare2Frame1="/personal-cv-page/images/glitch_gray_sq2_1.webp"
-    glitchSquare2Frame2="/personal-cv-page/images/glitch_gray_sq2_2.webp"
-    glitchSquare2Frame3="/personal-cv-page/images/glitch_gray_sq2_3.webp"
+    image={educationImage}
+    cloudsBackground={educationCloudsBackground}
+    glitchSquare1Frame1={educationGlitchSq1Frame1}
+    glitchSquare1Frame2={educationGlitchSq1Frame2}
+    glitchSquare1Frame3={educationGlitchSq1Frame3}
+    glitchSquare2Frame1={educationGlitchSq2Frame1}
+    glitchSquare2Frame2={educationGlitchSq2Frame2}
+    glitchSquare2Frame3={educationGlitchSq2Frame3}
   />
 
   <ArtIslandSection
@@ -44,12 +107,12 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     eyebrow="Island 01"
     title="Lorem Ipsum Dolor"
     text="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam."
-    topImage="/personal-cv-page/images/left_top_art_island.webp"
-    topImageLoading="/personal-cv-page/images/left_top_art_island_loading_ver2.webp"
-    bottomImage="/personal-cv-page/images/right_bottom_art_island.webp"
-    bottomImageLoading="/personal-cv-page/images/right_bottom_art_island_loading_ver2.webp"
-    moonBackground="/personal-cv-page/images/art_island_moon_background.webp"
-    cloudsBackground="/personal-cv-page/images/art_island_clouds_background.webp"
+    topImage={artTopImage}
+    topImageLoading={artTopImageLoading}
+    bottomImage={artBottomImage}
+    bottomImageLoading={artBottomImageLoading}
+    moonBackground={artMoonBackground}
+    cloudsBackground={artCloudsBackground}
   />
 
   <ComputerIslandSection
@@ -57,9 +120,9 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     eyebrow="Island 02"
     title="Sit Amet Consectetur"
     text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident."
-    leftImage="/personal-cv-page/images/left_powerline_island.webp"
-    rightImage="/personal-cv-page/images/computer_island.gif"
-    cloudsBackground="/personal-cv-page/images/computer_island_background_ver2.webp"
+    leftImage={computerLeftImage}
+    rightImage={computerRightImage}
+    cloudsBackground={computerCloudsBackground}
   />
 
   <AchievementIslandSection
@@ -67,10 +130,10 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     eyebrow="Island 04"
     title="Do Eiusmod Tempor"
     text="..."
-    leftImage="/personal-cv-page/images/left_achievement_island.webp"
-    leftImageGlitched="/personal-cv-page/images/left_achievement_island_glitched.webp"
-    backgroundImage="/personal-cv-page/images/achievement_island_background_ver3.webp"
-    cloudsBackground="/personal-cv-page/images/achievement_island_background_clouds.webp"
+    leftImage={achievementLeftImage}
+    leftImageGlitched={achievementLeftImageGlitched}
+    backgroundImage={achievementBackgroundImage}
+    cloudsBackground={achievementCloudsBackground}
   />
 
   <HobbyIslandSection
@@ -78,22 +141,22 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     eyebrow="Island 05"
     title="Ut Labore Et Dolore"
     text="Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam."
-    backIslandImage="/personal-cv-page/images/hobby_back_island.webp"
-    frontIslandImage="/personal-cv-page/images/hobby_front_island.webp"
-    joyconImage="/personal-cv-page/images/joycon.webp"
-    backgroundImage="/personal-cv-page/images/hobby_island_background.webp"
-    backIslandFrozenImage="/personal-cv-page/images/hobby_back_island_frozen.webp"
-    palmTreeImage="/personal-cv-page/images/palm_tree.webp"
-    palmTree80sImage="/personal-cv-page/images/palm_tree_80s.webp"
-    monadoImage="/personal-cv-page/images/monado.webp"
+    backIslandImage={hobbyBackIslandImage}
+    frontIslandImage={hobbyFrontIslandImage}
+    joyconImage={hobbyJoyconImage}
+    backgroundImage={hobbyBackgroundImage}
+    backIslandFrozenImage={hobbyBackIslandFrozenImage}
+    palmTreeImage={hobbyPalmTreeImage}
+    palmTree80sImage={hobbyPalmTree80sImage}
+    monadoImage={hobbyMonadoImage}
     monadoSymbolImages={[
-      "/personal-cv-page/images/monado_symbol_1.webp",
-      "/personal-cv-page/images/monado_symbol_2.webp",
-      "/personal-cv-page/images/monado_symbol_3.webp",
-      "/personal-cv-page/images/monado_symbol_4.webp",
-      "/personal-cv-page/images/monado_symbol_5.webp",
+      hobbyMonadoSymbol1Image,
+      hobbyMonadoSymbol2Image,
+      hobbyMonadoSymbol3Image,
+      hobbyMonadoSymbol4Image,
+      hobbyMonadoSymbol5Image,
     ]}
-    fountainImage="/personal-cv-page/images/fountain.webp"
+    fountainImage={hobbyFountainImage}
   />
 
   <BonusIslandSection
@@ -101,13 +164,13 @@ import OtherIslandSection from '../components/OtherIslandSection.astro';
     eyebrow="Bonus"
     title="One More Thing"
     text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt."
-    backgroundImage="/personal-cv-page/images/bonus_island_background.webp"
-    cloudsBackground="/personal-cv-page/images/bonus_island_background_clouds.webp"
+    backgroundImage={bonusBackgroundImage}
+    cloudsBackground={bonusCloudsBackground}
   />
 
   <OtherIslandSection
     id="section-closing"
-    image="/personal-cv-page/images/other_island_2.webp"
-    mobileImage="/personal-cv-page/images/other_island.webp"
+    image={otherImage}
+    mobileImage={otherMobileImage}
   />
 </Layout>

@@ -299,17 +299,30 @@
 //     cloudsBackground="/images/art_island_clouds_background.webp"
 //   />
 
+// New: every image prop below is an imported src/images/ module
+// (`ImageMetadata`) instead of a public/images/ URL string — see
+// src/pages/index.astro's frontmatter note for why. The four island
+// images now render via <Image /> instead of a plain <img>.
+// `moonBackground` is the one exception: it paints as a CSS
+// `background-image`, which <Image /> (an element, not a URL) can't
+// do, so `getImage()` — the same astro:assets pipeline underneath
+// <Image /> — runs it through Astro's optimizer at build time and
+// hands back a real, already-optimized URL for the `url(...)` below.
+import { Image } from 'astro:assets';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro:assets';
+
 interface Props {
   id: string;
   eyebrow?: string;
   title: string;
   text: string;
-  topImage: string;
-  topImageLoading?: string;
-  bottomImage: string;
-  bottomImageLoading?: string;
-  moonBackground: string;
-  cloudsBackground: string;
+  topImage: ImageMetadata;
+  topImageLoading?: ImageMetadata;
+  bottomImage: ImageMetadata;
+  bottomImageLoading?: ImageMetadata;
+  moonBackground: ImageMetadata;
+  cloudsBackground: ImageMetadata;
 }
 
 const {
@@ -324,17 +337,18 @@ const {
   moonBackground,
   cloudsBackground,
 } = Astro.props;
+const optimizedMoonBackground = await getImage({ src: moonBackground });
 ---
 
 <section
   class="art-section sky-chain halftone-hover"
   id={id}
 >
-  <div class="art-moon-bg" style={`background-image: url(${moonBackground});`} aria-hidden="true"></div>
+  <div class="art-moon-bg" style={`background-image: url(${optimizedMoonBackground.src});`} aria-hidden="true"></div>
   <div class="art-clouds-bg" aria-hidden="true">
     <div class="art-clouds-track">
-      <img class="art-clouds-tile" src={cloudsBackground} alt="" />
-      <img class="art-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="art-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="art-clouds-tile" src={cloudsBackground} alt="" />
     </div>
   </div>
 
@@ -342,11 +356,11 @@ const {
     <div class="art-island-inner parallax-inner">
       {topImageLoading ? (
         <div class="art-island-reveal">
-          <img class="art-island-reveal-final" src={topImage} alt="" />
-          <img class="art-island-reveal-loading" src={topImageLoading} alt="" />
+          <Image class="art-island-reveal-final" src={topImage} alt="" />
+          <Image class="art-island-reveal-loading" src={topImageLoading} alt="" />
         </div>
       ) : (
-        <img src={topImage} alt="" />
+        <Image src={topImage} alt="" />
       )}
     </div>
   </div>
@@ -361,11 +375,11 @@ const {
     <div class="art-island-inner parallax-inner">
       {bottomImageLoading ? (
         <div class="art-island-reveal">
-          <img class="art-island-reveal-final" src={bottomImage} alt="" />
-          <img class="art-island-reveal-loading" src={bottomImageLoading} alt="" />
+          <Image class="art-island-reveal-final" src={bottomImage} alt="" />
+          <Image class="art-island-reveal-loading" src={bottomImageLoading} alt="" />
         </div>
       ) : (
-        <img src={bottomImage} alt="" />
+        <Image src={bottomImage} alt="" />
       )}
     </div>
   </div>
@@ -774,6 +788,12 @@ const {
     width: auto;
     max-width: none;
     flex-shrink: 0;
+    /* New: explicit `aspect-ratio` (cloudsBackground's own real size)
+       — <Image /> defaults to `loading="lazy"`, and Chrome flags a
+       lazy image whose box isn't pinned by fixed width+height or a
+       declared `aspect-ratio`; `height: 100%; width: auto;` alone
+       doesn't count, so this states the real ratio directly. */
+    aspect-ratio: 7679 / 2160;
   }
 
   /* FROM -50% TO 0% (not the reverse) is what makes the visible drift
@@ -829,6 +849,25 @@ const {
     display: block;
     width: 100%;
     height: auto;
+  }
+
+  /* New: explicit `aspect-ratio`, scoped separately per side since
+     the top and bottom islands are different artwork at different
+     real sizes (topImage/topImageLoading share one size; bottomImage/
+     bottomImageLoading share a different one) — same reasoning as
+     every other `aspect-ratio` addition in this pass (see
+     `.art-clouds-tile` above): <Image />'s default `loading="lazy"`
+     plus Chrome's check for a declared ratio on lazy images. This
+     also covers `.art-island-reveal-final`/`.art-island-reveal-
+     loading` below for free, since those are real vs. wireframe
+     copies of the SAME artwork at the SAME size, just nested one
+     level deeper inside this same `.art-island-inner`. */
+  .art-island-top .art-island-inner img {
+    aspect-ratio: 768 / 1034;
+  }
+
+  .art-island-bottom .art-island-inner img {
+    aspect-ratio: 1526 / 885;
   }
 
   .art-island-top {

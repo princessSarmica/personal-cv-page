@@ -98,18 +98,30 @@
 //     <p>Optional content here.</p>
 //   </InBetweenSection1>
 
+// New: `backgroundImage` is now an imported src/images/ module
+// (an `ImageMetadata` object), not a public/images/ URL string — see
+// src/pages/index.astro's frontmatter note for why. This section
+// paints it as a CSS `background-image`, not an `<img>`/`<Image />`
+// element, so the Image component itself doesn't apply here; instead
+// `getImage()` (the same underlying astro:assets pipeline `<Image />`
+// uses) runs it through Astro's optimizer at build time and hands
+// back a real, already-optimized URL to drop into `url(...)` below.
+import type { ImageMetadata } from 'astro:assets';
+import { getImage } from 'astro:assets';
+
 interface Props {
   id: string;
-  backgroundImage: string;
+  backgroundImage: ImageMetadata;
 }
 
 const { id, backgroundImage } = Astro.props;
+const optimizedBackgroundImage = await getImage({ src: backgroundImage });
 ---
 
 <section
   class="in-between-section sky-chain"
   id={id}
-  style={`background-image: url(${backgroundImage});`}
+  style={`background-image: url(${optimizedBackgroundImage.src});`}
 >
   <canvas class="in-between-stars" aria-hidden="true"></canvas>
 
