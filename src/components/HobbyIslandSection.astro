@@ -902,6 +902,19 @@ const optimizedFountainImage = fountainImage
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
+    // New: gates the frozen-island and 80s-palm-tree hover reveals
+    // further down (see the `isMobile` checks around `fitHotspotToAlpha`
+    // below, and the matching `display: none` rule in the
+    // `@media (max-width: 640px)` block in the <style>) -- per your
+    // request to drop both effects on mobile entirely rather than just
+    // detuning them, since they're real `:hover` reveals with nothing
+    // to hover on a touchscreen. Declared once here (matching
+    // `prefersReducedMotion`'s own pattern above) rather than
+    // reactively on resize -- checked once per page-load is consistent
+    // with how every other one-time capability check in this codebase
+    // works. 640px matches the breakpoint used everywhere else in this
+    // file (see the `.content` rule in that same media block).
+    const isMobile = window.matchMedia("(max-width: 640px)").matches;
 
     if (islands.length && !prefersReducedMotion) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
@@ -1256,7 +1269,7 @@ const optimizedFountainImage = fountainImage
       "[data-palm-hotspot]"
     );
 
-    if (palmBase && palmHotspot) {
+    if (palmBase && palmHotspot && !isMobile) {
       fitHotspotToAlpha(palmBase, palmHotspot);
     }
 
@@ -1276,7 +1289,7 @@ const optimizedFountainImage = fountainImage
       "[data-frost-hotspot]"
     );
 
-    if (frozenOverlay && frostHotspot) {
+    if (frozenOverlay && frostHotspot && !isMobile) {
       fitHotspotToAlpha(frozenOverlay, frostHotspot);
     }
 
@@ -2583,6 +2596,37 @@ const optimizedFountainImage = fountainImage
       margin-top: clamp(1rem, 5vh, 2.5rem);
       margin-bottom: 0;
       transform: translateX(-14%);
+    }
+
+    /* Per your request: drop the frozen-island and 80s-palm-tree hover
+       effects entirely on mobile, not just detune them the way
+       `@media (prefers-reduced-motion: reduce)` above does. Both are
+       real `:hover`-driven reveals (see `.hobby-frost-hotspot:hover ~
+       .hobby-frozen-overlay` / `.hobby-palm-hotspot:hover ~ ...`
+       above) -- on a touchscreen there's no cursor to sit over them
+       with, so they'd only ever surface as an accidental, hard-to-
+       clear "stuck" reveal after a tap (many mobile browsers apply
+       `:hover` after a tap until the next tap elsewhere), on top of
+       the extra artwork/hit-area for no real benefit. `display: none`
+       on both hotspots removes the invisible `pointer-events: auto`
+       tap targets along with the effects themselves, which is the
+       "less complex" part; `.hobby-frozen-overlay`/`.hobby-palm-80s`
+       also go, since with no hotspot left to hover, they'd otherwise
+       just sit there permanently in their clipped-away resting state
+       — dead weight. `.hobby-palm-base` needs no rule of its own: its
+       resting `clip-path: inset(0 0 0 0)` (fully visible, see above)
+       is already exactly "the plain palm tree, no swap," now that
+       nothing can ever hover its hotspot to clip it away. Skipping
+       the matching `fitHotspotToAlpha()` calls for both hotspots (see
+       the `isMobile` check in the <script> above) means neither of
+       the two related canvas alpha-scans run at all on mobile either
+       — one less pair of async image scans on page load, on top of
+       fewer images actually needing to paint. */
+    .hobby-frozen-overlay,
+    .hobby-frost-hotspot,
+    .hobby-palm-80s,
+    .hobby-palm-hotspot {
+      display: none;
     }
   }
 </style>

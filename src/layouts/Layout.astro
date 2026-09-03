@@ -7,6 +7,7 @@ import { ClientRouter } from 'astro:transitions';
 import CornerIsland from '../components/CornerIsland.astro';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import IslandNavMenu from '../components/IslandNavMenu.astro';
+import GitHubLink from '../components/GitHubLink.astro';
 
 interface Props {
   title?: string;
@@ -78,6 +79,7 @@ const faviconIcoHref = withBase('favicon.ico');
   <body>
     <LanguageSwitcher />
     <IslandNavMenu />
+    <GitHubLink />
     <slot />
     <CornerIsland />
     <div class="halftone-spotlight" aria-hidden="true"></div>
@@ -357,6 +359,31 @@ const faviconIcoHref = withBase('favicon.ico');
 
   body:has(.halftone-hover:hover) .halftone-spotlight {
     opacity: 0.55;
+  }
+
+  /* ComputerIslandSection's drifting clouds layer (`.computer-clouds-
+     bg`) sits at `z-index: 1`, one tier above this spotlight's normal
+     `z-index: 0` — needed so those clouds also win their OWN separate
+     comparison against ArtIslandSection's bleeding moon (see that
+     class's own comment for the full reasoning and the rough-
+     transition bug that came from trying to fix this by lowering the
+     clouds to `0` instead). Left as `0` globally, that one tier gap
+     means the spotlight normally paints BEHIND those clouds, hiding
+     the cursor effect there specifically -- this rule bumps the
+     spotlight up to tie with them, but ONLY while the cursor is
+     actually over `.computer-spotlight-front` (just that section, not
+     every `.halftone-hover` section site-wide, which would tie the
+     spotlight with every OTHER section's islands too and start
+     showing it on top of foreground art everywhere instead of just
+     here). Being tied at `1` rather than winning outright is fine in
+     this one case: unlike the moon/clouds pairing above, nothing on
+     this side is independently animated frame-to-frame, so there's no
+     repaint-order flicker for a tie to expose -- the tiebreak (DOM/
+     tree order, later wins) resolves it cleanly and statically in the
+     spotlight's favor, since `.halftone-spotlight` is the very last
+     element in the whole document. */
+  body:has(.computer-spotlight-front:hover) .halftone-spotlight {
+    z-index: 1;
   }
 
   @media (prefers-reduced-motion: reduce) {

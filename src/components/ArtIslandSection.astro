@@ -425,8 +425,27 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
+    // New: on narrow/mobile viewports, skip the mouse-repel drift and
+    // the wireframe-reveal entrance/hover logic below entirely, same
+    // idea as `prefersReducedMotion` right above -- there's no mouse
+    // to repel from on a touchscreen anyway (this rAF loop would just
+    // spin forever doing nothing but burning battery), and the
+    // entrance reveal's `threshold: 1.0` IntersectionObserver (see
+    // `watchEntrance` further down) needs the WHOLE island to fit
+    // inside the viewport at once to ever fire -- on a short mobile
+    // viewport that can be taller than the visible area even after
+    // scrolling, it can go unmet forever, which is exactly why you
+    // were seeing these two islands never appear at all on mobile.
+    // Checked once here (matching `prefersReducedMotion`'s own
+    // pattern) rather than reactively on resize -- see the matching
+    // `@media (max-width: 640px)` rule in the <style> below for how
+    // the artwork stays visible and the bob animation stays off
+    // without any of this JS needing to run at all. 640px matches the
+    // breakpoint used everywhere else in this file (see the `.content`
+    // rule in that same media block, and the clamp() anchors above).
+    const isMobile = window.matchMedia("(max-width: 640px)").matches;
 
-    if (islands.length && !prefersReducedMotion) {
+    if (islands.length && !prefersReducedMotion && !isMobile) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
       const influenceRadius = 500; // px, push fades to 0 beyond this distance
       const ease = 0.08;
@@ -520,7 +539,7 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     // AchievementIslandSection.astro's glitch effects.
     const reveals = document.querySelectorAll<HTMLElement>(".art-island-reveal");
 
-    if (reveals.length && !prefersReducedMotion) {
+    if (reveals.length && !prefersReducedMotion && !isMobile) {
       const materializeDuration = 1200; // ms — keep in sync with the `materialize` animation's duration in the <style> below
       const dematerializeDuration = 900; // ms — keep in sync with the `dematerialize` animation's duration in the <style> below
 
@@ -1320,6 +1339,41 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
+    }
+
+    /* Same treatment as `@media (prefers-reduced-motion: reduce)`
+       above, and for a related reason: the matching `isMobile` check
+       in the <script> above already skips the mouse-repel drift and
+       the whole wireframe-reveal entrance/hover sequence at this
+       width (no mouse to drift toward on a touchscreen, and the
+       entrance's `threshold: 1.0` IntersectionObserver could never be
+       satisfied on a short mobile viewport anyway -- see that
+       comment for the full story). This is the other half of that
+       fix: with the JS no longer running at all, nothing is left to
+       ever add `.is-revealed` or play the bob keyframes, so the CSS
+       needs to put both islands in their final, floating-but-static
+       state on its own -- final artwork visible immediately, no
+       wireframe, no bob loop, no clouds drift either (this file's
+       other continuously-animated background layer, right below).
+       This is also a straightforward performance win on top of
+       fixing the disappearing islands: one less pair of rAF loops
+       (drift + hover-poll) and three fewer decorative animations
+       running on every mobile page-load. */
+    .art-island-top,
+    .art-island-bottom {
+      animation: none;
+    }
+
+    .art-clouds-track {
+      animation: none;
+    }
+
+    .art-island-reveal-final {
+      opacity: 1;
+    }
+
+    .art-island-reveal-loading {
+      display: none;
     }
   }
 </style>

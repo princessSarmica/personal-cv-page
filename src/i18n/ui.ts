@@ -35,6 +35,7 @@ export const ui = {
     "nav.languageTitle": "Language",
     "nav.languageToggleOpen": "Open language menu",
     "nav.languageToggleClose": "Close language menu",
+    "nav.githubLabel": "Visit GitHub profile (opens in a new tab)",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmer, Digital Artist",
@@ -57,7 +58,7 @@ export const ui = {
     "achievement.eyebrow": "Island 04",
     "achievement.title": "Achievements",
     "achievement.text":
-      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1st place in a competition for a mural design in Student Dorm 1 in Maribor, concept realized in 2024</a></li><li>Storyboard artist for the student film <a href="https://www.imdb.com/title/tt36062438/" target="_blank" rel="noopener noreferrer">Vžig</a></li><li>Co-authored a research paper on recognizing and evaluating AI-generated images (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Authored a paper on choosing a technology stack for web applications (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
+      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1st place in a competition for a mural design in Student Dorm 1 in Maribor, concept realized in 2024</a></li><li>Finalist at the 18th International Art Award Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">catalogue</a>)</li><li>Co-authored a research paper on recognizing and evaluating AI-generated images (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Authored a paper on choosing a technology stack for web applications (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
 
     "hobby.eyebrow": "Island 05",
     "hobby.title": "Hobbies",
@@ -67,7 +68,7 @@ export const ui = {
     "bonus.eyebrow": "Bonus",
     "bonus.title": "Other Skills and Finished Projects",
     "bonus.text":
-      '<ul><li>German language diploma, level C1</li><li>Category B driving licence</li><li>Independently built a <a href="https://medijska-predilnica.netlify.app/" target="_blank" rel="noopener noreferrer">news website</a> for media communications students</li><li>Independently developed the dynamic web app <a href="https://nextjs-greentouch-app.vercel.app/en" target="_blank" rel="noopener noreferrer">GreenTouch</a>, as part of the project <a href="https://bsihlab.com/projects/greentouch/" target="_blank" rel="noopener noreferrer">GreenTouch: EcoMind Development for Higher Education Future</a></li></ul>',
+      '<ul><li>German language diploma, level C1</li><li>Category B driving licence</li><li>Independently built a <a href="https://medijska-predilnica.netlify.app/" target="_blank" rel="noopener noreferrer">news website</a> for media communications students</li><li>Independently developed the dynamic web app <a href="https://nextjs-greentouch-app.vercel.app/en" target="_blank" rel="noopener noreferrer">GreenTouch</a>, as part of the project <a href="https://bsihlab.com/projects/greentouch/" target="_blank" rel="noopener noreferrer">GreenTouch: EcoMind Development for Higher Education Future</a></li><li>Storyboard artist for the student film <a href="https://www.imdb.com/title/tt36062438/" target="_blank" rel="noopener noreferrer">Vžig</a></li><li>Took part in RossDraws’ Character Portal Challenge (<a href="https://youtu.be/9xYyfW_Jbnc?si=TUMQyzZWcPXPDMQ4&t=427" target="_blank" rel="noopener noreferrer">video</a>)</li></ul>',
   },
   de: {
     "nav.title": "Mein Lebenslauf",
@@ -78,6 +79,7 @@ export const ui = {
     "nav.languageTitle": "Sprache",
     "nav.languageToggleOpen": "Sprachmenü öffnen",
     "nav.languageToggleClose": "Sprachmenü schließen",
+    "nav.githubLabel": "GitHub-Profil besuchen (öffnet in neuem Tab)",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmierer, Digitalkünstler",
@@ -100,7 +102,7 @@ export const ui = {
     "achievement.eyebrow": "Insel 04",
     "achievement.title": "Erfolge",
     "achievement.text":
-      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. Platz bei einem Wettbewerb für die Gestaltung eines Wandbilds im Studentenwohnheim 1 in Maribor, Idee 2024 umgesetzt</a></li><li>Storyboard-Künstler für den Studentenfilm <a href="https://www.imdb.com/title/tt36062438/" target="_blank" rel="noopener noreferrer">Vžig</a></li><li>Mitautor eines wissenschaftlichen Artikels über die Erkennung und Bewertung von KI-generierten Bildern (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Autor eines Fachartikels über die Wahl des Technologie-Stacks für Webanwendungen (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
+      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. Platz bei einem Wettbewerb für die Gestaltung eines Wandbilds im Studentenwohnheim 1 in Maribor, Idee 2024 umgesetzt</a></li><li>Finalist beim 18. Internationalen Kunstpreis Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">Katalog</a>)</li><li>Mitautor eines wissenschaftlichen Artikels über die Erkennung und Bewertung von KI-generierten Bildern (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Autor eines Fachartikels über die Wahl des Technologie-Stacks für Webanwendungen (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
 
     "hobby.eyebrow": "Insel 05",
     "hobby.title": "Hobbys",
@@ -110,7 +112,7 @@ export const ui = {
     "bonus.eyebrow": "Bonus",
     "bonus.title": "Weitere Fähigkeiten und abgeschlossene Projekte",
     "bonus.text":
-      '<ul><li>Deutsches Sprachdiplom, Niveau C1</li><li>Führerschein der Klasse B</li><li>Eigenständig eine <a href="https://medijska-predilnica.netlify.app/" target="_blank" rel="noopener noreferrer">Nachrichten-Website</a> für Studierende der Medienkommunikation entwickelt</li><li>Eigenständig die dynamische Webanwendung <a href="https://nextjs-greentouch-app.vercel.app/en" target="_blank" rel="noopener noreferrer">GreenTouch</a> entwickelt, im Rahmen des Projekts <a href="https://bsihlab.com/projects/greentouch/" target="_blank" rel="noopener noreferrer">GreenTouch: EcoMind Development for Higher Education Future</a></li></ul>',
+      '<ul><li>Deutsches Sprachdiplom, Niveau C1</li><li>Führerschein der Klasse B</li><li>Eigenständig eine <a href="https://medijska-predilnica.netlify.app/" target="_blank" rel="noopener noreferrer">Nachrichten-Website</a> für Studierende der Medienkommunikation entwickelt</li><li>Eigenständig die dynamische Webanwendung <a href="https://nextjs-greentouch-app.vercel.app/en" target="_blank" rel="noopener noreferrer">GreenTouch</a> entwickelt, im Rahmen des Projekts <a href="https://bsihlab.com/projects/greentouch/" target="_blank" rel="noopener noreferrer">GreenTouch: EcoMind Development for Higher Education Future</a></li><li>Storyboard-Künstler für den Studentenfilm <a href="https://www.imdb.com/title/tt36062438/" target="_blank" rel="noopener noreferrer">Vžig</a></li><li>Teilnahme an der Character Portal Challenge von RossDraws (<a href="https://youtu.be/9xYyfW_Jbnc?si=TUMQyzZWcPXPDMQ4&t=427" target="_blank" rel="noopener noreferrer">Video</a>)</li></ul>',
   },
   sl: {
     "nav.title": "Moj življenjepis",
@@ -121,9 +123,10 @@ export const ui = {
     "nav.languageTitle": "Jezik",
     "nav.languageToggleOpen": "Odpri meni jezika",
     "nav.languageToggleClose": "Zapri meni jezika",
+    "nav.githubLabel": "Obišči profil GitHub (odpre se v novem zavihku)",
 
     "intro.name": "Marko Matko Ficko",
-    "intro.titles": "Programmer, Digital Artist",
+    "intro.titles": "Programer, digitalni umetnik",
 
     "art.eyebrow": "Otok 02",
     "art.title": "Ustvarjalne kompetence",
@@ -143,16 +146,16 @@ export const ui = {
     "achievement.eyebrow": "Otok 04",
     "achievement.title": "Dosežki",
     "achievement.text":
-      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. mesto na natečaju za poslikavo prostorov v Študentskem domu 1 v Mariboru, ideja realizirana leta 2024</a></li><li>Risar zgodborisa (storyboard) pri študentskem filmu <a href="https://www.imdb.com/title/tt36062438/" target="_blank" rel="noopener noreferrer">Vžig</a></li><li>Soavtor znanstvenega članka o prepoznavanju in vrednotenju slik, ustvarjenih z generativno umetno inteligenco (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Avtor strokovnega članka o izbiri tehnološkega sklada za spletne aplikacije (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
+      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. mesto na natečaju za poslikavo prostorov v Študentskem domu 1 v Mariboru, ideja realizirana leta 2024</a></li><li>Uvrstil se med finaliste na 18. mednarodni likovni nagradi Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">katalog</a>)</li><li>Soavtor znanstvenega članka o prepoznavanju in vrednotenju slik, ustvarjenih z generativno umetno inteligenco (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Avtor strokovnega članka o izbiri tehnološkega sklada za spletne aplikacije (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
 
     "hobby.eyebrow": "Otok 05",
     "hobby.title": "Hobiji",
     "hobby.text":
-      '<ul><li>Risanje</li><li>Gledanje animiranih serij in filmov</li><li>Igranje igric</li><li>Izdelava <a href="https://feri-notes.netlify.app/" target="_blank" rel="noopener noreferrer">spletne strani za zapiske</a></li><li>Učenje digitalne ilustracije in oblikovanja</li></ul>',
+      '<ul><li>Risanje</li><li>Učenje digitalne ilustracije in oblikovanja</li><li>Gledanje animiranih serij in filmov</li><li>Igranje igric</li><li>Izdelava <a href="https://feri-notes.netlify.app/" target="_blank" rel="noopener noreferrer">spletne strani za zapiske</a></li></ul>',
 
     "bonus.eyebrow": "Bonus",
     "bonus.title": "Druge kompetence in zaključeni projekti",
     "bonus.text":
-      '<ul><li>Nemška jezikovna diploma s stopnjo C1</li><li>Vozniško dovoljenje kategorije B</li><li>Samostojno izdelal <a href="https://medijska-predilnica.netlify.app/" target="_blank" rel="noopener noreferrer">spletno stran za novice</a> študentov medijskih komunikacij</li><li>Samostojno razvil dinamično spletno aplikacijo <a href="https://nextjs-greentouch-app.vercel.app/en" target="_blank" rel="noopener noreferrer">GreenTouch</a>, v okviru projekta <a href="https://bsihlab.com/projects/greentouch/" target="_blank" rel="noopener noreferrer">GreenTouch: EcoMind Development for Higher Education Future</a></li></ul>',
+      '<ul><li>Nemška jezikovna diploma s stopnjo C1</li><li>Vozniško dovoljenje kategorije B</li><li>Samostojno izdelal <a href="https://medijska-predilnica.netlify.app/" target="_blank" rel="noopener noreferrer">spletno stran za novice</a> študentov medijskih komunikacij</li><li>Samostojno razvil dinamično spletno aplikacijo <a href="https://nextjs-greentouch-app.vercel.app/en" target="_blank" rel="noopener noreferrer">GreenTouch</a>, v okviru projekta <a href="https://bsihlab.com/projects/greentouch/" target="_blank" rel="noopener noreferrer">GreenTouch: EcoMind Development for Higher Education Future</a></li><li>Risar zgodborisa (storyboard) pri študentskem filmu <a href="https://www.imdb.com/title/tt36062438/" target="_blank" rel="noopener noreferrer">Vžig</a></li><li>Sodeloval v izzivu Character Portal Challenge ustvarjalca RossDraws (<a href="https://youtu.be/9xYyfW_Jbnc?si=TUMQyzZWcPXPDMQ4&t=427" target="_blank" rel="noopener noreferrer">video</a>)</li></ul>',
   },
 } as const;

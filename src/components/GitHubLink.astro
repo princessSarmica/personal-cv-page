@@ -1,0 +1,73 @@
+---
+// src/components/GitHubLink.astro
+//
+// A single fixed corner link to the site owner's GitHub profile.
+// Visually it borrows the exact circular-badge treatment used by the
+// other two fixed corner controls (IslandNavMenu.astro's toggle and
+// LanguageSwitcher.astro's toggle) -- same size variable, border,
+// background, and hover-invert -- but there's no panel to expand and
+// no state to track, so unlike those two this component needs no
+// <script> at all: it's just a plain external link.
+import { Image } from 'astro:assets';
+import githubIcon from '../images/github-icon.png';
+import { useTranslations } from '../i18n/utils';
+
+const t = useTranslations(Astro.currentLocale);
+---
+
+<a
+  class="github-link"
+  href="https://github.com/princessSarmica"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label={t("nav.githubLabel")}
+>
+  <Image class="github-link-icon" src={githubIcon} alt="" />
+</a>
+
+<style>
+  .github-link {
+    /* Same 2.5rem/2.75rem sizing as the island-nav and
+       language-switcher toggles, so all three corner controls remain
+       equal touch targets at every breakpoint. */
+    --circle: 2.5rem;
+
+    position: fixed;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    z-index: 1000;
+    box-sizing: border-box;
+
+    width: var(--circle);
+    height: var(--circle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    border: 2px solid #1a1a1a;
+    background: rgba(255, 255, 255, 0.85);
+    transition: background-color 0.2s ease;
+  }
+
+  @media (max-width: 640px) {
+    .github-link {
+      --circle: 2.75rem;
+    }
+  }
+
+  .github-link:hover,
+  .github-link:focus-visible {
+    background: #1a1a1a;
+  }
+
+  .github-link-icon {
+    /* The source PNG is already a filled circular badge (black disc,
+       white octocat cutout) rather than a plain glyph, so it's sized
+       a little smaller than the surrounding button -- at full size it
+       would touch the border and double up two concentric circles. */
+    width: 68%;
+    height: 68%;
+    object-fit: contain;
+  }
+</style>

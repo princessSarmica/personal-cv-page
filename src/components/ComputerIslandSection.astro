@@ -135,7 +135,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
 ---
 
 <section
-  class="computer-section sky-chain halftone-hover"
+  class="computer-section sky-chain halftone-hover computer-spotlight-front"
   id={id}
 >
   <div class="computer-gradient-bg" aria-hidden="true"></div>
@@ -431,44 +431,68 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     pointer-events: none;
   }
 
-  /* Looping clouds layer, sitting on top of the gradient. New:
-     `z-index` bumped from `-1` to `1` per your request that the part
-     of ArtIslandSection's moon leaking into this section should sit
-     BEHIND this clouds layer (previously it was the other way round —
-     the moon painted on top of the clouds, which made sense before it
-     had a fade, but now that its leaking part fades to transparent
-     over there, it reads better tucked behind the clouds instead of
-     in front of them). `.computer-section` doesn't trap its
-     descendants in their own stacking context (see its comment
-     above), so this layer competes DIRECTLY against ArtIslandSection's
-     unit (that section's own explicit `z-index: 0` — see its comment)
-     rather than against just the moon in isolation; `1 > 0` is what
-     makes clouds win that comparison now. `.computer-gradient-bg`
-     right above this is UNCHANGED at `z-index: -1` — the gradient
-     itself still stays behind the moon's leak (`-1 < 0`), only the
-     clouds moved in front of it, so the stacking order through the
-     overlap zone is now gradient (back) → moon's fading leak (middle)
-     → clouds (front), a proper three-layer sandwich instead of the
-     previous two-layer one. `1` also ties with the foreground islands
-     (`z-index: 1` below) rather than staying strictly under them, but
-     that tie still resolves correctly by DOM order (both islands come
-     AFTER this element in the markup, so they still paint on top of
-     it) — see `.computer-island` below. Still behind the text
-     (`z-index: 2`), no tie there. Same two-tile `translateX` loop as
-     ArtIslandSection's `.art-clouds-bg` / InBetweenSection2's
-     `.in-between-2-clouds-bg` — see either file's top-of-file comment
-     for the full mechanics (real `<img>` tiles sized by `height:
-     100%; width: auto` rather than `background-image` + `cover`,
-     animated `transform: translateX` from -50% to 0% on a `width:
-     max-content` track). `computer_island_background_ver2.webp`
-     (3840x2160, RGBA) had the same kind of seam problem `in_between_2
-     _clouds_background.webp` needed fixing for earlier — its own left
-     and right edges didn't match (measured ~27.5 average, ~249 max
-     per-channel difference) — so it went through the identical roll-
-     to-center + mirrored-cross-fade reprocessing before being wired
-     up here; the edge mismatch is now ~0.27 average, ~0.8 max.
-     `overflow: hidden` clips the track (wider than the section,
-     holding two full tiles) down to the section's own bounds. */
+  /* Looping clouds layer, sitting on top of the gradient. Back to
+     `z-index: 1` (see the history below this element's own past — it
+     briefly went to `0` and back). `1` is what makes this layer win
+     its comparison against ArtIslandSection's whole unit (that
+     section's own explicit `z-index: 0` — see its comment), since
+     `.computer-section` doesn't trap its descendants in their own
+     stacking context (see its comment above): the part of Art's moon
+     leaking down into this section needs to stay tucked behind the
+     clouds instead of in front of them, and `1 > 0` decides that
+     outright rather than by tiebreak.
+     
+     A brief detour: this was tried at `z-index: 0` (tied with the
+     moon's unit) so that Layout.astro's page-wide cursor-spotlight
+     (`.halftone-spotlight`, also `z-index: 0`) would win ITS OWN tie
+     against these clouds and paint on top of them — per your report
+     that the spotlight wasn't visible over the clouds, and per the
+     CSS stacking spec, tied elements paint in DOM/tree order (later
+     wins), which the moon → clouds → spotlight document order does
+     satisfy on paper. In practice, though, that traded one visible
+     problem for another: the moon/clouds seam here isn't a single
+     static comparison, it's two independently-ANIMATED layers (the
+     moon drifts, these clouds drift too, both via `translateX` loops)
+     each getting repainted every frame, and a browser's compositor
+     doesn't guarantee a tied stack-level's DOM-order tiebreak stays
+     perfectly stable across repaints the way an unambiguous numeric
+     win does — which is what you saw as "the transition ... is
+     rough". Reverted back to the clean, unambiguous `1 > 0` win here,
+     and moved the spotlight-visibility fix to Layout.astro instead:
+     see `.computer-spotlight-front` there for how the spotlight now
+     gets a scoped, hover-only bump above these clouds specifically,
+     without this element's own z-index (or the moon relationship)
+     needing to change at all.
+     
+     `.computer-gradient-bg` right above this is UNCHANGED at
+     `z-index: -1` — the gradient itself still stays behind the moon's
+     leak (`-1 < 0`), only the clouds sit in front of it, so the
+     stacking order through the overlap zone is gradient (back) →
+     moon's fading leak → clouds (front) — same three-layer sandwich
+     as before either detour. `1` also ties with the foreground
+     islands (`z-index: 1` below) rather than staying strictly under
+     them, but that tie still resolves correctly by DOM order (both
+     islands come AFTER this element in the markup, so they still
+     paint on top of it) — see `.computer-island` below; unlike the
+     moon/clouds tie above, nothing here is independently animated
+     frame-to-frame in a way that would make that particular tiebreak
+     flicker, which is why it was safe to leave as-is even while
+     chasing the other one down. Still behind the text (`z-index: 2`),
+     no tie there. Same two-tile `translateX` loop as ArtIslandSection's
+     `.art-clouds-bg` / InBetweenSection2's `.in-between-2-clouds-bg`
+     — see either file's top-of-file comment for the full mechanics
+     (real `<img>` tiles sized by `height: 100%; width: auto` rather
+     than `background-image` + `cover`, animated `transform:
+     translateX` from -50% to 0% on a `width: max-content` track).
+     `computer_island_background_ver2.webp` (3840x2160, RGBA) had the
+     same kind of seam problem `in_between_2_clouds_background.webp`
+     needed fixing for earlier — its own left and right edges didn't
+     match (measured ~27.5 average, ~249 max per-channel difference)
+     — so it went through the identical roll-to-center + mirrored-
+     cross-fade reprocessing before being wired up here; the edge
+     mismatch is now ~0.27 average, ~0.8 max. `overflow: hidden` clips
+     the track (wider than the section, holding two full tiles) down
+     to the section's own bounds. */
   .computer-clouds-bg {
     position: absolute;
     inset: 0;

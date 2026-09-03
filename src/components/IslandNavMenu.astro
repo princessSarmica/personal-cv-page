@@ -379,9 +379,20 @@ const ICONS: Record<string, string> = {
         (event) => {
           event.preventDefault();
           const targetSelector = link.dataset.target;
-          const targetEl = targetSelector ? document.querySelector(targetSelector) : null;
+          const section = targetSelector ? document.querySelector(targetSelector) : null;
+          // Scroll to the section's own `.content` block (the eyebrow
+          // + title + body-text group) rather than the `<section>`
+          // itself: every section is a full illustration with the
+          // text overlaid somewhere inside it, not filled edge-to-edge
+          // with text, so centering the outer `<section>` in the
+          // viewport doesn't put what you actually came here to read
+          // anywhere near the middle of the screen. `.content` is
+          // that text group in all six section components -- falling
+          // back to `section` itself just in case a future section
+          // doesn't have one, so a menu click still goes somewhere.
+          const targetEl = section?.querySelector(".content") ?? section;
           setOpen(false);
-          targetEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+          targetEl?.scrollIntoView({ behavior: "smooth", block: "center" });
         },
         { signal }
       );
