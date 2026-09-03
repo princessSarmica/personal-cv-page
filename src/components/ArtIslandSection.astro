@@ -368,7 +368,10 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
     <h2>{title}</h2>
-    <p class="body-text">{text}</p>
+    {/* set:html here because this text is a real HTML bullet list
+       (see src/i18n/ui.ts) -- <div>, not <p>, since a <ul> can't nest
+       inside a <p>. */}
+    <div class="body-text" set:html={text} />
   </div>
 
   <div class="art-island art-island-bottom" aria-hidden="true">
@@ -386,214 +389,257 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
 </section>
 
 <script>
-  // Proximity-repel drift for every `.parallax-inner` element on the page
-  // (both islands here, and reused automatically if this component is
-  // used more than once). One mousemove listener + one rAF loop drive
-  // all of them, each easing toward its own target offset.
-  //
-  // Unlike a simple "follow the cursor" tilt, the target here points
-  // AWAY from the cursor: each island measures the vector from the
-  // pointer to its own untransformed rest position, and drifts along
-  // that vector. The push strength falls off linearly with distance and
-  // is zero past `influenceRadius`, so far-away islands just sit still.
-  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
+  // Proximity-repel drift for every `.parallax-inner` element on the
+  // page (both islands here, and reused automatically if this
+  // component is used more than once), plus the wireframe <-> final-
+  // artwork reveal for either island's optional loading image (see
+  // `.art-island-reveal` in the <style> below) -- both wrapped in
+  // `astro:page-load` (fires on the initial load AND after every
+  // <ClientRouter /> navigation -- see src/layouts/Layout.astro)
+  // instead of running at the top level, since a language switch
+  // swaps in a freshly-parsed page and this module itself only
+  // executes once. `cleanupArt` tears down the previous navigation's
+  // rAF loops, `mousemove` listeners, and reveal-entrance observers
+  // first, so switching languages back and forth all session never
+  // piles up duplicates of any of them running at once (`window` is
+  // never recreated by a soft navigation).
+  let cleanupArt: (() => void) | null = null;
 
-  if (islands.length && !prefersReducedMotion) {
-    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
-    const influenceRadius = 500; // px, push fades to 0 beyond this distance
-    const ease = 0.08;
+  document.addEventListener("astro:page-load", () => {
+    cleanupArt?.();
 
-    let mouseX = 0;
-    let mouseY = 0;
-    let hasMouse = false;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let parallaxRafId: number | null = null;
+    const observers: IntersectionObserver[] = [];
+    // Holders (not raw ids) since each `poll()` loop below reassigns
+    // its id every single animation frame -- pushing a fresh id into
+    // a plain array on every frame would grow that array forever for
+    // as long as the page stays open. One mutable holder per
+    // `watchHoverReveal` instance instead: `poll()` just updates
+    // `holder.id` in place each frame, and cleanup reads whatever the
+    // CURRENT value is.
+    const pollRafHolders: { id: number | null }[] = [];
 
-    const state = Array.from(islands).map((el) => ({
-      el,
-      currentX: 0,
-      currentY: 0,
-    }));
+    const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
 
-    window.addEventListener("mousemove", (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      hasMouse = true;
-    });
+    if (islands.length && !prefersReducedMotion) {
+      const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+      const influenceRadius = 500; // px, push fades to 0 beyond this distance
+      const ease = 0.08;
 
-    function tick() {
-      for (const s of state) {
-        let targetX = 0;
-        let targetY = 0;
+      let mouseX = 0;
+      let mouseY = 0;
+      let hasMouse = false;
 
-        if (hasMouse) {
-          // Rest position = current on-screen center minus whatever
-          // offset we've already applied, so this stays correct as the
-          // page scrolls or the island is mid-drift.
-          const rect = s.el.getBoundingClientRect();
-          const restX = rect.left + rect.width / 2 - s.currentX;
-          const restY = rect.top + rect.height / 2 - s.currentY;
+      const state = Array.from(islands).map((el) => ({
+        el,
+        currentX: 0,
+        currentY: 0,
+      }));
 
-          const dx = restX - mouseX;
-          const dy = restY - mouseY;
-          const dist = Math.hypot(dx, dy) || 1;
-
-          if (dist < influenceRadius) {
-            const falloff = 1 - dist / influenceRadius; // 1 = cursor on top, 0 = at the edge
-            const nx = dx / dist;
-            const ny = dy / dist;
-            targetX = nx * maxOffset * falloff;
-            targetY = ny * maxOffset * falloff;
-          }
-        }
-
-        s.currentX += (targetX - s.currentX) * ease;
-        s.currentY += (targetY - s.currentY) * ease;
-        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
-      }
-      requestAnimationFrame(tick);
-    }
-
-    requestAnimationFrame(tick);
-  }
-
-  // Wireframe <-> final-artwork reveal for either island's optional
-  // loading image (see `.art-island-reveal` in the <style> below).
-  // There can be up to two `.art-island-reveal` elements now (top
-  // island, bottom island, depending on which `...Loading` props were
-  // passed in) — everything below operates per-element via a loop, so
-  // the two islands are fully independent of each other.
-  //
-  // Two distinct triggers share the same underlying animation classes
-  // (`is-materializing` / `is-dematerializing`, see the <style>
-  // below):
-  //
-  //   1. Entrance (`watchEntrance`): one-time, timer-driven, fires the
-  //      first time the island is FULLY within the viewport (see
-  //      `threshold: 1.0` below). Plays materialize,
-  //      waits for it to finish, then plays dematerialize while
-  //      permanently marking the final artwork visible (`is-revealed`)
-  //      — this is the original "loading -> real image" reveal.
-  //   2. Hover (`watchHoverReveal`): repeatable, cursor-driven, starts
-  //      only once the entrance sequence above has fully settled.
-  //      Materialize plays for as long as the cursor is over the
-  //      island's artwork; the moment it leaves, dematerialize plays.
-  //      Since `is-revealed` is already permanently set by this point,
-  //      the final artwork never actually disappears underneath — the
-  //      wireframe is just sweeping in and out on top of it.
-  //
-  // Detection for the hover watcher is a point-in-rect check against a
-  // shared mousemove position, not real `:hover`/`mouseenter` —
-  // `.art-island` is `pointer-events: none` (this is decorative
-  // background art, not meant to intercept clicks), so native hover
-  // events never fire on it. Same proximity-watcher approach as
-  // AchievementIslandSection.astro's glitch effects.
-  const reveals = document.querySelectorAll<HTMLElement>(".art-island-reveal");
-
-  if (reveals.length && !prefersReducedMotion) {
-    const materializeDuration = 1200; // ms — keep in sync with the `materialize` animation's duration in the <style> below
-    const dematerializeDuration = 900; // ms — keep in sync with the `dematerialize` animation's duration in the <style> below
-
-    let hoverX = -Infinity;
-    let hoverY = -Infinity;
-    window.addEventListener("mousemove", (e) => {
-      hoverX = e.clientX;
-      hoverY = e.clientY;
-    });
-
-    function playMaterialize(reveal: HTMLElement) {
-      reveal.classList.remove("is-dematerializing");
-      reveal.classList.add("is-materializing");
-    }
-
-    function playDematerialize(reveal: HTMLElement) {
-      reveal.classList.remove("is-materializing");
-      reveal.classList.add("is-dematerializing");
-    }
-
-    function watchEntrance(reveal: HTMLElement, onSettled: () => void) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-
-            playMaterialize(reveal);
-            // Phase 2 starts once phase 1's animation has actually
-            // finished playing, not before — a plain `setTimeout`
-            // matching the animation's own duration is simpler and
-            // more robust here than juggling `animationend` across
-            // the multiple properties phase 1 animates.
-            setTimeout(() => {
-              // `is-revealed` is permanent from here on — the final
-              // artwork stays at opacity 1 forever after, regardless
-              // of whatever the wireframe does next (including every
-              // future hover cycle).
-              reveal.classList.add("is-revealed");
-              playDematerialize(reveal);
-
-              setTimeout(() => {
-                // Entrance is fully done. `onSettled` hands control
-                // over to the hover watcher below — nothing here
-                // leaves the loading image `display: none`d anymore
-                // (it used to), since hovering needs to keep reusing
-                // it indefinitely.
-                onSettled();
-              }, dematerializeDuration);
-            }, materializeDuration);
-
-            observer.disconnect();
-          }
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+          hasMouse = true;
         },
-        // `threshold: 1.0` — `entry.isIntersecting` only turns true
-        // once the element's intersection ratio reaches 1.0, i.e. the
-        // entire island is inside the viewport, not just part of it.
-        //
-        // `rootMargin` expands the viewport horizontally (by a value
-        // far bigger than these islands ever intentionally bleed off
-        // the left/right edge — see the top-of-file comment on that
-        // sizing) so that deliberate horizontal overflow never counts
-        // against the ratio. Without this, an island that's designed
-        // to poke past the screen edge at narrower viewports could
-        // never reach ratio 1.0 at all, and its entrance would never
-        // fire. Left unexpanded top/bottom, so what actually gates the
-        // reveal is exactly what you asked for: the island fully
-        // visible top-to-bottom as you scroll.
-        { threshold: 1.0, rootMargin: "0px 2000px 0px 2000px" }
+        { signal }
       );
 
-      observer.observe(reveal);
-    }
+      function tick() {
+        for (const s of state) {
+          let targetX = 0;
+          let targetY = 0;
 
-    function watchHoverReveal(reveal: HTMLElement) {
-      let hovering = false;
+          if (hasMouse) {
+            // Rest position = current on-screen center minus whatever
+            // offset we've already applied, so this stays correct as the
+            // page scrolls or the island is mid-drift.
+            const rect = s.el.getBoundingClientRect();
+            const restX = rect.left + rect.width / 2 - s.currentX;
+            const restY = rect.top + rect.height / 2 - s.currentY;
 
-      function poll() {
-        const rect = reveal.getBoundingClientRect();
-        const isOver =
-          hoverX >= rect.left &&
-          hoverX <= rect.right &&
-          hoverY >= rect.top &&
-          hoverY <= rect.bottom;
+            const dx = restX - mouseX;
+            const dy = restY - mouseY;
+            const dist = Math.hypot(dx, dy) || 1;
 
-        if (isOver && !hovering) {
-          hovering = true;
-          playMaterialize(reveal);
-        } else if (!isOver && hovering) {
-          hovering = false;
-          playDematerialize(reveal);
+            if (dist < influenceRadius) {
+              const falloff = 1 - dist / influenceRadius; // 1 = cursor on top, 0 = at the edge
+              const nx = dx / dist;
+              const ny = dy / dist;
+              targetX = nx * maxOffset * falloff;
+              targetY = ny * maxOffset * falloff;
+            }
+          }
+
+          s.currentX += (targetX - s.currentX) * ease;
+          s.currentY += (targetY - s.currentY) * ease;
+          s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
         }
-
-        requestAnimationFrame(poll);
+        parallaxRafId = requestAnimationFrame(tick);
       }
 
-      requestAnimationFrame(poll);
+      parallaxRafId = requestAnimationFrame(tick);
     }
 
-    reveals.forEach((reveal) => {
-      watchEntrance(reveal, () => watchHoverReveal(reveal));
-    });
-  }
+    // Wireframe <-> final-artwork reveal for either island's optional
+    // loading image (see `.art-island-reveal` in the <style> below).
+    // There can be up to two `.art-island-reveal` elements now (top
+    // island, bottom island, depending on which `...Loading` props were
+    // passed in) — everything below operates per-element via a loop, so
+    // the two islands are fully independent of each other.
+    //
+    // Two distinct triggers share the same underlying animation classes
+    // (`is-materializing` / `is-dematerializing`, see the <style>
+    // below):
+    //
+    //   1. Entrance (`watchEntrance`): one-time, timer-driven, fires the
+    //      first time the island is FULLY within the viewport (see
+    //      `threshold: 1.0` below). Plays materialize,
+    //      waits for it to finish, then plays dematerialize while
+    //      permanently marking the final artwork visible (`is-revealed`)
+    //      — this is the original "loading -> real image" reveal.
+    //   2. Hover (`watchHoverReveal`): repeatable, cursor-driven, starts
+    //      only once the entrance sequence above has fully settled.
+    //      Materialize plays for as long as the cursor is over the
+    //      island's artwork; the moment it leaves, dematerialize plays.
+    //      Since `is-revealed` is already permanently set by this point,
+    //      the final artwork never actually disappears underneath — the
+    //      wireframe is just sweeping in and out on top of it.
+    //
+    // Detection for the hover watcher is a point-in-rect check against a
+    // shared mousemove position, not real `:hover`/`mouseenter` —
+    // `.art-island` is `pointer-events: none` (this is decorative
+    // background art, not meant to intercept clicks), so native hover
+    // events never fire on it. Same proximity-watcher approach as
+    // AchievementIslandSection.astro's glitch effects.
+    const reveals = document.querySelectorAll<HTMLElement>(".art-island-reveal");
+
+    if (reveals.length && !prefersReducedMotion) {
+      const materializeDuration = 1200; // ms — keep in sync with the `materialize` animation's duration in the <style> below
+      const dematerializeDuration = 900; // ms — keep in sync with the `dematerialize` animation's duration in the <style> below
+
+      let hoverX = -Infinity;
+      let hoverY = -Infinity;
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          hoverX = e.clientX;
+          hoverY = e.clientY;
+        },
+        { signal }
+      );
+
+      function playMaterialize(reveal: HTMLElement) {
+        reveal.classList.remove("is-dematerializing");
+        reveal.classList.add("is-materializing");
+      }
+
+      function playDematerialize(reveal: HTMLElement) {
+        reveal.classList.remove("is-materializing");
+        reveal.classList.add("is-dematerializing");
+      }
+
+      function watchEntrance(reveal: HTMLElement, onSettled: () => void) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+
+              playMaterialize(reveal);
+              // Phase 2 starts once phase 1's animation has actually
+              // finished playing, not before — a plain `setTimeout`
+              // matching the animation's own duration is simpler and
+              // more robust here than juggling `animationend` across
+              // the multiple properties phase 1 animates.
+              setTimeout(() => {
+                // `is-revealed` is permanent from here on — the final
+                // artwork stays at opacity 1 forever after, regardless
+                // of whatever the wireframe does next (including every
+                // future hover cycle).
+                reveal.classList.add("is-revealed");
+                playDematerialize(reveal);
+
+                setTimeout(() => {
+                  // Entrance is fully done. `onSettled` hands control
+                  // over to the hover watcher below — nothing here
+                  // leaves the loading image `display: none`d anymore
+                  // (it used to), since hovering needs to keep reusing
+                  // it indefinitely.
+                  onSettled();
+                }, dematerializeDuration);
+              }, materializeDuration);
+
+              observer.disconnect();
+            }
+          },
+          // `threshold: 1.0` — `entry.isIntersecting` only turns true
+          // once the element's intersection ratio reaches 1.0, i.e. the
+          // entire island is inside the viewport, not just part of it.
+          //
+          // `rootMargin` expands the viewport horizontally (by a value
+          // far bigger than these islands ever intentionally bleed off
+          // the left/right edge — see the top-of-file comment on that
+          // sizing) so that deliberate horizontal overflow never counts
+          // against the ratio. Without this, an island that's designed
+          // to poke past the screen edge at narrower viewports could
+          // never reach ratio 1.0 at all, and its entrance would never
+          // fire. Left unexpanded top/bottom, so what actually gates the
+          // reveal is exactly what you asked for: the island fully
+          // visible top-to-bottom as you scroll.
+          { threshold: 1.0, rootMargin: "0px 2000px 0px 2000px" }
+        );
+
+        observer.observe(reveal);
+        observers.push(observer);
+      }
+
+      function watchHoverReveal(reveal: HTMLElement) {
+        let hovering = false;
+        const holder: { id: number | null } = { id: null };
+        pollRafHolders.push(holder);
+
+        function poll() {
+          const rect = reveal.getBoundingClientRect();
+          const isOver =
+            hoverX >= rect.left &&
+            hoverX <= rect.right &&
+            hoverY >= rect.top &&
+            hoverY <= rect.bottom;
+
+          if (isOver && !hovering) {
+            hovering = true;
+            playMaterialize(reveal);
+          } else if (!isOver && hovering) {
+            hovering = false;
+            playDematerialize(reveal);
+          }
+
+          holder.id = requestAnimationFrame(poll);
+        }
+
+        holder.id = requestAnimationFrame(poll);
+      }
+
+      reveals.forEach((reveal) => {
+        watchEntrance(reveal, () => watchHoverReveal(reveal));
+      });
+    }
+
+    cleanupArt = () => {
+      controller.abort();
+      if (parallaxRafId !== null) cancelAnimationFrame(parallaxRafId);
+      observers.forEach((o) => o.disconnect());
+      pollRafHolders.forEach((holder) => {
+        if (holder.id !== null) cancelAnimationFrame(holder.id);
+      });
+    };
+  });
 </script>
 
 <style>
@@ -818,6 +864,13 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     text-align: left;
   }
 
+  /* Wider text column on big screens, per request. */
+  @media (min-width: 1100px) {
+    .content {
+      width: min(50ch, 100%);
+    }
+  }
+
   .eyebrow {
     font-size: 0.8rem;
     letter-spacing: 0.1em;
@@ -837,6 +890,32 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     font-size: 1.05rem;
     color: #444;
     margin: 0;
+  }
+
+  .body-text ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: disc;
+  }
+
+  .body-text li {
+    margin: 0 0 0.5rem;
+  }
+
+  .body-text li:last-child {
+    margin-bottom: 0;
+  }
+
+  .body-text a {
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-decoration-color: #999;
+    text-underline-offset: 0.15em;
+    transition: text-decoration-color 0.2s ease;
+  }
+
+  .body-text a:hover {
+    text-decoration-color: #1a1a1a;
   }
 
   .art-island {

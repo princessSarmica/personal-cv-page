@@ -1014,7 +1014,10 @@ const {
     <div class="content">
       {eyebrow && <p class="eyebrow">{eyebrow}</p>}
       <h2>{title}</h2>
-      <p class="body-text">{text}</p>
+      {/* set:html here because this text is a real HTML bullet list
+         (see src/i18n/ui.ts) -- <div>, not <p>, since a <ul> can't nest
+         inside a <p>. */}
+      <div class="body-text" set:html={text} />
     </div>
   </div>
 </section>
@@ -1328,6 +1331,13 @@ const {
     text-align: left;
   }
 
+  /* Wider text column on big screens, per request. */
+  @media (min-width: 1100px) {
+    .content {
+      width: min(50ch, 100%);
+    }
+  }
+
   .eyebrow {
     font-size: 0.8rem;
     letter-spacing: 0.1em;
@@ -1347,6 +1357,32 @@ const {
     font-size: 1.05rem;
     color: #444;
     margin: 0;
+  }
+
+  .body-text ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: disc;
+  }
+
+  .body-text li {
+    margin: 0 0 0.5rem;
+  }
+
+  .body-text li:last-child {
+    margin-bottom: 0;
+  }
+
+  .body-text a {
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-decoration-color: #999;
+    text-underline-offset: 0.15em;
+    transition: text-decoration-color 0.2s ease;
+  }
+
+  .body-text a:hover {
+    text-decoration-color: #1a1a1a;
   }
 
   /* `1024px`, not the family's usual `640px` — see the top-of-file

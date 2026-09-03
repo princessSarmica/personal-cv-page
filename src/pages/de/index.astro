@@ -1,0 +1,13 @@
+---
+// src/pages/de/index.astro
+//
+// Thin locale route: all real markup/layout lives in
+// src/components/HomePage.astro (shared by every locale) so it only
+// ever needs editing once. This file's only job is to exist at the
+// right URL -- Astro's i18n routing (astro.config.mjs) maps this
+// path to the "de" locale, which HomePage.astro then reads via
+// Astro.currentLocale to pick the right translated strings.
+import HomePage from '../../components/HomePage.astro';
+---
+
+<HomePage />

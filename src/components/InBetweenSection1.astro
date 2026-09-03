@@ -131,242 +131,284 @@ const optimizedBackgroundImage = await getImage({ src: backgroundImage });
 </section>
 
 <script>
-  // Same star-grid technique as IntroIslandSection.astro — see the
-  // top-of-file comment there for the full design rationale (resting
-  // bitmap + small live-boosted set, ResizeObserver, reduced-motion
-  // handling, etc.). Duplicated here rather than shared, matching this
-  // codebase's existing convention of each section owning its own copy
-  // of whatever script it needs (see ArtIslandSection.astro's comment
-  // on the `.parallax-inner` drift script for the same tradeoff).
-  const canvas = document.querySelector<HTMLCanvasElement>(".in-between-stars");
-  const ctx = canvas?.getContext("2d") ?? null;
+  // Same star-grid technique as IntroIslandSection.astro — see the top-of-file comment there for the full design rationale (resting bitmap + small live-boosted set, ResizeObserver, reduced-motion handling, etc.). Duplicated here rather than shared, matching this codebase's existing convention of each section owning its own copy of whatever script it needs.
+  //
+  // Wrapped in `astro:page-load` (fires on the initial load AND after
+  // every <ClientRouter /> navigation -- see src/layouts/Layout.astro)
+  // instead of running at the top level: a language switch replaces
+  // this `<canvas>` with a freshly-parsed one, and this module itself
+  // only executes once, so without re-running this init on every
+  // navigation the star field would go dead (and the ResizeObserver
+  // would be left watching a detached canvas) after the first language
+  // switch. `cleanupInBetweenStars` tears down the previous navigation's rAF
+  // loop, `mousemove`/`mouseout` listeners, ResizeObserver, and pending
+  // resize-debounce timer first, so switching languages back and forth
+  // all session never piles up duplicates of any of them running at
+  // once (`window`/`document` are never recreated by a soft
+  // navigation).
+  let cleanupInBetweenStars: (() => void) | null = null;
 
-  if (canvas && ctx) {
-    const SPACING = 24;
-    const BRIGHT_CHANCE = 0.035;
-    const INFLUENCE_RADIUS = 130;
-    const EASE = 0.15;
-    const MAX_DPR = 2;
+  document.addEventListener("astro:page-load", () => {
+    cleanupInBetweenStars?.();
 
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let resizeObserver: ResizeObserver | null = null;
+    const rafIdHolder: { get: () => number | null } = { get: () => null };
+    const resizeTimerHolder: { get: () => ReturnType<typeof setTimeout> | null } = {
+      get: () => null,
+    };
 
-    function hash(x: number, y: number) {
-      const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-      return v - Math.floor(v);
-    }
+    const canvas = document.querySelector<HTMLCanvasElement>(".in-between-stars");
+    const ctx = canvas?.getContext("2d") ?? null;
 
-    interface Dot {
-      x: number;
-      y: number;
-      isBright: boolean;
-      baseAlpha: number;
-      baseRadius: number;
-      boost: number;
-    }
+    if (canvas && ctx) {
+      const SPACING = 24;
+      const BRIGHT_CHANCE = 0.035;
+      const INFLUENCE_RADIUS = 130;
+      const EASE = 0.15;
+      const MAX_DPR = 2;
 
-    let dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    let width = 0;
-    let height = 0;
-    let cols = 0;
-    let rows = 0;
-    let rowPhase = 0; // see resize() — kept in this scope so activateNearby() can undo the shift
-    let dots: Dot[] = [];
-    let restingBitmap: HTMLCanvasElement | null = null;
-    const active = new Set<number>();
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
 
-    let mouseX = -99999;
-    let mouseY = -99999;
-    let rafId: number | null = null;
-
-    // `rowPhase` shifts every row's y-coordinate so the grid lines up
-    // with the PAGE's global 24px rhythm instead of restarting fresh
-    // at this canvas's own top edge — see the comment on `resize()`
-    // below for why (this is what keeps the dot grid seamless across
-    // the boundary from IntroIslandSection, which does the exact same
-    // thing). Row indices used for `hash()`/`active` bookkeeping stay
-    // plain 0..rows-1 integers regardless — only the drawn `y` value
-    // is shifted.
-    function buildDots(rowPhase: number) {
-      cols = Math.ceil(width / SPACING) + 1;
-      rows = Math.ceil((height + rowPhase) / SPACING) + 1;
-      dots = [];
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const roll = hash(col * 3 + 1, row * 7 + 5);
-          const isBright = roll < BRIGHT_CHANCE;
-          dots.push({
-            x: col * SPACING,
-            y: row * SPACING - rowPhase,
-            isBright,
-            baseAlpha: isBright
-              ? 0.75 + hash(col, row + 11) * 0.25
-              : 0.08 + hash(col + 11, row) * 0.14,
-            baseRadius: isBright ? 1.7 : 1.05,
-            boost: 0,
-          });
-        }
-      }
-      active.clear();
-    }
-
-    function renderResting() {
-      const bitmap = document.createElement("canvas");
-      bitmap.width = canvas.width;
-      bitmap.height = canvas.height;
-      const rctx = bitmap.getContext("2d");
-      if (!rctx) return;
-
-      rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      for (const d of dots) {
-        rctx.beginPath();
-        rctx.fillStyle = `rgba(255, 255, 255, ${d.baseAlpha.toFixed(3)})`;
-        if (d.isBright) {
-          rctx.shadowColor = "rgba(255, 255, 255, 0.85)";
-          rctx.shadowBlur = 5;
-        } else {
-          rctx.shadowBlur = 0;
-        }
-        rctx.arc(d.x, d.y, d.baseRadius, 0, Math.PI * 2);
-        rctx.fill();
+      function hash(x: number, y: number) {
+        const v = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+        return v - Math.floor(v);
       }
 
-      restingBitmap = bitmap;
-    }
-
-    function drawFrame() {
-      ctx.clearRect(0, 0, width, height);
-      if (restingBitmap) {
-        ctx.drawImage(restingBitmap, 0, 0, width, height);
+      interface Dot {
+        x: number;
+        y: number;
+        isBright: boolean;
+        baseAlpha: number;
+        baseRadius: number;
+        boost: number;
       }
 
-      for (const idx of active) {
-        const d = dots[idx];
-        if (!d || d.boost <= 0.01) continue;
-        const alpha = Math.min(1, d.baseAlpha + d.boost * 0.7);
-        const radius = d.baseRadius + d.boost * 1.6;
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
-        ctx.shadowColor = "rgba(255, 255, 255, 0.9)";
-        ctx.shadowBlur = 4 + d.boost * 8;
-        ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.shadowBlur = 0;
-    }
+      let dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+      let width = 0;
+      let height = 0;
+      let cols = 0;
+      let rows = 0;
+      let rowPhase = 0; // see resize() — kept in this scope so activateNearby() can undo the shift
+      let dots: Dot[] = [];
+      let restingBitmap: HTMLCanvasElement | null = null;
+      const active = new Set<number>();
 
-    function resize() {
-      const rect = canvas.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      let mouseX = -99999;
+      let mouseY = -99999;
+      let rafId: number | null = null;
+      rafIdHolder.get = () => rafId;
 
-      // This canvas's top edge in PAGE (document) coordinates — adding
-      // back the current scroll offset cancels it out, so this is the
-      // same value regardless of where the page happens to be scrolled
-      // when resize() runs. Used only to phase-shift the row grid (see
-      // `buildDots()`) so it lines up with the page's global 24px
-      // rhythm instead of always starting a fresh row right at this
-      // canvas's own top — otherwise, since this section's height is
-      // basically never an exact multiple of SPACING, the row spacing
-      // right at the seam against IntroIslandSection (which sits flush
-      // above this section, no gap) would be off — either squeezed
-      // together or gapped wider than the normal 24px rhythm, reading
-      // as a visible cut/seam in the dot pattern. Both this section and
-      // IntroIslandSection compute this the same way independently, so
-      // any two adjacent sections using this technique line up
-      // automatically without needing to coordinate.
-      const pageTop = rect.top + window.scrollY;
-      rowPhase = ((pageTop % SPACING) + SPACING) % SPACING;
-
-      buildDots(rowPhase);
-      renderResting();
-      drawFrame();
-    }
-
-    resize();
-
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const ro = new ResizeObserver(() => {
-      if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(resize, 120);
-    });
-    ro.observe(canvas);
-
-    if (!prefersReducedMotion) {
-      function activateNearby(x: number, y: number) {
-        // Row lookups need `+ rowPhase` to undo the shift `buildDots()`
-        // applied to each dot's actual `y` (see the comment on
-        // `resize()`) — column lookups don't, since x is unshifted.
-        const minCol = Math.max(0, Math.floor((x - INFLUENCE_RADIUS) / SPACING));
-        const maxCol = Math.min(cols - 1, Math.ceil((x + INFLUENCE_RADIUS) / SPACING));
-        const minRow = Math.max(0, Math.floor((y + rowPhase - INFLUENCE_RADIUS) / SPACING));
-        const maxRow = Math.min(rows - 1, Math.ceil((y + rowPhase + INFLUENCE_RADIUS) / SPACING));
-
-        for (let row = minRow; row <= maxRow; row++) {
-          for (let col = minCol; col <= maxCol; col++) {
-            active.add(row * cols + col);
+      // `rowPhase` shifts every row's y-coordinate so the grid lines up
+      // with the PAGE's global 24px rhythm instead of restarting fresh
+      // at this canvas's own top edge — see the comment on `resize()`
+      // below for why (this is what keeps the dot grid seamless across
+      // the boundary from IntroIslandSection, which does the exact same
+      // thing). Row indices used for `hash()`/`active` bookkeeping stay
+      // plain 0..rows-1 integers regardless — only the drawn `y` value
+      // is shifted.
+      function buildDots(rowPhase: number) {
+        cols = Math.ceil(width / SPACING) + 1;
+        rows = Math.ceil((height + rowPhase) / SPACING) + 1;
+        dots = [];
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const roll = hash(col * 3 + 1, row * 7 + 5);
+            const isBright = roll < BRIGHT_CHANCE;
+            dots.push({
+              x: col * SPACING,
+              y: row * SPACING - rowPhase,
+              isBright,
+              baseAlpha: isBright
+                ? 0.75 + hash(col, row + 11) * 0.25
+                : 0.08 + hash(col + 11, row) * 0.14,
+              baseRadius: isBright ? 1.7 : 1.05,
+              boost: 0,
+            });
           }
         }
+        active.clear();
       }
 
-      function ensureLoopRunning() {
-        if (rafId === null) {
-          rafId = requestAnimationFrame(tick);
+      function renderResting() {
+        const bitmap = document.createElement("canvas");
+        bitmap.width = canvas.width;
+        bitmap.height = canvas.height;
+        const rctx = bitmap.getContext("2d");
+        if (!rctx) return;
+
+        rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        for (const d of dots) {
+          rctx.beginPath();
+          rctx.fillStyle = `rgba(255, 255, 255, ${d.baseAlpha.toFixed(3)})`;
+          if (d.isBright) {
+            rctx.shadowColor = "rgba(255, 255, 255, 0.85)";
+            rctx.shadowBlur = 5;
+          } else {
+            rctx.shadowBlur = 0;
+          }
+          rctx.arc(d.x, d.y, d.baseRadius, 0, Math.PI * 2);
+          rctx.fill();
         }
+
+        restingBitmap = bitmap;
       }
 
-      function tick() {
-        let anyActive = false;
+      function drawFrame() {
+        ctx.clearRect(0, 0, width, height);
+        if (restingBitmap) {
+          ctx.drawImage(restingBitmap, 0, 0, width, height);
+        }
 
         for (const idx of active) {
           const d = dots[idx];
-          if (!d) {
-            active.delete(idx);
-            continue;
-          }
-
-          const dx = d.x - mouseX;
-          const dy = d.y - mouseY;
-          const dist = Math.hypot(dx, dy);
-          const target = dist < INFLUENCE_RADIUS ? 1 - dist / INFLUENCE_RADIUS : 0;
-
-          d.boost += (target - d.boost) * EASE;
-
-          if (d.boost < 0.01 && target === 0) {
-            d.boost = 0;
-            active.delete(idx);
-          } else {
-            anyActive = true;
-          }
+          if (!d || d.boost <= 0.01) continue;
+          const alpha = Math.min(1, d.baseAlpha + d.boost * 0.7);
+          const radius = d.baseRadius + d.boost * 1.6;
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
+          ctx.shadowColor = "rgba(255, 255, 255, 0.9)";
+          ctx.shadowBlur = 4 + d.boost * 8;
+          ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
+          ctx.fill();
         }
-
-        drawFrame();
-        rafId = anyActive ? requestAnimationFrame(tick) : null;
+        ctx.shadowBlur = 0;
       }
 
-      window.addEventListener("mousemove", (e) => {
+      function resize() {
         const rect = canvas.getBoundingClientRect();
-        mouseX = e.clientX - rect.left;
-        mouseY = e.clientY - rect.top;
-        activateNearby(mouseX, mouseY);
-        ensureLoopRunning();
-      });
+        width = rect.width;
+        height = rect.height;
+        dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      document.addEventListener("mouseout", (e) => {
-        const leftWindow = !e.relatedTarget && !(e as any).toElement;
-        if (leftWindow) {
-          mouseX = -99999;
-          mouseY = -99999;
-          ensureLoopRunning();
-        }
+        // This canvas's top edge in PAGE (document) coordinates — adding
+        // back the current scroll offset cancels it out, so this is the
+        // same value regardless of where the page happens to be scrolled
+        // when resize() runs. Used only to phase-shift the row grid (see
+        // `buildDots()`) so it lines up with the page's global 24px
+        // rhythm instead of always starting a fresh row right at this
+        // canvas's own top — otherwise, since this section's height is
+        // basically never an exact multiple of SPACING, the row spacing
+        // right at the seam against IntroIslandSection (which sits flush
+        // above this section, no gap) would be off — either squeezed
+        // together or gapped wider than the normal 24px rhythm, reading
+        // as a visible cut/seam in the dot pattern. Both this section and
+        // IntroIslandSection compute this the same way independently, so
+        // any two adjacent sections using this technique line up
+        // automatically without needing to coordinate.
+        const pageTop = rect.top + window.scrollY;
+        rowPhase = ((pageTop % SPACING) + SPACING) % SPACING;
+
+        buildDots(rowPhase);
+        renderResting();
+        drawFrame();
+      }
+
+      resize();
+
+      let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+      resizeTimerHolder.get = () => resizeTimer;
+      const ro = new ResizeObserver(() => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(resize, 120);
       });
+      ro.observe(canvas);
+      resizeObserver = ro;
+
+      if (!prefersReducedMotion) {
+        function activateNearby(x: number, y: number) {
+          // Row lookups need `+ rowPhase` to undo the shift `buildDots()`
+          // applied to each dot's actual `y` (see the comment on
+          // `resize()`) — column lookups don't, since x is unshifted.
+          const minCol = Math.max(0, Math.floor((x - INFLUENCE_RADIUS) / SPACING));
+          const maxCol = Math.min(cols - 1, Math.ceil((x + INFLUENCE_RADIUS) / SPACING));
+          const minRow = Math.max(0, Math.floor((y + rowPhase - INFLUENCE_RADIUS) / SPACING));
+          const maxRow = Math.min(rows - 1, Math.ceil((y + rowPhase + INFLUENCE_RADIUS) / SPACING));
+
+          for (let row = minRow; row <= maxRow; row++) {
+            for (let col = minCol; col <= maxCol; col++) {
+              active.add(row * cols + col);
+            }
+          }
+        }
+
+        function ensureLoopRunning() {
+          if (rafId === null) {
+            rafId = requestAnimationFrame(tick);
+          }
+        }
+
+        function tick() {
+          let anyActive = false;
+
+          for (const idx of active) {
+            const d = dots[idx];
+            if (!d) {
+              active.delete(idx);
+              continue;
+            }
+
+            const dx = d.x - mouseX;
+            const dy = d.y - mouseY;
+            const dist = Math.hypot(dx, dy);
+            const target = dist < INFLUENCE_RADIUS ? 1 - dist / INFLUENCE_RADIUS : 0;
+
+            d.boost += (target - d.boost) * EASE;
+
+            if (d.boost < 0.01 && target === 0) {
+              d.boost = 0;
+              active.delete(idx);
+            } else {
+              anyActive = true;
+            }
+          }
+
+          drawFrame();
+          rafId = anyActive ? requestAnimationFrame(tick) : null;
+        }
+
+        window.addEventListener(
+          "mousemove",
+          (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            activateNearby(mouseX, mouseY);
+            ensureLoopRunning();
+          },
+          { signal }
+        );
+
+        document.addEventListener(
+          "mouseout",
+          (e) => {
+            const leftWindow = !e.relatedTarget && !(e as any).toElement;
+            if (leftWindow) {
+              mouseX = -99999;
+              mouseY = -99999;
+              ensureLoopRunning();
+            }
+          },
+          { signal }
+        );
+      }
     }
-  }
+
+    cleanupInBetweenStars = () => {
+      controller.abort();
+      resizeObserver?.disconnect();
+      const raf = rafIdHolder.get();
+      if (raf !== null) cancelAnimationFrame(raf);
+      const timer = resizeTimerHolder.get();
+      if (timer !== null) clearTimeout(timer);
+    };
+  });
 </script>
 
 <style>

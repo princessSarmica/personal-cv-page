@@ -181,164 +181,168 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
 <script>
   // Swaps the front island's artwork for the cartoon version while the
   // user is scrolled into HobbyIslandSection (id="section-hobbies" in
-  // src/pages/index.astro), and swaps it back once they scroll past it
-  // in either direction. Purely a class toggle — all the actual visual
-  // work (crossfade) is the CSS above.
+  // src/components/HomePage.astro), and swaps it back once they scroll
+  // past it in either direction. Purely a class toggle — all the
+  // actual visual work (crossfade) is the CSS above.
   //
   // rootMargin trims the observer's trigger zone to the vertical
   // center third of the viewport, so the swap happens once the hobby
   // section is meaningfully in view rather than the instant a single
   // pixel of it appears at the very edge of the screen.
-  const hobbySection = document.querySelector("#section-hobbies");
-  const cornerIslandForHobby = document.querySelector<HTMLElement>(".corner-island");
+  //
+  // Wrapped in `astro:page-load` (fires on the initial load AND after
+  // every <ClientRouter /> navigation -- see src/layouts/Layout.astro)
+  // rather than running at the top level: a language switch replaces
+  // both `#section-hobbies` and this very `.corner-island` element
+  // with freshly-parsed ones, and this module itself only executes
+  // once, so without re-running this init on every navigation the
+  // observer would be left watching stale, detached elements after the
+  // first language switch. `cleanupHobbySwap` disconnects the previous
+  // navigation's observer first.
+  let cleanupHobbySwap: (() => void) | null = null;
 
-  if (hobbySection && cornerIslandForHobby) {
-    const hobbyObserver = new IntersectionObserver(
-      ([entry]) => {
-        cornerIslandForHobby.classList.toggle("is-hobby", entry.isIntersecting);
-      },
-      { rootMargin: "-33% 0px -33% 0px" }
-    );
+  document.addEventListener("astro:page-load", () => {
+    cleanupHobbySwap?.();
 
-    hobbyObserver.observe(hobbySection);
-  }
+    const hobbySection = document.querySelector("#section-hobbies");
+    const cornerIslandForHobby = document.querySelector<HTMLElement>(".corner-island");
+
+    if (hobbySection && cornerIslandForHobby) {
+      const hobbyObserver = new IntersectionObserver(
+        ([entry]) => {
+          cornerIslandForHobby.classList.toggle("is-hobby", entry.isIntersecting);
+        },
+        { rootMargin: "-33% 0px -33% 0px" }
+      );
+
+      hobbyObserver.observe(hobbySection);
+      cleanupHobbySwap = () => hobbyObserver.disconnect();
+    }
+  });
 </script>
 
 <script>
   // Stops the fixed front island partway through BonusIslandSection
-  // (id="section-bonus" in src/pages/index.astro), instead of letting
-  // it keep hovering in front of everything all the way down to
-  // OtherIslandSection (id="section-closing"), the very last section.
-  // The freeze point is FREEZE_TARGET_FRACTION of the way down Bonus's
-  // own height, plus an optional extra FREEZE_BUFFER_PX nudge
-  // (positive moves the stop point higher up the page, negative moves
-  // it lower). Tune either constant to move where exactly it comes to
-  // rest.
-  // New: FREEZE_TARGET_FRACTION bumped from `0.5` (Bonus's vertical
-  // middle) to `0.65` per your report that the island was stopping
-  // too soon while scrolling through Bonus — a bigger fraction means
-  // more of Bonus's own height scrolls past before the freeze point
-  // is reached, so the island keeps tracking the viewport for longer
-  // and ends up sitting lower on the page once it does stop. Adjust
-  // this value directly for earlier/later still (it's a fraction of
-  // Bonus's height, not a pixel or viewport unit, so it stays
-  // proportionally correct if that section's own height changes).
+  // (id="section-bonus" in src/components/HomePage.astro), instead of
+  // letting it keep hovering in front of everything all the way down
+  // to OtherIslandSection (id="section-closing"), the very last
+  // section. The freeze point is FREEZE_TARGET_FRACTION of the way
+  // down Bonus's own height, plus an optional extra FREEZE_BUFFER_PX
+  // nudge (positive moves the stop point higher up the page, negative
+  // moves it lower). Tune either constant to move where exactly it
+  // comes to rest.
   //
-  // New: per your follow-up asking for the freeze point specifically
-  // lower on mobile screens, `measure()` below now picks between this
-  // desktop/tablet fraction and `FREEZE_TARGET_FRACTION_MOBILE` at
-  // measurement time, based on `window.innerWidth` against
-  // `MOBILE_FREEZE_BREAKPOINT` — the same `640px` cutoff every other
-  // section in this project uses for its own mobile-only overrides
-  // (see e.g. AchievementIslandSection.astro's `max-width: 640px`
-  // block), so this stays consistent with the rest of the codebase
-  // rather than inventing a new breakpoint. `measure()` already reruns
-  // on `resize`, so rotating a phone or resizing across the breakpoint
-  // picks up the right fraction automatically.
-  //
-  // The trick: `position: fixed` and `position: absolute` use the same
-  // coordinate math, just relative to the viewport vs. the document.
-  // So instead of animating anything, we just measure, once, where the
-  // island currently sits on screen (`islandTopViewport`, while it's
-  // still `fixed`) and where the freeze target sits in the document
-  // (`frozenTopPx`, derived from the active fraction down Bonus's own
-  // height, minus FREEZE_BUFFER_PX), and from that derive the exact
-  // scrollY (`freezeAtScrollY`) at which those two coincide. Cross that
-  // scrollY going down and we switch the island to `position: absolute;
-  // top: <that same document position>` via the `.is-frozen` class —
-  // visually nothing jumps, because the island's on-screen position at
-  // that instant is identical either way. From then on the island is
-  // ordinary document content again and scrolls away like anything
-  // else. Cross back going up and it reverts to `fixed`.
-  //
-  // Measuring has to happen while NOT frozen (getBoundingClientRect()
-  // on an already-`absolute` island would report frozen-state numbers,
-  // not the normal fixed-state ones), so `measure()` always drops the
-  // frozen class first if needed and restores it after.
-  const FREEZE_TARGET_FRACTION = 0.65;
-  // New: mobile gets its own, bigger fraction — `0.85` vs. desktop's
-  // `0.65` — so the island keeps tracking the viewport for noticeably
-  // longer on narrow screens before it stops, landing further down the
-  // page than the desktop/tablet freeze point. Adjust this value
-  // directly for still earlier/later on mobile specifically, without
-  // touching the desktop/tablet behavior above.
-  const FREEZE_TARGET_FRACTION_MOBILE = 0.85;
-  const MOBILE_FREEZE_BREAKPOINT = 640;
-  const FREEZE_BUFFER_PX = 0;
+  // Wrapped in `astro:page-load` (fires on the initial load AND after
+  // every <ClientRouter /> navigation -- see src/layouts/Layout.astro)
+  // rather than running at the top level: a language switch replaces
+  // both `#section-bonus` and this very `.corner-island` element with
+  // freshly-parsed ones, and this module itself only executes once, so
+  // without re-running this init on every navigation the freeze-on-
+  // scroll behavior would be left measuring stale, detached elements
+  // after the first language switch. `cleanupFreeze` tears down the
+  // previous navigation's `scroll`/`resize`/`load` listeners and
+  // pending rAF first, so switching languages back and forth all
+  // session never piles up duplicates of any of them running at once
+  // (`window` is never recreated by a soft navigation).
+  let cleanupFreeze: (() => void) | null = null;
 
-  const cornerIslandForFreeze = document.querySelector<HTMLElement>(".corner-island");
-  const bonusSection = document.querySelector<HTMLElement>("#section-bonus");
+  document.addEventListener("astro:page-load", () => {
+    cleanupFreeze?.();
 
-  if (cornerIslandForFreeze && bonusSection) {
-    let freezeAtScrollY = 0;
-    let frozenTopPx = 0;
-    let isFrozen = false;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let scrollRafId: number | null = null;
 
-    function applyFrozen() {
-      cornerIslandForFreeze!.style.setProperty("--frozen-top", `${frozenTopPx}px`);
-      cornerIslandForFreeze!.classList.add("is-frozen");
-      isFrozen = true;
-    }
+    const FREEZE_TARGET_FRACTION = 0.65;
+    // New: mobile gets its own, bigger fraction — `0.85` vs. desktop's
+    // `0.65` — so the island keeps tracking the viewport for noticeably
+    // longer on narrow screens before it stops, landing further down the
+    // page than the desktop/tablet freeze point. Adjust this value
+    // directly for still earlier/later on mobile specifically, without
+    // touching the desktop/tablet behavior above.
+    const FREEZE_TARGET_FRACTION_MOBILE = 0.85;
+    const MOBILE_FREEZE_BREAKPOINT = 640;
+    const FREEZE_BUFFER_PX = 0;
 
-    function removeFrozen() {
-      cornerIslandForFreeze!.classList.remove("is-frozen");
-      isFrozen = false;
-    }
+    const cornerIslandForFreeze = document.querySelector<HTMLElement>(".corner-island");
+    const bonusSection = document.querySelector<HTMLElement>("#section-bonus");
 
-    function measure() {
-      const wasFrozen = isFrozen;
-      if (wasFrozen) removeFrozen();
+    if (cornerIslandForFreeze && bonusSection) {
+      let freezeAtScrollY = 0;
+      let frozenTopPx = 0;
+      let isFrozen = false;
 
-      // New: pick the active fraction by current viewport width, same
-      // `640px` cutoff the rest of the project uses — see the constant
-      // declarations' own comment above for why.
-      const activeFraction =
-        window.innerWidth <= MOBILE_FREEZE_BREAKPOINT
-          ? FREEZE_TARGET_FRACTION_MOBILE
-          : FREEZE_TARGET_FRACTION;
-
-      const islandTopViewport = cornerIslandForFreeze!.getBoundingClientRect().top;
-      const bonusRect = bonusSection!.getBoundingClientRect();
-      const bonusTargetDoc =
-        bonusRect.top + window.scrollY + bonusRect.height * activeFraction;
-
-      frozenTopPx = bonusTargetDoc - FREEZE_BUFFER_PX;
-      freezeAtScrollY = frozenTopPx - islandTopViewport;
-
-      if (wasFrozen) applyFrozen();
-    }
-
-    function syncFreezeState() {
-      if (!isFrozen && window.scrollY >= freezeAtScrollY) {
-        applyFrozen();
-      } else if (isFrozen && window.scrollY < freezeAtScrollY) {
-        removeFrozen();
+      function applyFrozen() {
+        cornerIslandForFreeze!.style.setProperty("--frozen-top", `${frozenTopPx}px`);
+        cornerIslandForFreeze!.classList.add("is-frozen");
+        isFrozen = true;
       }
+
+      function removeFrozen() {
+        cornerIslandForFreeze!.classList.remove("is-frozen");
+        isFrozen = false;
+      }
+
+      function measure() {
+        const wasFrozen = isFrozen;
+        if (wasFrozen) removeFrozen();
+
+        // New: pick the active fraction by current viewport width, same
+        // `640px` cutoff the rest of the project uses — see the constant
+        // declarations' own comment above for why.
+        const activeFraction =
+          window.innerWidth <= MOBILE_FREEZE_BREAKPOINT
+            ? FREEZE_TARGET_FRACTION_MOBILE
+            : FREEZE_TARGET_FRACTION;
+
+        const islandTopViewport = cornerIslandForFreeze!.getBoundingClientRect().top;
+        const bonusRect = bonusSection!.getBoundingClientRect();
+        const bonusTargetDoc =
+          bonusRect.top + window.scrollY + bonusRect.height * activeFraction;
+
+        frozenTopPx = bonusTargetDoc - FREEZE_BUFFER_PX;
+        freezeAtScrollY = frozenTopPx - islandTopViewport;
+
+        if (wasFrozen) applyFrozen();
+      }
+
+      function syncFreezeState() {
+        if (!isFrozen && window.scrollY >= freezeAtScrollY) {
+          applyFrozen();
+        } else if (isFrozen && window.scrollY < freezeAtScrollY) {
+          removeFrozen();
+        }
+      }
+
+      let ticking = false;
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (!ticking) {
+            scrollRafId = requestAnimationFrame(() => {
+              syncFreezeState();
+              ticking = false;
+            });
+            ticking = true;
+          }
+        },
+        { passive: true, signal }
+      );
+
+      // Re-measure on resize (vw-based sizing means the island's
+      // dimensions change with viewport width) and once more on window
+      // `load`, in case images above BonusIslandSection finish loading
+      // late and shift its position after the initial measurement.
+      window.addEventListener("resize", measure, { signal });
+      window.addEventListener("load", measure, { signal });
+
+      measure();
+      syncFreezeState();
     }
 
-    let ticking = false;
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (!ticking) {
-          requestAnimationFrame(() => {
-            syncFreezeState();
-            ticking = false;
-          });
-          ticking = true;
-        }
-      },
-      { passive: true }
-    );
-
-    // Re-measure on resize (vw-based sizing means the island's
-    // dimensions change with viewport width) and once more on window
-    // `load`, in case images above BonusIslandSection finish loading
-    // late and shift its position after the initial measurement.
-    window.addEventListener("resize", measure);
-    window.addEventListener("load", measure);
-
-    measure();
-    syncFreezeState();
-  }
+    cleanupFreeze = () => {
+      controller.abort();
+      if (scrollRafId !== null) cancelAnimationFrame(scrollRafId);
+    };
+  });
 </script>

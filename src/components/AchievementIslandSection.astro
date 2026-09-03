@@ -205,7 +205,10 @@ const {
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
     <h2>{title}</h2>
-    <p class="body-text">{text}</p>
+    {/* set:html here because achievement text is a real HTML list with
+       links (see the "achievement" dictionary entries in src/i18n/ui.ts),
+       not plain text -- a <ul> can't nest inside a <p>, hence the <div>. */}
+    <div class="body-text" set:html={text} />
   </div>
 
   <div class="achievement-island achievement-island-right" aria-hidden="true">
@@ -231,213 +234,248 @@ const {
   // compute the same easing toward the same targets), just a little
   // redundant. Worth hoisting into one shared script if this family
   // keeps growing.
-  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
-
-  if (islands.length && !prefersReducedMotion) {
-    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
-    const influenceRadius = 500; // px, push fades to 0 beyond this distance
-    const ease = 0.08;
-
-    let mouseX = 0;
-    let mouseY = 0;
-    let hasMouse = false;
-
-    const state = Array.from(islands).map((el) => ({
-      el,
-      currentX: 0,
-      currentY: 0,
-    }));
-
-    window.addEventListener("mousemove", (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      hasMouse = true;
-    });
-
-    function tick() {
-      for (const s of state) {
-        let targetX = 0;
-        let targetY = 0;
-
-        if (hasMouse) {
-          const rect = s.el.getBoundingClientRect();
-          const restX = rect.left + rect.width / 2 - s.currentX;
-          const restY = rect.top + rect.height / 2 - s.currentY;
-
-          const dx = restX - mouseX;
-          const dy = restY - mouseY;
-          const dist = Math.hypot(dx, dy) || 1;
-
-          if (dist < influenceRadius) {
-            const falloff = 1 - dist / influenceRadius;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            targetX = nx * maxOffset * falloff;
-            targetY = ny * maxOffset * falloff;
-          }
-        }
-
-        s.currentX += (targetX - s.currentX) * ease;
-        s.currentY += (targetY - s.currentY) * ease;
-        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
-      }
-      requestAnimationFrame(tick);
-    }
-
-    requestAnimationFrame(tick);
-  }
-
-  // Shared cursor-proximity "glitch reveal" watcher — used below for
-  // both the two front rock chunks (whole-element show/hide) and the
-  // temple island's normal/glitched image crossfade. Both cases boil
-  // down to the same shape: watch the distance from the cursor to
-  // some element's static rest position, and toggle a class on some
-  // (possibly different) element once that distance crosses a radius
-  // — reveal immediately + keep re-glitching on a random interval
-  // while in range, then linger for `hideDelay` after the cursor
-  // leaves before reverting, cancelling that linger if the cursor
-  // comes back in time. One shared function instead of duplicating
-  // this per use, since the only real differences between the chunks
-  // and the temple swap are WHICH class gets toggled, WHERE the
-  // distance is measured from/to, and the reveal radius.
   //
-  // `radius` can be a plain number (the two chunks: small, roughly
-  // fixed-size images) or a function of the watched element's own
-  // `DOMRect` (the temple island: its rendered size ranges 320-560px
-  // wide across viewports via its own `clamp()`, so a single fixed px
-  // radius would feel too tight at the large end or too generous at
-  // the small end).
-  function watchGlitchReveal(
-    targets: {
-      watch: HTMLElement; // element whose rest position distance is measured from
-      toggle: HTMLElement; // element the class is actually added/removed on
-      radius: number | ((rect: DOMRect) => number);
-    }[],
-    className: string,
-    options: { hideDelay: number; glitchIntervalMin: number; glitchIntervalMax: number }
-  ) {
-    const state = targets.map((t) => ({
-      ...t,
-      visible: false,
-      hideTimeout: null as ReturnType<typeof setTimeout> | null,
-      glitchTimeout: null as ReturnType<typeof setTimeout> | null,
-    }));
+  // Everything below (parallax drift + the glitch-reveal watcher) is
+  // wrapped in `astro:page-load` (fires on the initial load AND after
+  // every <ClientRouter /> navigation -- see src/layouts/Layout.astro)
+  // instead of running at the top level: a language switch swaps in a
+  // freshly-parsed page, and this module itself only executes once, so
+  // without re-running this init on every navigation both effects
+  // would go dead after the first language switch. `cleanupAchievement`
+  // tears down the previous navigation's rAF loop and `mousemove`
+  // listeners first, so switching languages back and forth all session
+  // never piles up duplicate ones running at once (`window` is never
+  // recreated by a soft navigation).
+  let cleanupAchievement: (() => void) | null = null;
 
-    // Force a reflow before re-adding the class so the one-shot
-    // `glitch-pop`/`glitch-scan` CSS animations restart from frame 0
-    // every time, rather than silently not restarting because the
-    // class never really left the "applied" state from the browser's
-    // point of view. Used both for the initial reveal and for every
-    // re-glitch while something lingers on screen below.
-    function playGlitch(el: HTMLElement) {
-      el.classList.remove(className);
-      void el.offsetWidth;
-      el.classList.add(className);
-    }
+  document.addEventListener("astro:page-load", () => {
+    cleanupAchievement?.();
 
-    // While something is visible, keep re-triggering the glitch flash
-    // at random intervals — the initial reveal already plays one,
-    // this just keeps it looking "unstable" for as long as it
-    // lingers, instead of the animation playing once and then sitting
-    // there static for the rest of `hideDelay`. Stops rescheduling
-    // itself the moment it's hidden.
-    function scheduleGlitch(s: (typeof state)[number]) {
-      const delay =
-        options.glitchIntervalMin +
-        Math.random() * (options.glitchIntervalMax - options.glitchIntervalMin);
-      s.glitchTimeout = setTimeout(() => {
-        if (s.visible) {
-          playGlitch(s.toggle);
-          scheduleGlitch(s);
-        }
-      }, delay);
-    }
+    const controller = new AbortController();
+    const { signal } = controller;
+    let parallaxRafId: number | null = null;
 
-    window.addEventListener("mousemove", (e) => {
-      for (const s of state) {
-        const rect = s.watch.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
-        const radius = typeof s.radius === "function" ? s.radius(rect) : s.radius;
-        const shouldShow = dist < radius;
+    const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
 
-        if (shouldShow) {
-          // Cursor's back in range (or never left) — cancel any
-          // pending hide so a brief dip out of range doesn't cut the
-          // lingering period short.
-          if (s.hideTimeout !== null) {
-            clearTimeout(s.hideTimeout);
-            s.hideTimeout = null;
+    if (islands.length && !prefersReducedMotion) {
+      const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+      const influenceRadius = 500; // px, push fades to 0 beyond this distance
+      const ease = 0.08;
+
+      let mouseX = 0;
+      let mouseY = 0;
+      let hasMouse = false;
+
+      const state = Array.from(islands).map((el) => ({
+        el,
+        currentX: 0,
+        currentY: 0,
+      }));
+
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+          hasMouse = true;
+        },
+        { signal }
+      );
+
+      function tick() {
+        for (const s of state) {
+          let targetX = 0;
+          let targetY = 0;
+
+          if (hasMouse) {
+            const rect = s.el.getBoundingClientRect();
+            const restX = rect.left + rect.width / 2 - s.currentX;
+            const restY = rect.top + rect.height / 2 - s.currentY;
+
+            const dx = restX - mouseX;
+            const dy = restY - mouseY;
+            const dist = Math.hypot(dx, dy) || 1;
+
+            if (dist < influenceRadius) {
+              const falloff = 1 - dist / influenceRadius;
+              const nx = dx / dist;
+              const ny = dy / dist;
+              targetX = nx * maxOffset * falloff;
+              targetY = ny * maxOffset * falloff;
+            }
           }
 
-          if (!s.visible) {
-            s.visible = true;
+          s.currentX += (targetX - s.currentX) * ease;
+          s.currentY += (targetY - s.currentY) * ease;
+          s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
+        }
+        parallaxRafId = requestAnimationFrame(tick);
+      }
+
+      parallaxRafId = requestAnimationFrame(tick);
+    }
+
+    // Shared cursor-proximity "glitch reveal" watcher — used below for
+    // both the two front rock chunks (whole-element show/hide) and the
+    // temple island's normal/glitched image crossfade. Both cases boil
+    // down to the same shape: watch the distance from the cursor to
+    // some element's static rest position, and toggle a class on some
+    // (possibly different) element once that distance crosses a radius
+    // — reveal immediately + keep re-glitching on a random interval
+    // while in range, then linger for `hideDelay` after the cursor
+    // leaves before reverting, cancelling that linger if the cursor
+    // comes back in time. One shared function instead of duplicating
+    // this per use, since the only real differences between the chunks
+    // and the temple swap are WHICH class gets toggled, WHERE the
+    // distance is measured from/to, and the reveal radius.
+    //
+    // `radius` can be a plain number (the two chunks: small, roughly
+    // fixed-size images) or a function of the watched element's own
+    // `DOMRect` (the temple island: its rendered size ranges 320-560px
+    // wide across viewports via its own `clamp()`, so a single fixed px
+    // radius would feel too tight at the large end or too generous at
+    // the small end).
+    function watchGlitchReveal(
+      targets: {
+        watch: HTMLElement; // element whose rest position distance is measured from
+        toggle: HTMLElement; // element the class is actually added/removed on
+        radius: number | ((rect: DOMRect) => number);
+      }[],
+      className: string,
+      options: { hideDelay: number; glitchIntervalMin: number; glitchIntervalMax: number }
+    ) {
+      const state = targets.map((t) => ({
+        ...t,
+        visible: false,
+        hideTimeout: null as ReturnType<typeof setTimeout> | null,
+        glitchTimeout: null as ReturnType<typeof setTimeout> | null,
+      }));
+
+      // Force a reflow before re-adding the class so the one-shot
+      // `glitch-pop`/`glitch-scan` CSS animations restart from frame 0
+      // every time, rather than silently not restarting because the
+      // class never really left the "applied" state from the browser's
+      // point of view. Used both for the initial reveal and for every
+      // re-glitch while something lingers on screen below.
+      function playGlitch(el: HTMLElement) {
+        el.classList.remove(className);
+        void el.offsetWidth;
+        el.classList.add(className);
+      }
+
+      // While something is visible, keep re-triggering the glitch flash
+      // at random intervals — the initial reveal already plays one,
+      // this just keeps it looking "unstable" for as long as it
+      // lingers, instead of the animation playing once and then sitting
+      // there static for the rest of `hideDelay`. Stops rescheduling
+      // itself the moment it's hidden.
+      function scheduleGlitch(s: (typeof state)[number]) {
+        const delay =
+          options.glitchIntervalMin +
+          Math.random() * (options.glitchIntervalMax - options.glitchIntervalMin);
+        s.glitchTimeout = setTimeout(() => {
+          if (s.visible) {
             playGlitch(s.toggle);
             scheduleGlitch(s);
           }
-        } else if (s.visible && s.hideTimeout === null) {
-          // Cursor just left range — don't hide immediately, let it
-          // linger for `hideDelay` first. If the cursor comes back
-          // before that fires, the branch above cancels it.
-          s.hideTimeout = setTimeout(() => {
-            s.visible = false;
-            s.hideTimeout = null;
-            if (s.glitchTimeout !== null) {
-              clearTimeout(s.glitchTimeout);
-              s.glitchTimeout = null;
-            }
-            s.toggle.classList.remove(className);
-          }, options.hideDelay);
-        }
+        }, delay);
       }
-    });
-  }
 
-  const glitchTiming = { hideDelay: 2500, glitchIntervalMin: 500, glitchIntervalMax: 1400 };
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          for (const s of state) {
+            const rect = s.watch.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+            const radius = typeof s.radius === "function" ? s.radius(rect) : s.radius;
+            const shouldShow = dist < radius;
 
-  // New: the front rock chunks that used to be driven from here
-  // (`.achievement-glitch` whole-element show/hide) are gone — see
-  // the component-level comment's "New: temple removed" paragraph.
-  // `glitchTiming` above is kept; the island swap below still uses it.
+            if (shouldShow) {
+              // Cursor's back in range (or never left) — cancel any
+              // pending hide so a brief dip out of range doesn't cut the
+              // lingering period short.
+              if (s.hideTimeout !== null) {
+                clearTimeout(s.hideTimeout);
+                s.hideTimeout = null;
+              }
 
-  // Island glitch swaps (see `.achievement-glitch-swap` in the
-  // <style> below): crossfades an island's normal image to its
-  // glitched variant and back, instead of showing/hiding a whole
-  // element like the (now-removed) chunks used to. Handles however
-  // many `.achievement-glitch-swap` instances exist — currently just
-  // the statue (`leftImageGlitched`) — generically rather than
-  // querying it by hand, so a second island picking this up later
-  // needs no script changes, only the same markup pattern. Each
-  // swap's distance is measured from its own closest `.achievement-
-  // island` ancestor (the whole island's footprint, not just the swap
-  // wrapper), so hovering anywhere near an island triggers it, and
-  // only swaps that actually have a `.achievement-glitch-swap-alt`
-  // (i.e. a glitched image was actually passed for that island) get a
-  // watcher at all. Radius scales with the island's own rendered size
-  // rather than a shared fixed px value (the statue is
-  // `clamp(130px, 12vw, 200px)` wide). No `prefers-reduced-motion`
-  // branch needed — the swap's default (no `.is-glitched`) already
-  // shows its normal image, so simply not attaching a watcher leaves
-  // it that way.
-  if (!prefersReducedMotion) {
-    const islandSwapTargets = Array.from(
-      document.querySelectorAll<HTMLElement>(".achievement-glitch-swap")
-    )
-      .filter((swap) => swap.querySelector(".achievement-glitch-swap-alt"))
-      .map((swap) => ({
-        watch: swap.closest<HTMLElement>(".achievement-island") ?? swap,
-        toggle: swap,
-        radius: (rect: DOMRect) => Math.max(rect.width, rect.height) / 2 + 40,
-      }));
-
-    if (islandSwapTargets.length) {
-      watchGlitchReveal(islandSwapTargets, "is-glitched", glitchTiming);
+              if (!s.visible) {
+                s.visible = true;
+                playGlitch(s.toggle);
+                scheduleGlitch(s);
+              }
+            } else if (s.visible && s.hideTimeout === null) {
+              // Cursor just left range — don't hide immediately, let it
+              // linger for `hideDelay` first. If the cursor comes back
+              // before that fires, the branch above cancels it.
+              s.hideTimeout = setTimeout(() => {
+                s.visible = false;
+                s.hideTimeout = null;
+                if (s.glitchTimeout !== null) {
+                  clearTimeout(s.glitchTimeout);
+                  s.glitchTimeout = null;
+                }
+                s.toggle.classList.remove(className);
+              }, options.hideDelay);
+            }
+          }
+        },
+        { signal }
+      );
     }
-  }
+
+    const glitchTiming = { hideDelay: 2500, glitchIntervalMin: 500, glitchIntervalMax: 1400 };
+
+    // New: the front rock chunks that used to be driven from here
+    // (`.achievement-glitch` whole-element show/hide) are gone — see
+    // the component-level comment's "New: temple removed" paragraph.
+    // `glitchTiming` above is kept; the island swap below still uses it.
+
+    // Island glitch swaps (see `.achievement-glitch-swap` in the
+    // <style> below): crossfades an island's normal image to its
+    // glitched variant and back, instead of showing/hiding a whole
+    // element like the (now-removed) chunks used to. Handles however
+    // many `.achievement-glitch-swap` instances exist — currently just
+    // the statue (`leftImageGlitched`) — generically rather than
+    // querying it by hand, so a second island picking this up later
+    // needs no script changes, only the same markup pattern. Each
+    // swap's distance is measured from its own closest `.achievement-
+    // island` ancestor (the whole island's footprint, not just the swap
+    // wrapper), so hovering anywhere near an island triggers it, and
+    // only swaps that actually have a `.achievement-glitch-swap-alt`
+    // (i.e. a glitched image was actually passed for that island) get a
+    // watcher at all. Radius scales with the island's own rendered size
+    // rather than a shared fixed px value (the statue is
+    // `clamp(130px, 12vw, 200px)` wide). No `prefers-reduced-motion`
+    // branch needed — the swap's default (no `.is-glitched`) already
+    // shows its normal image, so simply not attaching a watcher leaves
+    // it that way.
+    if (!prefersReducedMotion) {
+      const islandSwapTargets = Array.from(
+        document.querySelectorAll<HTMLElement>(".achievement-glitch-swap")
+      )
+        .filter((swap) => swap.querySelector(".achievement-glitch-swap-alt"))
+        .map((swap) => ({
+          watch: swap.closest<HTMLElement>(".achievement-island") ?? swap,
+          toggle: swap,
+          radius: (rect: DOMRect) => Math.max(rect.width, rect.height) / 2 + 40,
+        }));
+
+      if (islandSwapTargets.length) {
+        watchGlitchReveal(islandSwapTargets, "is-glitched", glitchTiming);
+      }
+    }
+
+    cleanupAchievement = () => {
+      controller.abort();
+      if (parallaxRafId !== null) cancelAnimationFrame(parallaxRafId);
+    };
+  });
 </script>
 
 <style>
@@ -749,6 +787,37 @@ const {
        `.achievement-clouds-tile` above, now stated on the desktop rule
        too instead of only the mobile one. */
     aspect-ratio: 4044 / 3413;
+    /* New: on mid/big screens (this base rule -- the mobile override
+       below has its own separate crop via `object-fit: cover`), crop
+       the new background image a bit more off the LEFT side and zoom
+       it in slightly, per your request. `width: 100%` here can't use
+       the same min-height-vs-aspect-ratio trick the mobile override
+       uses (at desktop widths the aspect-ratio-derived height already
+       exceeds any reasonable min-height, since that's exactly what
+       lets this image bleed upward into ComputerIslandSection above --
+       see the big comment on this rule's own history further up), so
+       a plain `min-height` override wouldn't crop anything here.
+       `transform: scaleX()` instead: it only stretches the image
+       WIDTH-wise, leaving its rendered height (and therefore the
+       whole vertical-bleed setup) completely untouched, and the extra
+       width it creates bleeds off the viewport's edges exactly like
+       any other horizontally-bleeding element in this project --
+       caught by `overflow-x: hidden`/`clip` on html/body in
+       Layout.astro, not by anything local to this section. That's
+       also why this needs no `overflow: hidden` of its own (matching
+       this section's existing "no overflow: hidden here" policy).
+       `transform-origin: 100% 50%` anchors the RIGHT edge in place
+       during the stretch, so all the extra width appears on the LEFT
+       side only, which is what actually crops there (~13% of the
+       image's own left edge, off past the viewport at this ratio) --
+       the right side stays exactly as it was. Net visual effect: a
+       bit more cropped on the left, and since the same on-page width
+       now maps to a slightly larger chunk of the image, more of its
+       middle/right portion fills the frame ("stretched" per your
+       wording) instead of the full original width. Adjust the `1.18`
+       factor directly for more/less crop-and-zoom. */
+    transform: scaleX(1.18);
+    transform-origin: 100% 50%;
     pointer-events: none;
   }
 
@@ -760,6 +829,15 @@ const {
     margin: 0 auto;
 
     text-align: left;
+  }
+
+  /* Wider text column on big screens, per request -- the 32ch cap
+     below is comfortable on laptop-sized viewports but leaves a lot
+     of unused space on wide desktop monitors. */
+  @media (min-width: 1100px) {
+    .content {
+      width: min(50ch, 100%);
+    }
   }
 
   .eyebrow {
@@ -781,6 +859,32 @@ const {
     font-size: 1.05rem;
     color: #444;
     margin: 0;
+  }
+
+  .body-text ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: disc;
+  }
+
+  .body-text li {
+    margin: 0 0 0.5rem;
+  }
+
+  .body-text li:last-child {
+    margin-bottom: 0;
+  }
+
+  .body-text a {
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-decoration-color: #999;
+    text-underline-offset: 0.15em;
+    transition: text-decoration-color 0.2s ease;
+  }
+
+  .body-text a:hover {
+    text-decoration-color: #1a1a1a;
   }
 
   .achievement-island {
@@ -1080,7 +1184,11 @@ const {
        `bottom: 0`, instead of `center` potentially sliding the ground
        plane up and reintroducing empty space underneath it. */
     .achievement-background-image {
-      min-height: 75vh;
+      /* Bumped from 75vh -> 90vh per your request to crop more off
+         BOTH sides on mobile (this rule already uses object-fit:
+         cover, so a taller min-height forces a bigger horizontal
+         crop the same way it did before -- just dialed up). */
+      min-height: 90vh;
       aspect-ratio: 4044 / 3413;
       height: auto;
       object-fit: cover;

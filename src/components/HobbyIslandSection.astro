@@ -792,7 +792,10 @@ const optimizedFountainImage = fountainImage
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
     <h2>{title}</h2>
-    <p class="body-text">{text}</p>
+    {/* set:html here because hobby text is a real HTML list with a link
+       (see the "hobby" dictionary entry in src/i18n/ui.ts) -- <div>,
+       not <p>, since a <ul> can't nest inside a <p>. */}
+    <div class="body-text" set:html={text} />
   </div>
 
   <div class="hobby-island-group hobby-island-group-front" aria-hidden="true">
@@ -871,451 +874,476 @@ const optimizedFountainImage = fountainImage
 <script>
   // Same proximity-free mouse-repel drift as the rest of this family
   // (see AchievementIslandSection.astro / ComputerIslandSection.astro
-  // for the original) — every `.parallax-inner` element on the page
-  // eases toward a small offset away from the cursor, falling off
-  // with distance. Copied verbatim rather than shared, matching how
-  // every other section in this family ships its own copy. Extended
-  // with one thing the original didn't need: an optional `data-depth`
-  // attribute (see the markup above) that scales `maxOffset` per
-  // element, so the three layers here each get a different push
-  // strength instead of all three computing the exact same offset —
-  // reading `data-depth` and defaulting to `1` when it's absent means
-  // this still behaves identically to the original for every plain
-  // `.parallax-inner` element elsewhere on the page.
-  const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
+  // for the original), plus this section's own front-island
+  // positioning, hover hotspots, and Monado symbol cycling below --
+  // all wrapped in `astro:page-load` (fires on the initial load AND
+  // after every <ClientRouter /> navigation -- see
+  // src/layouts/Layout.astro) instead of running at the top level,
+  // since a language switch swaps in a freshly-parsed page and this
+  // module itself only executes once. `cleanupHobby` tears down the
+  // previous navigation's rAF loop, `resize`/`mousemove`/matchMedia
+  // listeners, and pending Monado-cycle timer first, so switching
+  // languages back and forth all session never piles up duplicates of
+  // any of them running at once (`window`/`document`, unlike the
+  // elements queried below, are never recreated by a soft navigation).
+  let cleanupHobby: (() => void) | null = null;
 
-  if (islands.length && !prefersReducedMotion) {
-    const maxOffset = 36; // px, strongest push when cursor is right on top of the island
-    const influenceRadius = 500; // px, push fades to 0 beyond this distance
-    const ease = 0.08;
+  document.addEventListener("astro:page-load", () => {
+    cleanupHobby?.();
 
-    let mouseX = 0;
-    let mouseY = 0;
-    let hasMouse = false;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let parallaxRafId: number | null = null;
+    const monadoTimeoutHolder: { id: ReturnType<typeof setTimeout> | null } = {
+      id: null,
+    };
 
-    const state = Array.from(islands).map((el) => ({
-      el,
-      depth: parseFloat(el.dataset.depth ?? "1"),
-      currentX: 0,
-      currentY: 0,
-    }));
+    const islands = document.querySelectorAll<HTMLElement>(".parallax-inner");
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
 
-    window.addEventListener("mousemove", (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      hasMouse = true;
-    });
+    if (islands.length && !prefersReducedMotion) {
+      const maxOffset = 36; // px, strongest push when cursor is right on top of the island
+      const influenceRadius = 500; // px, push fades to 0 beyond this distance
+      const ease = 0.08;
 
-    function tick() {
-      for (const s of state) {
-        let targetX = 0;
-        let targetY = 0;
+      let mouseX = 0;
+      let mouseY = 0;
+      let hasMouse = false;
 
-        if (hasMouse) {
-          const rect = s.el.getBoundingClientRect();
-          const restX = rect.left + rect.width / 2 - s.currentX;
-          const restY = rect.top + rect.height / 2 - s.currentY;
+      const state = Array.from(islands).map((el) => ({
+        el,
+        depth: parseFloat(el.dataset.depth ?? "1"),
+        currentX: 0,
+        currentY: 0,
+      }));
 
-          const dx = restX - mouseX;
-          const dy = restY - mouseY;
-          const dist = Math.hypot(dx, dy) || 1;
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+          hasMouse = true;
+        },
+        { signal }
+      );
 
-          if (dist < influenceRadius) {
-            const falloff = 1 - dist / influenceRadius;
-            const nx = dx / dist;
-            const ny = dy / dist;
-            targetX = nx * maxOffset * s.depth * falloff;
-            targetY = ny * maxOffset * s.depth * falloff;
-          }
-        }
+      function tick() {
+        for (const s of state) {
+          let targetX = 0;
+          let targetY = 0;
 
-        s.currentX += (targetX - s.currentX) * ease;
-        s.currentY += (targetY - s.currentY) * ease;
-        s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
-      }
-      requestAnimationFrame(tick);
-    }
+          if (hasMouse) {
+            const rect = s.el.getBoundingClientRect();
+            const restX = rect.left + rect.width / 2 - s.currentX;
+            const restY = rect.top + rect.height / 2 - s.currentY;
 
-    requestAnimationFrame(tick);
-  }
+            const dx = restX - mouseX;
+            const dy = restY - mouseY;
+            const dist = Math.hypot(dx, dy) || 1;
 
-  // v18 — shared low-level alpha-channel scan, factored out of what
-  // used to be `fitHotspotToAlpha`'s own inline pixel walk (see that
-  // function further below — it's now a thin wrapper around this).
-  // Returns a Promise of the image's real painted bounding box as 0-1
-  // FRACTIONS of its own width/height (not pixels, not a DOM position),
-  // or `null` if the image has no visible pixels or the scan can't run
-  // (cross-origin canvas reads throw; caught below). Needed by TWO
-  // different features now — hotspot sizing (below) and the front-
-  // island top-padding compensation (v18, right after this) — so it's
-  // shared instead of duplicated a third time, same reasoning as the
-  // v12 refactor that first pulled this out of the palm tree code.
-  function scanAlphaBBoxFraction(
-    sourceImg: HTMLImageElement
-  ): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
-    return new Promise((resolve) => {
-      const run = () => {
-        try {
-          const w = sourceImg.naturalWidth;
-          const h = sourceImg.naturalHeight;
-          if (!w || !h) {
-            resolve(null);
-            return;
-          }
-
-          const canvas = document.createElement("canvas");
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            resolve(null);
-            return;
-          }
-
-          ctx.drawImage(sourceImg, 0, 0);
-          const { data } = ctx.getImageData(0, 0, w, h);
-
-          let minX = w;
-          let minY = h;
-          let maxX = 0;
-          let maxY = 0;
-          let found = false;
-          const step = 2; // sample every other pixel on both axes — 4x fewer reads, plenty precise here
-
-          for (let y = 0; y < h; y += step) {
-            for (let x = 0; x < w; x += step) {
-              const alpha = data[(y * w + x) * 4 + 3];
-              if (alpha > 10) {
-                found = true;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-              }
+            if (dist < influenceRadius) {
+              const falloff = 1 - dist / influenceRadius;
+              const nx = dx / dist;
+              const ny = dy / dist;
+              targetX = nx * maxOffset * s.depth * falloff;
+              targetY = ny * maxOffset * s.depth * falloff;
             }
           }
 
-          if (!found) {
-            resolve(null);
-            return;
-          }
-
-          resolve({
-            left: minX / w,
-            top: minY / h,
-            right: maxX / w,
-            bottom: maxY / h,
-          });
-        } catch {
-          // Cross-origin (or other) canvas read failure — resolve null
-          // so callers fall back to their own CSS default rather than
-          // breaking anything.
-          resolve(null);
+          s.currentX += (targetX - s.currentX) * ease;
+          s.currentY += (targetY - s.currentY) * ease;
+          s.el.style.transform = `translate(${s.currentX.toFixed(2)}px, ${s.currentY.toFixed(2)}px)`;
         }
-      };
-
-      if (sourceImg.complete) {
-        run();
-      } else {
-        sourceImg.addEventListener("load", run, { once: true });
+        parallaxRafId = requestAnimationFrame(tick);
       }
-    });
-  }
 
-  // v17 — keeps the front island clear of `.content` on desktop
-  // (`min-width: 641px`), instead of the old fixed corner anchor that
-  // could sit behind the text. `.content`'s height isn't fixed — it
-  // moves with your actual title/body copy, viewport width (line-
-  // wrapping), and the font-size `clamp()`s in the stylesheet — so a
-  // hardcoded position would only be correct for one specific length
-  // of text at one specific viewport, same problem `fitHotspotToAlpha`
-  // below solves for image alignment, just for layout instead. Measures
-  // `.content`'s real rendered bottom edge (relative to `.hobby-
-  // section`) and positions `.hobby-island-group-front` a fixed gap
-  // below that, clearing the CSS `bottom` anchor at the same time —
-  // leaving both `top` and `bottom` set with no explicit height would
-  // stretch the box to fill the space between them, breaking the
-  // aspect-ratio-driven sizing on `.hobby-island-group-inner`. No-op
-  // (and clears any inline styles from a previous wider viewport) below
-  // the `min-width: 641px` breakpoint, where the mobile stylesheet
-  // already stacks the front island below `.content` in normal flow —
-  // nothing to compute there.
-  //
-  // v18 — "closer to the text" turned out to still barely move once you
-  // saw it live, even after shrinking the gap from 32px to 4px. Cause:
-  // `frontIslandImage`'s canvas has its own transparent padding above
-  // the actual painted art (fountain/stairs/etc.) — the OLD math
-  // positioned the top of that mostly-invisible BOX a fixed gap below
-  // the text, so most of the "closer" from shrinking the gap was
-  // closing empty space nobody could see, not moving the visible art.
-  // Now `frontIslandBaseImg` gets alpha-scanned once (via
-  // `scanAlphaBBoxFraction` above) to find exactly how much of the top
-  // of its box is transparent padding, and that amount gets subtracted
-  // from the computed `top` — so the position is based on where the
-  // ART actually starts, not where its canvas happens to start. Same
-  // "measure the real thing instead of guessing a percentage" reasoning
-  // as v17 and every alpha-scan hotspot in this file.
-  const hobbySection = document.querySelector<HTMLElement>(".hobby-section");
-  const hobbyContent = document.querySelector<HTMLElement>(
-    ".hobby-section > .content"
-  );
-  const frontGroup = document.querySelector<HTMLElement>(
-    ".hobby-island-group-front"
-  );
-  const frontIslandBaseImg = document.querySelector<HTMLImageElement>(
-    "[data-front-island-base]"
-  );
-  const desktopQuery = window.matchMedia("(min-width: 641px)");
-
-  let frontIslandTopFraction = 0;
-  const frontIslandAlphaReady = frontIslandBaseImg
-    ? scanAlphaBBoxFraction(frontIslandBaseImg).then((bbox) => {
-        if (bbox) frontIslandTopFraction = bbox.top;
-      })
-    : Promise.resolve();
-
-  function positionFrontGroupBelowContent() {
-    if (!hobbySection || !hobbyContent || !frontGroup) return;
-
-    if (!desktopQuery.matches) {
-      frontGroup.style.top = "";
-      frontGroup.style.bottom = "";
-      frontGroup.style.visibility = "";
-      return;
+      parallaxRafId = requestAnimationFrame(tick);
     }
 
-    const sectionRect = hobbySection.getBoundingClientRect();
-    const contentRect = hobbyContent.getBoundingClientRect();
-    // `frontGroup`'s own height comes from its `width` + the
-    // `aspect-ratio` on `.hobby-island-group-inner` — reading it here
-    // is safe regardless of the `top`/`bottom` this function is about
-    // to set, since neither affects the box's own size.
-    const groupHeight = frontGroup.getBoundingClientRect().height;
-    const gap = -10; // px, breathing room between the text and the VISIBLE art below it — negative per your feedback, for a bit of intentional tuck rather than a visible gap
-    const topPaddingPx = frontIslandTopFraction * groupHeight;
+    // v18 — shared low-level alpha-channel scan, factored out of what
+    // used to be `fitHotspotToAlpha`'s own inline pixel walk (see that
+    // function further below — it's now a thin wrapper around this).
+    // Returns a Promise of the image's real painted bounding box as 0-1
+    // FRACTIONS of its own width/height (not pixels, not a DOM position),
+    // or `null` if the image has no visible pixels or the scan can't run
+    // (cross-origin canvas reads throw; caught below). Needed by TWO
+    // different features now — hotspot sizing (below) and the front-
+    // island top-padding compensation (v18, right after this) — so it's
+    // shared instead of duplicated a third time, same reasoning as the
+    // v12 refactor that first pulled this out of the palm tree code.
+    function scanAlphaBBoxFraction(
+      sourceImg: HTMLImageElement
+    ): Promise<{ left: number; top: number; right: number; bottom: number } | null> {
+      return new Promise((resolve) => {
+        const run = () => {
+          try {
+            const w = sourceImg.naturalWidth;
+            const h = sourceImg.naturalHeight;
+            if (!w || !h) {
+              resolve(null);
+              return;
+            }
 
-    frontGroup.style.top = `${
-      contentRect.bottom - sectionRect.top + gap - topPaddingPx
-    }px`;
-    frontGroup.style.bottom = "auto";
-    frontGroup.style.visibility = "visible";
-  }
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              resolve(null);
+              return;
+            }
 
-  // Fixed a visible "jumps lower right after load" glitch: the CSS
-  // fallback position (`.hobby-island-group-front`'s plain `bottom`
-  // rule, still in the stylesheet as a no-JS/no-op safety net) sits
-  // noticeably higher than where this script ends up placing it, and
-  // module scripts like this one run AFTER the browser has already
-  // parsed/painted the initial HTML+CSS — so there was a real gap
-  // between "page paints with the old corner-anchored position" and
-  // "script runs and snaps it down to the new below-text position,"
-  // which is exactly the jump you saw. The stylesheet now hides this
-  // group by default on desktop (`visibility: hidden` under
-  // `min-width: 641px`) so nothing paints there until this script has
-  // actually measured and positioned it — `positionFrontGroupBelowContent`
-  // sets `visibility: visible` itself once it runs, as the last step of
-  // placing it correctly, so the FIRST thing ever shown is the right
-  // position, not a flash of the old one. Also waits for
-  // `document.fonts.ready` before that very first call (when the API is
-  // available) — web fonts swapping in can change `.content`'s height
-  // right after paint too, which would've caused this exact same kind
-  // of jump a second time, just from a different cause. Subsequent
-  // resizes/breakpoint changes call it directly (no need to wait for
-  // fonts again) since the group is already visible by then and a
-  // reposition while visible just tracks the text like it's meant to,
-  // it doesn't "jump" from a stale spot the visitor never saw. v18: also
-  // waits for `frontIslandAlphaReady` now, for the same reason — reveal
-  // only once the top-padding compensation is known too, so the FIRST
-  // visible position already accounts for it instead of jumping again
-  // once the scan resolves a moment later.
-  function showFrontGroupOnceReady() {
-    const fontsReady = document.fonts?.ready
-      ? document.fonts.ready.catch(() => {})
+            ctx.drawImage(sourceImg, 0, 0);
+            const { data } = ctx.getImageData(0, 0, w, h);
+
+            let minX = w;
+            let minY = h;
+            let maxX = 0;
+            let maxY = 0;
+            let found = false;
+            const step = 2; // sample every other pixel on both axes — 4x fewer reads, plenty precise here
+
+            for (let y = 0; y < h; y += step) {
+              for (let x = 0; x < w; x += step) {
+                const alpha = data[(y * w + x) * 4 + 3];
+                if (alpha > 10) {
+                  found = true;
+                  if (x < minX) minX = x;
+                  if (x > maxX) maxX = x;
+                  if (y < minY) minY = y;
+                  if (y > maxY) maxY = y;
+                }
+              }
+            }
+
+            if (!found) {
+              resolve(null);
+              return;
+            }
+
+            resolve({
+              left: minX / w,
+              top: minY / h,
+              right: maxX / w,
+              bottom: maxY / h,
+            });
+          } catch {
+            // Cross-origin (or other) canvas read failure — resolve null
+            // so callers fall back to their own CSS default rather than
+            // breaking anything.
+            resolve(null);
+          }
+        };
+
+        if (sourceImg.complete) {
+          run();
+        } else {
+          sourceImg.addEventListener("load", run, { once: true });
+        }
+      });
+    }
+
+    // v17 — keeps the front island clear of `.content` on desktop
+    // (`min-width: 641px`), instead of the old fixed corner anchor that
+    // could sit behind the text. `.content`'s height isn't fixed — it
+    // moves with your actual title/body copy, viewport width (line-
+    // wrapping), and the font-size `clamp()`s in the stylesheet — so a
+    // hardcoded position would only be correct for one specific length
+    // of text at one specific viewport, same problem `fitHotspotToAlpha`
+    // below solves for image alignment, just for layout instead. Measures
+    // `.content`'s real rendered bottom edge (relative to `.hobby-
+    // section`) and positions `.hobby-island-group-front` a fixed gap
+    // below that, clearing the CSS `bottom` anchor at the same time —
+    // leaving both `top` and `bottom` set with no explicit height would
+    // stretch the box to fill the space between them, breaking the
+    // aspect-ratio-driven sizing on `.hobby-island-group-inner`. No-op
+    // (and clears any inline styles from a previous wider viewport) below
+    // the `min-width: 641px` breakpoint, where the mobile stylesheet
+    // already stacks the front island below `.content` in normal flow —
+    // nothing to compute there.
+    //
+    // v18 — "closer to the text" turned out to still barely move once you
+    // saw it live, even after shrinking the gap from 32px to 4px. Cause:
+    // `frontIslandImage`'s canvas has its own transparent padding above
+    // the actual painted art (fountain/stairs/etc.) — the OLD math
+    // positioned the top of that mostly-invisible BOX a fixed gap below
+    // the text, so most of the "closer" from shrinking the gap was
+    // closing empty space nobody could see, not moving the visible art.
+    // Now `frontIslandBaseImg` gets alpha-scanned once (via
+    // `scanAlphaBBoxFraction` above) to find exactly how much of the top
+    // of its box is transparent padding, and that amount gets subtracted
+    // from the computed `top` — so the position is based on where the
+    // ART actually starts, not where its canvas happens to start. Same
+    // "measure the real thing instead of guessing a percentage" reasoning
+    // as v17 and every alpha-scan hotspot in this file.
+    const hobbySection = document.querySelector<HTMLElement>(".hobby-section");
+    const hobbyContent = document.querySelector<HTMLElement>(
+      ".hobby-section > .content"
+    );
+    const frontGroup = document.querySelector<HTMLElement>(
+      ".hobby-island-group-front"
+    );
+    const frontIslandBaseImg = document.querySelector<HTMLImageElement>(
+      "[data-front-island-base]"
+    );
+    const desktopQuery = window.matchMedia("(min-width: 641px)");
+
+    let frontIslandTopFraction = 0;
+    const frontIslandAlphaReady = frontIslandBaseImg
+      ? scanAlphaBBoxFraction(frontIslandBaseImg).then((bbox) => {
+          if (bbox) frontIslandTopFraction = bbox.top;
+        })
       : Promise.resolve();
 
-    Promise.all([fontsReady, frontIslandAlphaReady]).then(
-      positionFrontGroupBelowContent
-    );
-  }
+    function positionFrontGroupBelowContent() {
+      if (!hobbySection || !hobbyContent || !frontGroup) return;
 
-  showFrontGroupOnceReady();
-  window.addEventListener("resize", positionFrontGroupBelowContent);
-  desktopQuery.addEventListener("change", positionFrontGroupBelowContent);
+      if (!desktopQuery.matches) {
+        frontGroup.style.top = "";
+        frontGroup.style.bottom = "";
+        frontGroup.style.visibility = "";
+        return;
+      }
 
-  // Shared by both hover hotspots below (palm tree, frost — v8 and
-  // v12 respectively): sizes `hotspotEl` (an invisible
-  // `pointer-events: auto` div) to the ACTUAL painted pixels of
-  // `sourceImg`, not its full (mostly transparent) canvas-sized layer
-  // box — otherwise hovering anywhere on that island would trigger the
-  // effect, not just the specific artwork it belongs to. Needs
-  // `sourceImg` to be same-origin (true for your site's own `/images/`
-  // assets) since cross-origin canvas pixel reads throw; that's caught
-  // inside `scanAlphaBBoxFraction` above, and the hotspot just falls
-  // back to covering the whole slot (its CSS default) rather than
-  // breaking anything. v18: now a thin wrapper around
-  // `scanAlphaBBoxFraction` (see above) instead of its own copy of the
-  // pixel-walk — same behavior/output as before, just de-duplicated
-  // since that scan is now used in two places.
-  function fitHotspotToAlpha(
-    sourceImg: HTMLImageElement,
-    hotspotEl: HTMLElement
-  ) {
-    scanAlphaBBoxFraction(sourceImg).then((bbox) => {
-      if (!bbox) return;
+      const sectionRect = hobbySection.getBoundingClientRect();
+      const contentRect = hobbyContent.getBoundingClientRect();
+      // `frontGroup`'s own height comes from its `width` + the
+      // `aspect-ratio` on `.hobby-island-group-inner` — reading it here
+      // is safe regardless of the `top`/`bottom` this function is about
+      // to set, since neither affects the box's own size.
+      const groupHeight = frontGroup.getBoundingClientRect().height;
+      const gap = -10; // px, breathing room between the text and the VISIBLE art below it — negative per your feedback, for a bit of intentional tuck rather than a visible gap
+      const topPaddingPx = frontIslandTopFraction * groupHeight;
 
-      // Small padding so the hotspot isn't pixel-tight against the
-      // artwork's edge — makes it a little more forgiving to hover.
-      const padX = (bbox.right - bbox.left) * 0.05;
-      const padY = (bbox.bottom - bbox.top) * 0.05;
-      const left = Math.max(0, bbox.left - padX);
-      const top = Math.max(0, bbox.top - padY);
-      const right = Math.min(1, bbox.right + padX);
-      const bottom = Math.min(1, bbox.bottom + padY);
+      frontGroup.style.top = `${
+        contentRect.bottom - sectionRect.top + gap - topPaddingPx
+      }px`;
+      frontGroup.style.bottom = "auto";
+      frontGroup.style.visibility = "visible";
+    }
 
-      hotspotEl.style.left = `${left * 100}%`;
-      hotspotEl.style.top = `${top * 100}%`;
-      hotspotEl.style.width = `${(right - left) * 100}%`;
-      hotspotEl.style.height = `${(bottom - top) * 100}%`;
-    });
-  }
+    // Fixed a visible "jumps lower right after load" glitch: the CSS
+    // fallback position (`.hobby-island-group-front`'s plain `bottom`
+    // rule, still in the stylesheet as a no-JS/no-op safety net) sits
+    // noticeably higher than where this script ends up placing it, and
+    // module scripts like this one run AFTER the browser has already
+    // parsed/painted the initial HTML+CSS — so there was a real gap
+    // between "page paints with the old corner-anchored position" and
+    // "script runs and snaps it down to the new below-text position,"
+    // which is exactly the jump you saw. The stylesheet now hides this
+    // group by default on desktop (`visibility: hidden` under
+    // `min-width: 641px`) so nothing paints there until this script has
+    // actually measured and positioned it — `positionFrontGroupBelowContent`
+    // sets `visibility: visible` itself once it runs, as the last step of
+    // placing it correctly, so the FIRST thing ever shown is the right
+    // position, not a flash of the old one. Also waits for
+    // `document.fonts.ready` before that very first call (when the API is
+    // available) — web fonts swapping in can change `.content`'s height
+    // right after paint too, which would've caused this exact same kind
+    // of jump a second time, just from a different cause. Subsequent
+    // resizes/breakpoint changes call it directly (no need to wait for
+    // fonts again) since the group is already visible by then and a
+    // reposition while visible just tracks the text like it's meant to,
+    // it doesn't "jump" from a stale spot the visitor never saw. v18: also
+    // waits for `frontIslandAlphaReady` now, for the same reason — reveal
+    // only once the top-padding compensation is known too, so the FIRST
+    // visible position already accounts for it instead of jumping again
+    // once the scan resolves a moment later.
+    function showFrontGroupOnceReady() {
+      const fontsReady = document.fonts?.ready
+        ? document.fonts.ready.catch(() => {})
+        : Promise.resolve();
 
-  // v27 — fountain sparkle-highlight positioning (see the v27 comment
-  // near `.hobby-fountain-sparkle` in the stylesheet for the visual
-  // design). Each `.hobby-fountain-sparkle-dot` carries `data-fx`/
-  // `data-fy`, a hand-picked position as a fraction (0-1) of the
-  // fountain's OWN painted area — "20% across, 25% down the water",
-  // not "20% across the whole padded canvas". First attempt at this
-  // used flat canvas-fraction percentages directly and genuinely
-  // reproduced v22's "zero pixel difference" mistake: nearly every dot
-  // landed in the transparent padding around the small fountain
-  // artwork, not on the water itself, since the shared canvas is
-  // mostly empty space (same convention noted throughout this file).
-  // Fixed the same way v18's front-island padding and both hover
-  // hotspots were: alpha-scan the actual art (`scanAlphaBBoxFraction`
-  // above) to find its real bounding box as a fraction of the canvas,
-  // then map each dot's fountain-relative fraction into that box
-  // before setting real `top`/`left` percentages. Runs once
-  // `fountainImg` has loaded; no-ops (dots stay at their CSS default,
-  // dead center) if the scan can't run at all.
-  const fountainImg = document.querySelector<HTMLImageElement>(
-    "[data-fountain-image]"
-  );
-  const fountainSparkleDots = document.querySelectorAll<HTMLElement>(
-    "[data-fountain-sparkle] .hobby-fountain-sparkle-dot"
-  );
+      Promise.all([fontsReady, frontIslandAlphaReady]).then(
+        positionFrontGroupBelowContent
+      );
+    }
 
-  if (fountainImg && fountainSparkleDots.length) {
-    scanAlphaBBoxFraction(fountainImg).then((bbox) => {
-      if (!bbox) return;
+    showFrontGroupOnceReady();
+    window.addEventListener("resize", positionFrontGroupBelowContent, { signal });
+    desktopQuery.addEventListener("change", positionFrontGroupBelowContent, { signal });
 
-      const width = bbox.right - bbox.left;
-      const height = bbox.bottom - bbox.top;
+    // Shared by both hover hotspots below (palm tree, frost — v8 and
+    // v12 respectively): sizes `hotspotEl` (an invisible
+    // `pointer-events: auto` div) to the ACTUAL painted pixels of
+    // `sourceImg`, not its full (mostly transparent) canvas-sized layer
+    // box — otherwise hovering anywhere on that island would trigger the
+    // effect, not just the specific artwork it belongs to. Needs
+    // `sourceImg` to be same-origin (true for your site's own `/images/`
+    // assets) since cross-origin canvas pixel reads throw; that's caught
+    // inside `scanAlphaBBoxFraction` above, and the hotspot just falls
+    // back to covering the whole slot (its CSS default) rather than
+    // breaking anything. v18: now a thin wrapper around
+    // `scanAlphaBBoxFraction` (see above) instead of its own copy of the
+    // pixel-walk — same behavior/output as before, just de-duplicated
+    // since that scan is now used in two places.
+    function fitHotspotToAlpha(
+      sourceImg: HTMLImageElement,
+      hotspotEl: HTMLElement
+    ) {
+      scanAlphaBBoxFraction(sourceImg).then((bbox) => {
+        if (!bbox) return;
 
-      fountainSparkleDots.forEach((dot) => {
-        const fx = parseFloat(dot.dataset.fx || "0.5");
-        const fy = parseFloat(dot.dataset.fy || "0.5");
-        dot.style.left = `${(bbox.left + fx * width) * 100}%`;
-        dot.style.top = `${(bbox.top + fy * height) * 100}%`;
+        // Small padding so the hotspot isn't pixel-tight against the
+        // artwork's edge — makes it a little more forgiving to hover.
+        const padX = (bbox.right - bbox.left) * 0.05;
+        const padY = (bbox.bottom - bbox.top) * 0.05;
+        const left = Math.max(0, bbox.left - padX);
+        const top = Math.max(0, bbox.top - padY);
+        const right = Math.min(1, bbox.right + padX);
+        const bottom = Math.min(1, bbox.bottom + padY);
+
+        hotspotEl.style.left = `${left * 100}%`;
+        hotspotEl.style.top = `${top * 100}%`;
+        hotspotEl.style.width = `${(right - left) * 100}%`;
+        hotspotEl.style.height = `${(bottom - top) * 100}%`;
       });
-    });
-  }
+    }
 
-  // Palm tree hover swap (see the v8 comment at the top of the file).
-  // No-ops entirely if `palmTreeImage` wasn't passed (no
-  // `[data-palm-base]` element on the page); the hover/reveal itself
-  // is plain CSS (`:hover` + `clip-path` transition, see the
-  // stylesheet), so there's nothing else to wire up here even when
-  // `palmTree80sImage` IS present.
-  const palmBase = document.querySelector<HTMLImageElement>(
-    "[data-palm-base]"
-  );
-  const palmHotspot = document.querySelector<HTMLElement>(
-    "[data-palm-hotspot]"
-  );
+    // v27 — fountain sparkle-highlight positioning (see the v27 comment
+    // near `.hobby-fountain-sparkle` in the stylesheet for the visual
+    // design). Each `.hobby-fountain-sparkle-dot` carries `data-fx`/
+    // `data-fy`, a hand-picked position as a fraction (0-1) of the
+    // fountain's OWN painted area — "20% across, 25% down the water",
+    // not "20% across the whole padded canvas". First attempt at this
+    // used flat canvas-fraction percentages directly and genuinely
+    // reproduced v22's "zero pixel difference" mistake: nearly every dot
+    // landed in the transparent padding around the small fountain
+    // artwork, not on the water itself, since the shared canvas is
+    // mostly empty space (same convention noted throughout this file).
+    // Fixed the same way v18's front-island padding and both hover
+    // hotspots were: alpha-scan the actual art (`scanAlphaBBoxFraction`
+    // above) to find its real bounding box as a fraction of the canvas,
+    // then map each dot's fountain-relative fraction into that box
+    // before setting real `top`/`left` percentages. Runs once
+    // `fountainImg` has loaded; no-ops (dots stay at their CSS default,
+    // dead center) if the scan can't run at all.
+    const fountainImg = document.querySelector<HTMLImageElement>(
+      "[data-fountain-image]"
+    );
+    const fountainSparkleDots = document.querySelectorAll<HTMLElement>(
+      "[data-fountain-sparkle] .hobby-fountain-sparkle-dot"
+    );
 
-  if (palmBase && palmHotspot) {
-    fitHotspotToAlpha(palmBase, palmHotspot);
-  }
+    if (fountainImg && fountainSparkleDots.length) {
+      scanAlphaBBoxFraction(fountainImg).then((bbox) => {
+        if (!bbox) return;
 
-  // Back island frost hover reveal (see the v12 comment at the top of
-  // the file). Same mechanism as the palm tree above, just scanning
-  // `backIslandFrozenImage` itself instead of a separate "base" layer,
-  // since the frost art IS the thing you're hovering to reveal — the
-  // hotspot ends up sized to wherever the frost actually paints, not
-  // the whole back island. No-ops if `backIslandFrozenImage` wasn't
-  // passed (no `[data-frozen-overlay]` element on the page); like the
-  // palm tree, the reveal itself is plain CSS now, nothing further to
-  // wire up here.
-  const frozenOverlay = document.querySelector<HTMLImageElement>(
-    "[data-frozen-overlay]"
-  );
-  const frostHotspot = document.querySelector<HTMLElement>(
-    "[data-frost-hotspot]"
-  );
+        const width = bbox.right - bbox.left;
+        const height = bbox.bottom - bbox.top;
 
-  if (frozenOverlay && frostHotspot) {
-    fitHotspotToAlpha(frozenOverlay, frostHotspot);
-  }
+        fountainSparkleDots.forEach((dot) => {
+          const fx = parseFloat(dot.dataset.fx || "0.5");
+          const fy = parseFloat(dot.dataset.fy || "0.5");
+          dot.style.left = `${(bbox.left + fx * width) * 100}%`;
+          dot.style.top = `${(bbox.top + fy * height) * 100}%`;
+        });
+      });
+    }
 
-  // Monado sword symbol cycling (see the v14 comment at the top of
-  // the file). All symbol images share the same painted position (an
-  // `inset: 0` layer like every other artwork here — see v6), so this
-  // is pure show/hide bookkeeping, no positioning math needed: exactly
-  // one `.hobby-monado-symbol` carries `.is-active` at a time, which
-  // is what triggers its CSS flicker-in animation (see the
-  // stylesheet). No-ops if `monadoImage`/`monadoSymbolImages` weren't
-  // passed (no `[data-monado-symbol]` elements on the page).
-  const monadoSymbols = document.querySelectorAll<HTMLElement>(
-    "[data-monado-symbol]"
-  );
+    // Palm tree hover swap (see the v8 comment at the top of the file).
+    // No-ops entirely if `palmTreeImage` wasn't passed (no
+    // `[data-palm-base]` element on the page); the hover/reveal itself
+    // is plain CSS (`:hover` + `clip-path` transition, see the
+    // stylesheet), so there's nothing else to wire up here even when
+    // `palmTree80sImage` IS present.
+    const palmBase = document.querySelector<HTMLImageElement>(
+      "[data-palm-base]"
+    );
+    const palmHotspot = document.querySelector<HTMLElement>(
+      "[data-palm-hotspot]"
+    );
 
-  if (monadoSymbols.length) {
-    const symbols = Array.from(monadoSymbols);
-    let currentIndex = -1;
+    if (palmBase && palmHotspot) {
+      fitHotspotToAlpha(palmBase, palmHotspot);
+    }
 
-    const pickNextIndex = () => {
-      if (symbols.length === 1) return 0;
-      let next = currentIndex;
-      while (next === currentIndex) {
-        next = Math.floor(Math.random() * symbols.length);
-      }
-      return next;
-    };
+    // Back island frost hover reveal (see the v12 comment at the top of
+    // the file). Same mechanism as the palm tree above, just scanning
+    // `backIslandFrozenImage` itself instead of a separate "base" layer,
+    // since the frost art IS the thing you're hovering to reveal — the
+    // hotspot ends up sized to wherever the frost actually paints, not
+    // the whole back island. No-ops if `backIslandFrozenImage` wasn't
+    // passed (no `[data-frozen-overlay]` element on the page); like the
+    // palm tree, the reveal itself is plain CSS now, nothing further to
+    // wire up here.
+    const frozenOverlay = document.querySelector<HTMLImageElement>(
+      "[data-frozen-overlay]"
+    );
+    const frostHotspot = document.querySelector<HTMLElement>(
+      "[data-frost-hotspot]"
+    );
 
-    const showSymbol = (index: number) => {
-      if (currentIndex >= 0) {
-        symbols[currentIndex].classList.remove("is-active");
-      }
-      currentIndex = index;
-      symbols[currentIndex].classList.add("is-active");
-    };
+    if (frozenOverlay && frostHotspot) {
+      fitHotspotToAlpha(frozenOverlay, frostHotspot);
+    }
 
-    // Show one immediately (rather than waiting for the first random
-    // delay) so the sword's gem is never empty on page load — reduced
-    // motion also relies on this: it never reschedules below, so this
-    // first call is the ONLY thing that ever sets a symbol for those
-    // visitors, and `.is-active`'s animation is disabled entirely in
-    // that case (see the stylesheet), so it just appears, no flicker.
-    showSymbol(pickNextIndex());
+    // Monado sword symbol cycling (see the v14 comment at the top of
+    // the file). All symbol images share the same painted position (an
+    // `inset: 0` layer like every other artwork here — see v6), so this
+    // is pure show/hide bookkeeping, no positioning math needed: exactly
+    // one `.hobby-monado-symbol` carries `.is-active` at a time, which
+    // is what triggers its CSS flicker-in animation (see the
+    // stylesheet). No-ops if `monadoImage`/`monadoSymbolImages` weren't
+    // passed (no `[data-monado-symbol]` elements on the page).
+    const monadoSymbols = document.querySelectorAll<HTMLElement>(
+      "[data-monado-symbol]"
+    );
 
-    if (!prefersReducedMotion) {
-      const minDelay = 3000; // ms, shortest gap between symbol changes
-      const maxDelay = 7000; // ms, longest gap between symbol changes
+    if (monadoSymbols.length) {
+      const symbols = Array.from(monadoSymbols);
+      let currentIndex = -1;
+      monadoTimeoutHolder.id = null;
 
-      const scheduleNext = () => {
-        const delay = minDelay + Math.random() * (maxDelay - minDelay);
-        setTimeout(() => {
-          showSymbol(pickNextIndex());
-          scheduleNext();
-        }, delay);
+      const pickNextIndex = () => {
+        if (symbols.length === 1) return 0;
+        let next = currentIndex;
+        while (next === currentIndex) {
+          next = Math.floor(Math.random() * symbols.length);
+        }
+        return next;
       };
 
-      scheduleNext();
+      const showSymbol = (index: number) => {
+        if (currentIndex >= 0) {
+          symbols[currentIndex].classList.remove("is-active");
+        }
+        currentIndex = index;
+        symbols[currentIndex].classList.add("is-active");
+      };
+
+      // Show one immediately (rather than waiting for the first random
+      // delay) so the sword's gem is never empty on page load — reduced
+      // motion also relies on this: it never reschedules below, so this
+      // first call is the ONLY thing that ever sets a symbol for those
+      // visitors, and `.is-active`'s animation is disabled entirely in
+      // that case (see the stylesheet), so it just appears, no flicker.
+      showSymbol(pickNextIndex());
+
+      if (!prefersReducedMotion) {
+        const minDelay = 3000; // ms, shortest gap between symbol changes
+        const maxDelay = 7000; // ms, longest gap between symbol changes
+
+        const scheduleNext = () => {
+          const delay = minDelay + Math.random() * (maxDelay - minDelay);
+          monadoTimeoutHolder.id = setTimeout(() => {
+            showSymbol(pickNextIndex());
+            scheduleNext();
+          }, delay);
+        };
+
+        scheduleNext();
+      }
     }
-  }
+
+    cleanupHobby = () => {
+      controller.abort();
+      if (parallaxRafId !== null) cancelAnimationFrame(parallaxRafId);
+      if (monadoTimeoutHolder.id !== null) clearTimeout(monadoTimeoutHolder.id);
+    };
+  });
 </script>
 
 <style>
@@ -1360,6 +1388,13 @@ const optimizedFountainImage = fountainImage
     text-align: left;
   }
 
+  /* Wider text column on big screens, per request. */
+  @media (min-width: 1100px) {
+    .content {
+      width: min(50ch, 100%);
+    }
+  }
+
   .eyebrow {
     font-size: 0.8rem;
     letter-spacing: 0.1em;
@@ -1379,6 +1414,32 @@ const optimizedFountainImage = fountainImage
     font-size: 1.05rem;
     color: #444;
     margin: 0;
+  }
+
+  .body-text a {
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-decoration-color: #999;
+    text-underline-offset: 0.15em;
+    transition: text-decoration-color 0.2s ease;
+  }
+
+  .body-text a:hover {
+    text-decoration-color: #1a1a1a;
+  }
+
+  .body-text ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: disc;
+  }
+
+  .body-text li {
+    margin: 0 0 0.5rem;
+  }
+
+  .body-text li:last-child {
+    margin-bottom: 0;
   }
 
   /* v15 — two independent groups instead of one shared box (full

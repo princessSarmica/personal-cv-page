@@ -1,0 +1,76 @@
+---
+// src/components/LanguageSwitcher.astro
+//
+// A minimal locale switcher rendered once in Layout.astro, so it shows
+// up on every page in every locale. `getRelativeLocaleUrl` (from
+// astro:i18n, the same built-in module the i18n config in
+// astro.config.mjs powers) builds the correct link for each locale --
+// it already accounts for the site's `base` ("/personal-cv-page") and
+// for which locale is unprefixed (English, the default), so this
+// component never has to hardcode a single URL itself. Adding a
+// fourth locale later is just one more line in astro.config.mjs's
+// `locales` array and one more entry in src/i18n/ui.ts -- this
+// component picks it up automatically via the `languages` map.
+import { getRelativeLocaleUrl } from 'astro:i18n';
+import { languages } from '../i18n/ui';
+
+const currentLocale = Astro.currentLocale ?? 'en';
+---
+
+<nav class="language-switcher" aria-label="Language">
+  <ul>
+    {Object.entries(languages).map(([locale, label]) => (
+      <li>
+        <a
+          href={getRelativeLocaleUrl(locale, '')}
+          aria-current={locale === currentLocale ? 'page' : undefined}
+        >
+          {label}
+        </a>
+      </li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  /* Fixed to the top-right corner, above everything else on the page
+     (CornerIsland's own artwork sits at a much lower z-index tier --
+     see Layout.astro's global styles for the full z-index rundown --
+     so a plain high value here is enough to always stay on top of it
+     and every section). Deliberately plain/small: this is base
+     infrastructure for testing locale routing, not a designed piece
+     of UI -- restyle freely once the rest of the site's chrome (nav,
+     header, whatever it ends up being) is designed. */
+  .language-switcher {
+    position: fixed;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1000;
+  }
+
+  .language-switcher ul {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .language-switcher a {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    color: #1a1a1a;
+    font-size: 0.8rem;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    text-decoration: none;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  .language-switcher a[aria-current="page"] {
+    background: #1a1a1a;
+    color: #ffffff;
+    border-color: #1a1a1a;
+  }
+</style>

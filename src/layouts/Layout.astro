@@ -3,23 +3,54 @@
 // Basic page shell. Keeping global resets minimal on purpose so nothing
 // here fights with the per-section styles later.
 
+import { ClientRouter } from 'astro:transitions';
 import CornerIsland from '../components/CornerIsland.astro';
+import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 
 interface Props {
   title?: string;
 }
 
-const { title = "My CV" } = Astro.props;
+// No hardcoded English fallback here any more: HomePage.astro always
+// passes a `title` already resolved for the current locale (via
+// src/i18n/ui.ts), so the only time this default would ever fire is
+// if some future page forgets to pass one -- "My CV" was only ever
+// the English string anyway, and defaulting to it regardless of
+// locale would be wrong on the German/Slovenian routes.
+const { title } = Astro.props;
+
+// Astro.currentLocale is set from the URL according to the `i18n`
+// config in astro.config.mjs; it can be undefined on a route i18n
+// doesn't recognize (there shouldn't be one on this site, but the
+// fallback keeps the <html lang> attribute valid regardless).
+const htmlLang = Astro.currentLocale ?? 'en';
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={htmlLang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
+    {/*
+      Enables Astro's View Transitions router: clicking the
+      LanguageSwitcher's links (or any same-origin link) now does a
+      soft, client-side navigation -- swapping the page content in
+      place -- instead of a full browser reload. The three locale
+      routes (src/pages/index.astro, /de/, /sl/) stay real, separate,
+      crawlable pages; this only changes HOW the browser moves between
+      them. See the bottom <script> below and every section
+      component's own script for why this means DOM-attached
+      listeners/observers/animation loops now need to be re-initialized
+      on every navigation (via the `astro:page-load` event) rather than
+      just once at parse time -- a soft navigation reuses the same
+      document, so a script that only ever runs at the top level would
+      otherwise go quiet after the very first language switch.
+    */}
+    <ClientRouter />
   </head>
   <body>
+    <LanguageSwitcher />
     <slot />
     <CornerIsland />
     <div class="halftone-spotlight" aria-hidden="true"></div>
@@ -37,17 +68,82 @@ const { title = "My CV" } = Astro.props;
   // `body:has(.halftone-hover:hover) .halftone-spotlight` — this
   // script only ever needs to know where the cursor is, never which
   // section it's over.
-  const spotlight = document.querySelector<HTMLElement>(".halftone-spotlight");
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
+  //
+  // Wrapped in `astro:page-load` (fires once after the very first
+  // page load, then again after every <ClientRouter /> navigation --
+  // see the <head> above) instead of running directly at the top
+  // level: a language switch replaces `.halftone-spotlight` with a
+  // freshly-parsed element, and this module itself only ever executes
+  // once, so without re-running this init on every navigation the
+  // FIRST language switch would leave the spotlight permanently dead.
+  // `cleanupSpotlight` tears down the previous navigation's listener
+  // before attaching a new one, so switching languages back and forth
+  // all session never piles up duplicate `mousemove` listeners on
+  // `window` -- unlike the elements inside `<body>`, `window` itself
+  // is never recreated by a soft navigation.
+  let cleanupSpotlight: (() => void) | null = null;
 
-  if (spotlight && !prefersReducedMotion) {
-    window.addEventListener("mousemove", (e) => {
-      spotlight.style.setProperty("--mx", `${e.clientX}px`);
-      spotlight.style.setProperty("--my", `${e.clientY}px`);
-    });
-  }
+  document.addEventListener("astro:page-load", () => {
+    cleanupSpotlight?.();
+
+    const spotlight = document.querySelector<HTMLElement>(".halftone-spotlight");
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (spotlight && !prefersReducedMotion) {
+      const controller = new AbortController();
+      window.addEventListener(
+        "mousemove",
+        (e) => {
+          spotlight.style.setProperty("--mx", `${e.clientX}px`);
+          spotlight.style.setProperty("--my", `${e.clientY}px`);
+        },
+        { signal: controller.signal }
+      );
+      cleanupSpotlight = () => controller.abort();
+    }
+  });
+</script>
+
+<script>
+  // Keeps your scroll position when switching languages via
+  // LanguageSwitcher.astro, instead of Astro's <ClientRouter />
+  // default of scrolling a freshly-navigated-to page back to the top
+  // (the same thing a normal browser navigation to a new page does --
+  // reasonable in general, just not what you want here, since a
+  // language switch is conceptually "this same page, different text,"
+  // not a move to a different page).
+  //
+  // `astro:before-preparation` fires right as the navigation starts,
+  // while you're still looking at the OLD page -- that's the last
+  // moment `window.scrollY` reflects where you actually were.
+  // `event.navigationType` distinguishes a normal forward navigation
+  // (clicking a locale link -- "push") from the browser's own Back/
+  // Forward buttons ("traverse"): only the former gets the scroll
+  // position captured here and restored below, so native Back/Forward
+  // scroll restoration (returning you to wherever you'd scrolled to on
+  // that earlier page, which Astro already handles correctly on its
+  // own) is left alone rather than overridden.
+  //
+  // `astro:after-swap` fires right after the new page's content has
+  // replaced the old page's and Astro has applied ITS OWN default
+  // scroll position -- this listener immediately overrides that with
+  // the position captured above. `behavior: "instant"` skips this
+  // page's `scroll-behavior: smooth` (see the global styles below) for
+  // this one jump, since restoring your place should feel instant, not
+  // like an animated scroll from the top.
+  let scrollYBeforeNav: number | null = null;
+
+  document.addEventListener("astro:before-preparation", (event) => {
+    scrollYBeforeNav = event.navigationType === "traverse" ? null : window.scrollY;
+  });
+
+  document.addEventListener("astro:after-swap", () => {
+    if (scrollYBeforeNav !== null) {
+      window.scrollTo({ left: 0, top: scrollYBeforeNav, behavior: "instant" });
+    }
+  });
 </script>
 
 <style is:global>
