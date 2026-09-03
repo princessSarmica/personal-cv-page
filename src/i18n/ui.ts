@@ -28,6 +28,9 @@ export const defaultLang = "en";
 export const ui = {
   en: {
     "nav.title": "My CV",
+    "nav.menuLabel": "Section navigation",
+    "nav.toggleOpen": "Open section menu",
+    "nav.toggleClose": "Close section menu",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmer, Digital Artist",
@@ -64,6 +67,9 @@ export const ui = {
   },
   de: {
     "nav.title": "Mein Lebenslauf",
+    "nav.menuLabel": "Abschnittsnavigation",
+    "nav.toggleOpen": "Menü öffnen",
+    "nav.toggleClose": "Menü schließen",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmierer, Digitalkünstler",
@@ -100,6 +106,9 @@ export const ui = {
   },
   sl: {
     "nav.title": "Moj življenjepis",
+    "nav.menuLabel": "Navigacija po razdelkih",
+    "nav.toggleOpen": "Odpri meni",
+    "nav.toggleClose": "Zapri meni",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmer, Digital Artist",
