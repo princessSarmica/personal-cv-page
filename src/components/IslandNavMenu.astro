@@ -101,7 +101,27 @@ const ICONS: Record<string, string> = {
      sharing one left edge, which is what lets the dashed connector
      line (further down) line up with every circle's center using
      one fixed offset instead of per-element measurements. */
+  /* `pointer-events: none` here, re-enabled below on just the
+     toggle button and each link, fixes a real bug: a flex column
+     shrink-wraps to its WIDEST child regardless of that child's own
+     height, so `.island-nav`'s own box was always as wide as the
+     collapsed panel's natural content (e.g. the "Bonus -- Other
+     Skills..." label) even while collapsed to 0 height -- nothing
+     was ever painted in that extra width, but the invisible box was
+     still there and, being later in the DOM than LanguageSwitcher,
+     painted (and hit-tested) on top of it wherever the two
+     overlapped. That never showed up at desktop widths, where the
+     two fixed corners sit far apart, but on a narrow/mobile viewport
+     the language pills sit close enough to the left edge to fall
+     inside this invisible box and silently eat their clicks. Scoping
+     pointer-events back to `auto` on only the two actually-visible,
+     actually-interactive pieces (the toggle button, each section
+     link) means the rest of this element's box -- however wide it
+     happens to be -- never intercepts anything again. */
   .island-nav {
+    --island-circle: 2.5rem;
+    --island-list-pad: 1rem;
+
     position: fixed;
     top: 0.75rem;
     left: 0.75rem;
@@ -112,6 +132,25 @@ const ICONS: Record<string, string> = {
     align-items: flex-start;
 
     font-family: ui-sans-serif, system-ui, sans-serif;
+
+    pointer-events: none;
+  }
+
+  /* Same reasoning as LanguageSwitcher's own mobile override: a
+     2.5rem (40px) circle is close to but still under the ~44px
+     touch target both Apple's and Google's guidelines call for, and
+     a fingertip is much wider than a mouse cursor. Bumping just the
+     custom property grows the toggle button, every item circle, and
+     (via the `calc()` uses below) keeps the dashed connector line
+     centered under all of them automatically. */
+  @media (max-width: 640px) {
+    .island-nav {
+      --island-circle: 2.75rem;
+    }
+
+    .island-nav-list {
+      gap: 1.15rem;
+    }
   }
 
   .island-nav-toggle-icon {
@@ -121,10 +160,11 @@ const ICONS: Record<string, string> = {
   .island-nav-toggle {
     all: unset;
     box-sizing: border-box;
+    pointer-events: auto;
 
-    width: 2.5rem;
-    height: 2.5rem;
-    margin-left: 1rem;
+    width: var(--island-circle);
+    height: var(--island-circle);
+    margin-left: var(--island-list-pad);
     flex-shrink: 0;
 
     display: flex;
@@ -178,7 +218,7 @@ const ICONS: Record<string, string> = {
   .island-nav-bridge::before {
     content: "";
     position: absolute;
-    left: 2.25rem;
+    left: calc(var(--island-list-pad) + var(--island-circle) / 2);
     top: 0;
     bottom: 0;
     width: 3px;
@@ -195,7 +235,7 @@ const ICONS: Record<string, string> = {
   .island-nav-list {
     list-style: none;
     margin: 0;
-    padding: 0.5rem 1rem 0.75rem 1rem;
+    padding: 0.5rem 1rem 0.75rem var(--island-list-pad);
 
     display: flex;
     flex-direction: column;
@@ -218,9 +258,9 @@ const ICONS: Record<string, string> = {
   .island-nav-list::before {
     content: "";
     position: absolute;
-    left: 2.25rem;
-    top: 1.25rem;
-    bottom: 1.25rem;
+    left: calc(var(--island-list-pad) + var(--island-circle) / 2);
+    top: calc(var(--island-circle) / 2);
+    bottom: calc(var(--island-circle) / 2);
     width: 3px;
     background-image: repeating-linear-gradient(
       to bottom,
@@ -245,13 +285,15 @@ const ICONS: Record<string, string> = {
 
     text-decoration: none;
     color: #1a1a1a;
+
+    pointer-events: auto;
   }
 
   .island-nav-circle {
     flex-shrink: 0;
 
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--island-circle);
+    height: var(--island-circle);
 
     display: flex;
     align-items: center;

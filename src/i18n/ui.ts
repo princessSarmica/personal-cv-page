@@ -31,6 +31,10 @@ export const ui = {
     "nav.menuLabel": "Section navigation",
     "nav.toggleOpen": "Open section menu",
     "nav.toggleClose": "Close section menu",
+    "nav.languageMenuLabel": "Language menu",
+    "nav.languageTitle": "Language",
+    "nav.languageToggleOpen": "Open language menu",
+    "nav.languageToggleClose": "Close language menu",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmer, Digital Artist",
@@ -70,6 +74,10 @@ export const ui = {
     "nav.menuLabel": "Abschnittsnavigation",
     "nav.toggleOpen": "Menü öffnen",
     "nav.toggleClose": "Menü schließen",
+    "nav.languageMenuLabel": "Sprachmenü",
+    "nav.languageTitle": "Sprache",
+    "nav.languageToggleOpen": "Sprachmenü öffnen",
+    "nav.languageToggleClose": "Sprachmenü schließen",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmierer, Digitalkünstler",
@@ -109,6 +117,10 @@ export const ui = {
     "nav.menuLabel": "Navigacija po razdelkih",
     "nav.toggleOpen": "Odpri meni",
     "nav.toggleClose": "Zapri meni",
+    "nav.languageMenuLabel": "Meni jezika",
+    "nav.languageTitle": "Jezik",
+    "nav.languageToggleOpen": "Odpri meni jezika",
+    "nav.languageToggleClose": "Zapri meni jezika",
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmer, Digital Artist",

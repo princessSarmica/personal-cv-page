@@ -1,76 +1,279 @@
 ---
 // src/components/LanguageSwitcher.astro
 //
-// A minimal locale switcher rendered once in Layout.astro, so it shows
-// up on every page in every locale. `getRelativeLocaleUrl` (from
-// astro:i18n, the same built-in module the i18n config in
-// astro.config.mjs powers) builds the correct link for each locale --
-// it already accounts for the site's `base` ("/personal-cv-page") and
-// for which locale is unprefixed (English, the default), so this
-// component never has to hardcode a single URL itself. Adding a
-// fourth locale later is just one more line in astro.config.mjs's
-// `locales` array and one more entry in src/i18n/ui.ts -- this
-// component picks it up automatically via the `languages` map.
+// Locale switcher rendered once in Layout.astro, so it shows up on
+// every page in every locale. Restyled to match IslandNavMenu.astro's
+// own collapsible-menu look (same circle toggle, same semi-
+// transparent rounded panel, same hover-invert pill interaction) per
+// your request, and mirrored to the opposite corner: this one is
+// anchored top-RIGHT and its panel grows down-and-left from the
+// toggle, using `align-items: flex-end` where the section menu uses
+// `flex-start`.
+//
+// `getRelativeLocaleUrl` (from astro:i18n, the same built-in module
+// the i18n config in astro.config.mjs powers) builds the correct link
+// for each locale -- it already accounts for the site's `base`
+// ("/personal-cv-page") and for which locale is unprefixed (English,
+// the default), so this component never has to hardcode a single URL
+// itself. Adding a fourth locale later is just one more line in
+// astro.config.mjs's `locales` array and one more entry in
+// src/i18n/ui.ts -- this component picks it up automatically via the
+// `languages` map.
 import { getRelativeLocaleUrl } from 'astro:i18n';
 import { languages } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
 
 const currentLocale = Astro.currentLocale ?? 'en';
+const t = useTranslations(Astro.currentLocale);
+
+// Same hand-drawn Lucide-style globe used nowhere else on the site
+// yet -- 24x24 source grid, 2px round-cap/round-join strokes, sized
+// here (width/height="20") rather than via CSS reaching in from
+// outside, for the same `set:html`-scoping reason IslandNavMenu's own
+// icons are sized this way (see that file's own comment for the full
+// explanation).
+const GLOBE_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 ---
 
-<nav class="language-switcher" aria-label="Language">
-  <ul>
-    {Object.entries(languages).map(([locale, label]) => (
-      <li>
-        <a
-          href={getRelativeLocaleUrl(locale, '')}
-          aria-current={locale === currentLocale ? 'page' : undefined}
-        >
-          {label}
-        </a>
-      </li>
-    ))}
-  </ul>
+<nav class="language-switcher" aria-label={t("nav.languageMenuLabel")}>
+  <button
+    type="button"
+    class="language-switcher-toggle"
+    aria-expanded="false"
+    aria-controls="language-switcher-panel"
+    aria-label={t("nav.languageToggleOpen")}
+    data-label-open={t("nav.languageToggleOpen")}
+    data-label-close={t("nav.languageToggleClose")}
+  >
+    <span class="language-switcher-toggle-icon" set:html={GLOBE_ICON} />
+  </button>
+
+  <div class="language-switcher-expandable" id="language-switcher-panel">
+    <div class="language-switcher-panel">
+      <p class="language-switcher-title">{t("nav.languageTitle")}</p>
+      <ul class="language-switcher-list">
+        {Object.entries(languages).map(([locale, label]) => (
+          <li>
+            <a
+              class="language-switcher-link"
+              href={getRelativeLocaleUrl(locale, '')}
+              aria-current={locale === currentLocale ? 'page' : undefined}
+            >
+              {label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
 </nav>
 
 <style>
-  /* Fixed to the top-right corner, above everything else on the page
-     (CornerIsland's own artwork sits at a much lower z-index tier --
-     see Layout.astro's global styles for the full z-index rundown --
-     so a plain high value here is enough to always stay on top of it
-     and every section). Deliberately plain/small: this is base
-     infrastructure for testing locale routing, not a designed piece
-     of UI -- restyle freely once the rest of the site's chrome (nav,
-     header, whatever it ends up being) is designed. */
+  /* Fixed to the top-right corner -- IslandNavMenu.astro's own
+     comment covers the shared reasoning (z-index tier, the
+     `pointer-events` fix, the `--circle` custom property for the
+     mobile size bump) in more depth; this file follows the same
+     patterns rather than re-explaining them from scratch. */
   .language-switcher {
+    --circle: 2.5rem;
+
     position: fixed;
     top: 0.75rem;
     right: 0.75rem;
     z-index: 1000;
-  }
 
-  .language-switcher ul {
     display: flex;
-    gap: 0.5rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+
+    font-family: ui-sans-serif, system-ui, sans-serif;
+
+    pointer-events: none;
   }
 
-  .language-switcher a {
-    display: inline-block;
-    padding: 0.25rem 0.6rem;
-    border-radius: 999px;
+  @media (max-width: 640px) {
+    .language-switcher {
+      --circle: 2.75rem;
+    }
+  }
+
+  .language-switcher-toggle-icon {
+    display: flex;
+  }
+
+  .language-switcher-toggle {
+    all: unset;
+    box-sizing: border-box;
+    pointer-events: auto;
+
+    width: var(--circle);
+    height: var(--circle);
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    border: 2px solid #1a1a1a;
     background: rgba(255, 255, 255, 0.85);
     color: #1a1a1a;
-    font-size: 0.8rem;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-    text-decoration: none;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  .language-switcher a[aria-current="page"] {
+  .language-switcher-toggle:hover,
+  .language-switcher-toggle:focus-visible {
     background: #1a1a1a;
     color: #ffffff;
-    border-color: #1a1a1a;
+  }
+
+  /* Same collapse mechanism as IslandNavMenu's `.island-nav-
+     expandable`: `max-height: 0` + `overflow: hidden` by default,
+     toggled by `.is-open` on `.language-switcher` (set by the script
+     below), transitioning to a ceiling well above this panel's real
+     height. */
+  .language-switcher-expandable {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+  }
+
+  .language-switcher.is-open .language-switcher-expandable {
+    max-height: 20rem;
+    opacity: 1;
+  }
+
+  .language-switcher-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+
+    padding: 0.75rem 1rem 1rem;
+
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 1.25rem;
+  }
+
+  .language-switcher-title {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    color: #555;
+  }
+
+  .language-switcher-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .language-switcher-link {
+    display: block;
+    pointer-events: auto;
+
+    padding: 0.5rem 1rem;
+
+    border-radius: 999px;
+    border: 2px solid #1a1a1a;
+    background: #ffffff;
+    color: #1a1a1a;
+
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    white-space: nowrap;
+
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .language-switcher-link:hover,
+  .language-switcher-link:focus-visible,
+  .language-switcher-link[aria-current="page"] {
+    background: #1a1a1a;
+    color: #ffffff;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .language-switcher-expandable {
+      transition: none;
+    }
+
+    .language-switcher-toggle,
+    .language-switcher-link {
+      transition: none;
+    }
   }
 </style>
+
+<script>
+  // Expand/collapse behavior for the menu above -- the same pattern
+  // as IslandNavMenu's own script (see that file's comment for the
+  // full reasoning on why `astro:page-load` + one shared
+  // AbortController is needed here rather than top-level listeners),
+  // just without that file's click-to-scroll logic: these links are
+  // real navigations to a different locale route, so clicking one
+  // just... navigates, same as any other link.
+  let cleanupLanguageSwitcher: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupLanguageSwitcher?.();
+
+    const nav = document.querySelector<HTMLElement>(".language-switcher");
+    const toggle = nav?.querySelector<HTMLButtonElement>(".language-switcher-toggle");
+
+    if (!nav || !toggle) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const openLabel = toggle.dataset.labelOpen ?? "";
+    const closeLabel = toggle.dataset.labelClose ?? "";
+
+    const setOpen = (open: boolean) => {
+      nav.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? closeLabel : openLabel);
+    };
+
+    toggle.addEventListener(
+      "click",
+      () => setOpen(!nav.classList.contains("is-open")),
+      { signal }
+    );
+
+    document.addEventListener(
+      "click",
+      (event) => {
+        if (!nav.classList.contains("is-open")) return;
+        if (event.target instanceof Node && nav.contains(event.target)) return;
+        setOpen(false);
+      },
+      { signal }
+    );
+
+    nav.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape" && nav.classList.contains("is-open")) {
+          setOpen(false);
+          toggle.focus();
+        }
+      },
+      { signal }
+    );
+
+    cleanupLanguageSwitcher = () => controller.abort();
+  });
+</script>
