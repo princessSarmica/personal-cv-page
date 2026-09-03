@@ -797,8 +797,10 @@
 //   5. Per "make it glitchy over it, and maybe so that it doesn't
 //      disappear but is present to be seen all the time": `opacity: 1`
 //      became the PERMANENT base state — no more show/hide at all, so
-//      no more JS scheduler either (there's no `<script>` block in
-//      this file). Each square runs its own never-ending CSS
+//      no more JS scheduler either (this file had no `<script>`
+//      block at the time -- one exists now, added later for an
+//      unrelated scroll-highlight feature). Each square runs its own
+//      never-ending CSS
 //      `animation` that sits at `filter: none` for most of every ~4s
 //      cycle and pops through the color swing briefly near the end,
 //      forever — `glitchImage2` offset by half a cycle so the two
@@ -1021,6 +1023,53 @@ const {
     </div>
   </div>
 </section>
+
+<script>
+  // New: black backdrop + white text on `.content` while this
+  // section is the one centered in view, per your request -- see the
+  // `.content.is-highlighted` CSS rule below for the visual side of
+  // this. Wrapped in `astro:page-load` (fires on the initial load AND
+  // after every <ClientRouter /> navigation -- see
+  // src/layouts/Layout.astro) instead of running at the top level: a
+  // language switch swaps in a freshly-parsed page, and this module's
+  // own top-level code only ever runs once, so without re-running
+  // this init on every navigation the observer would go dead after
+  // the first language switch. `cleanupHighlight` disconnects the
+  // previous navigation's observer first, so switching languages back
+  // and forth all session never piles up duplicate ones running at
+  // once (`window` is never recreated by a soft navigation).
+  let cleanupHighlight: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupHighlight?.();
+
+    const section = document.querySelector<HTMLElement>(".education-section");
+    const content = section?.querySelector<HTMLElement>(".content");
+
+    if (section && content) {
+      // `rootMargin: "-40% 0px -40% 0px"` shrinks the observer's own
+      // trigger area to a thin band across the viewport's vertical
+      // MIDDLE, instead of the default "anywhere in the viewport" --
+      // with `threshold: 0`, `isIntersecting` then flips true only
+      // while this section's box overlaps that middle band, i.e.
+      // roughly when the section is centered on screen. A plain
+      // `threshold` (percent of the section itself visible) would
+      // behave very differently section to section since these vary
+      // a lot in height; this approach doesn't depend on that.
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            content.classList.toggle("is-highlighted", entry.isIntersecting);
+          }
+        },
+        { rootMargin: "-40% 0px -40% 0px", threshold: 0 }
+      );
+
+      observer.observe(section);
+      cleanupHighlight = () => observer.disconnect();
+    }
+  });
+</script>
 
 <style>
   .education-section {
@@ -1331,6 +1380,56 @@ const {
     text-align: left;
   }
 
+  /* New: instead of the whole `.content` box flashing to black as
+     one unit, each of the three text pieces below (eyebrow, title,
+     body) now gets its OWN black backdrop that sweeps in from the
+     left, like a highlighter pen, and they fire one after another --
+     eyebrow first, then the title, then the body text -- while this
+     section is the one centered in the viewport. `.is-highlighted`
+     is still just one class, toggled by the same IntersectionObserver
+     as before; the staggering and the sweep itself are done entirely
+     with `transition-delay` and an animated `clip-path` on each
+     element's own `::before`, so no JS changes were needed here.
+     Each text element got `position: relative; isolation: isolate;`
+     so its `::before` (with `z-index: -1`) stays confined to that
+     element's own local stacking context instead of the page's. */
+  .content.is-highlighted .eyebrow {
+    color: #ccc;
+    transition-delay: 0s;
+  }
+
+  .content.is-highlighted .eyebrow::before {
+    clip-path: inset(0 0% 0 0);
+    transition-delay: 0s;
+  }
+
+  .content.is-highlighted h2 {
+    color: #fff;
+    transition-delay: 0.15s;
+  }
+
+  .content.is-highlighted h2::before {
+    clip-path: inset(0 0% 0 0);
+    transition-delay: 0.15s;
+  }
+
+  .content.is-highlighted .body-text {
+    color: #eee;
+    transition-delay: 0.3s;
+  }
+
+  .content.is-highlighted .body-text::before {
+    clip-path: inset(0 0% 0 0);
+    transition-delay: 0.3s;
+  }
+
+  .content.is-highlighted .body-text :global(a) {
+    color: #fff;
+    text-decoration-color: #aaa;
+    transition-delay: 0.3s;
+  }
+
+
   /* Wider text column on big screens, per request. */
   @media (min-width: 1100px) {
     .content {
@@ -1339,49 +1438,110 @@ const {
   }
 
   .eyebrow {
+    position: relative;
+    isolation: isolate;
+
     font-size: 0.8rem;
+    font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: #555;
     margin: 0 0 0.75rem;
+
+    transition: color 0.4s ease;
+  }
+
+  .eyebrow::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -0.3em -0.5rem;
+
+    background: #000;
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.4s ease;
   }
 
   h2 {
+    position: relative;
+    isolation: isolate;
+
     font-size: clamp(2rem, 4vw, 3rem);
     font-weight: 600;
     margin: 0 0 1rem;
     color: #1a1a1a;
+
+    transition: color 0.4s ease;
+  }
+
+  h2::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -0.1em -0.5rem;
+
+    background: #000;
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.4s ease;
   }
 
   .body-text {
+    position: relative;
+    isolation: isolate;
+
     font-size: 1.05rem;
     color: #444;
     margin: 0;
+
+    transition: color 0.4s ease;
   }
 
-  .body-text ul {
+  .body-text::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -0.4em -0.5rem;
+
+    background: #000;
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.4s ease;
+  }
+
+  .body-text :global(ul) {
     margin: 0;
     padding-left: 0;
-    list-style: disc;
+    list-style: none;
   }
 
-  .body-text li {
+  .body-text :global(li) {
+    position: relative;
+    padding-left: 1.1em;
+
     margin: 0 0 0.5rem;
+
+    transition: color 0.4s ease;
   }
 
-  .body-text li:last-child {
+  .body-text :global(li)::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+  }
+
+  .body-text :global(li:last-child) {
     margin-bottom: 0;
   }
 
-  .body-text a {
+  .body-text :global(a) {
     color: #1a1a1a;
+    font-weight: 700;
     text-decoration: underline;
     text-decoration-color: #999;
     text-underline-offset: 0.15em;
-    transition: text-decoration-color 0.2s ease;
+    transition: color 0.4s ease, text-decoration-color 0.2s ease;
   }
 
-  .body-text a:hover {
+  .body-text :global(a:hover) {
     text-decoration-color: #1a1a1a;
   }
 
@@ -1480,6 +1640,19 @@ const {
       right: auto;
       margin-left: calc(var(--edu-clouds-zoom-width) / -2);
       margin-right: 0;
+    }
+
+    /* New: move `.content` higher on mobile/tablet, per your request.
+       The base rule anchors its CENTER at `top: 42%` (via the
+       `translate(-50%, -50%)` alongside it) -- on a narrow/tall phone
+       that puts the text roughly mid-screen, overlapping more of the
+       zoomed-in building image above (see `.education-image-wrap`'s
+       own comment just above for why it's zoomed at this breakpoint).
+       Dropping `top` to `26%` moves that same centered anchor further
+       up the section without touching `left`/`transform`, which stay
+       inherited from the base rule unchanged. */
+    .content {
+      top: 26%;
     }
   }
 </style>
