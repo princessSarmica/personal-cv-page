@@ -48,7 +48,7 @@ export const ui = {
     "computer.eyebrow": "Island 03",
     "computer.title": "Computer Skills",
     "computer.text":
-      "<ul><li>Programming languages: C, C++, Python, PHP, Kotlin</li><li>Web development: HTML, CSS, JavaScript, TypeScript, React, Next.js, Astro.js, Three.js, Node.js, Express, TailwindCSS, shadcn/ui, better-auth, next-intl</li><li>Databases: PostgreSQL, MySQL, MongoDB</li></ul>",
+      "<ul><li>Programming languages: C, C++, Python, PHP, Kotlin</li><li>Web development: HTML, CSS, JavaScript, TypeScript, React, Next.js, Astro.js, Three.js, Node.js, Express, TailwindCSS, shadcn/ui, better-auth, next-intl</li><li>Databases: PostgreSQL, MySQL, MongoDB</li><li>Office suites: Microsoft Office 365, LibreOffice</li><li>Operating systems: Windows, Linux (Ubuntu)</li></ul>",
 
     "education.eyebrow": "Island 01",
     "education.title": "Education",
@@ -58,7 +58,7 @@ export const ui = {
     "achievement.eyebrow": "Island 04",
     "achievement.title": "Achievements",
     "achievement.text":
-      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1st place in a competition for a mural design in Student Dorm 1 in Maribor, concept realized in 2024</a></li><li>Finalist at the 18th International Art Award Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">catalogue</a>)</li><li>Co-authored a research paper on recognizing and evaluating AI-generated images (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Authored a paper on choosing a technology stack for web applications (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
+      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1st place in a competition for a mural design in Student Dorm 1 in Maribor, concept realized in 2024</a></li><li>Finalist at the 18th International Art Award Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">catalogue</a>)</li><li>Co-authored a research paper on recognizing and evaluating AI-generated images (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Authored a paper on choosing a technology stack for web applications (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li><li>Finalist in Supercell\u2019s Make Anything campaign (<a href="https://make.supercell.com/en/creation/sweet-candy-doug" target="_blank" rel="noopener noreferrer">Sweet Candy Doug</a>)</li></ul>',
 
     "hobby.eyebrow": "Island 05",
     "hobby.title": "Hobbies",
@@ -92,7 +92,7 @@ export const ui = {
     "computer.eyebrow": "Insel 03",
     "computer.title": "Computerkenntnisse",
     "computer.text":
-      "<ul><li>Programmiersprachen: C, C++, Python, PHP, Kotlin</li><li>Webentwicklung: HTML, CSS, JavaScript, TypeScript, React, Next.js, Astro.js, Three.js, Node.js, Express, TailwindCSS, shadcn/ui, better-auth, next-intl</li><li>Datenbanken: PostgreSQL, MySQL, MongoDB</li></ul>",
+      "<ul><li>Programmiersprachen: C, C++, Python, PHP, Kotlin</li><li>Webentwicklung: HTML, CSS, JavaScript, TypeScript, React, Next.js, Astro.js, Three.js, Node.js, Express, TailwindCSS, shadcn/ui, better-auth, next-intl</li><li>Datenbanken: PostgreSQL, MySQL, MongoDB</li><li>Office-Pakete: Microsoft Office 365, LibreOffice</li><li>Betriebssysteme: Windows, Linux (Ubuntu)</li></ul>",
 
     "education.eyebrow": "Insel 01",
     "education.title": "Ausbildung",
@@ -102,7 +102,7 @@ export const ui = {
     "achievement.eyebrow": "Insel 04",
     "achievement.title": "Erfolge",
     "achievement.text":
-      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. Platz bei einem Wettbewerb für die Gestaltung eines Wandbilds im Studentenwohnheim 1 in Maribor, Idee 2024 umgesetzt</a></li><li>Finalist beim 18. Internationalen Kunstpreis Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">Katalog</a>)</li><li>Mitautor eines wissenschaftlichen Artikels über die Erkennung und Bewertung von KI-generierten Bildern (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Autor eines Fachartikels über die Wahl des Technologie-Stacks für Webanwendungen (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
+      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. Platz bei einem Wettbewerb für die Gestaltung eines Wandbilds im Studentenwohnheim 1 in Maribor, Idee 2024 umgesetzt</a></li><li>Finalist beim 18. Internationalen Kunstpreis Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">Katalog</a>)</li><li>Mitautor eines wissenschaftlichen Artikels über die Erkennung und Bewertung von KI-generierten Bildern (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Autor eines Fachartikels über die Wahl des Technologie-Stacks für Webanwendungen (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li><li>Finalist bei Supercells Make-Anything-Kampagne (<a href="https://make.supercell.com/en/creation/sweet-candy-doug" target="_blank" rel="noopener noreferrer">Sweet Candy Doug</a>)</li></ul>',
 
     "hobby.eyebrow": "Insel 05",
     "hobby.title": "Hobbys",
@@ -136,7 +136,7 @@ export const ui = {
     "computer.eyebrow": "Otok 03",
     "computer.title": "Računalniške kompetence",
     "computer.text":
-      "<ul><li>Programski jeziki: C, C++, Python, PHP, Kotlin</li><li>Spletni razvoj: HTML, CSS, JavaScript, TypeScript, React, Next.js, Astro.js, Three.js, Node.js, Express, TailwindCSS, shadcn/ui, better-auth, next-intl</li><li>Baze podatkov: PostgreSQL, MySQL, MongoDB</li></ul>",
+      "<ul><li>Programski jeziki: C, C++, Python, PHP, Kotlin</li><li>Spletni razvoj: HTML, CSS, JavaScript, TypeScript, React, Next.js, Astro.js, Three.js, Node.js, Express, TailwindCSS, shadcn/ui, better-auth, next-intl</li><li>Baze podatkov: PostgreSQL, MySQL, MongoDB</li><li>Pisarniški paketi: Microsoft Office 365, LibreOffice</li><li>Operacijski sistemi: Windows, Linux (Ubuntu)</li></ul>",
 
     "education.eyebrow": "Otok 01",
     "education.title": "Izobrazba",
@@ -146,7 +146,7 @@ export const ui = {
     "achievement.eyebrow": "Otok 04",
     "achievement.title": "Dosežki",
     "achievement.text":
-      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. mesto na natečaju za poslikavo prostorov v Študentskem domu 1 v Mariboru, ideja realizirana leta 2024</a></li><li>Uvrstil se med finaliste na 18. mednarodni likovni nagradi Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">katalog</a>)</li><li>Soavtor znanstvenega članka o prepoznavanju in vrednotenju slik, ustvarjenih z generativno umetno inteligenco (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Avtor strokovnega članka o izbiri tehnološkega sklada za spletne aplikacije (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li></ul>',
+      '<ul><li><a href="https://www.lokalec.si/video-studentski-domovi-univerze-v-mariboru-nagradili-prvouvrscene-na-natecaju-za-poslikavo-prostorov/" target="_blank" rel="noopener noreferrer">1. mesto na natečaju za poslikavo prostorov v Študentskem domu 1 v Mariboru, ideja realizirana leta 2024</a></li><li>Uvrstil se med finaliste na 18. mednarodni likovni nagradi Ex-tempore Ptuj Karneval (<a href="https://nomoresilence.si/wp-content/uploads/2026/02/KATALOG-EX-TEMPORE-PTUJ-KARNEVAL-2026-WEB.pdf" target="_blank" rel="noopener noreferrer">katalog</a>)</li><li>Soavtor znanstvenega članka o prepoznavanju in vrednotenju slik, ustvarjenih z generativno umetno inteligenco (<a href="https://www.igi-global.com/chapter/perception-of-the-aesthetic-value-of-art-in-the-context-of-artificial-intelligence-and-human-creation-among-higher-education-students/388879" target="_blank" rel="noopener noreferrer">IGI Global</a>)</li><li>Avtor strokovnega članka o izbiri tehnološkega sklada za spletne aplikacije (<a href="https://ieeexplore.ieee.org/abstract/document/10959214" target="_blank" rel="noopener noreferrer">IEEE Xplore</a>)</li><li>Uvrstil se med finaliste v kampanji Make Anything podjetja Supercell (<a href="https://make.supercell.com/en/creation/sweet-candy-doug" target="_blank" rel="noopener noreferrer">Sweet Candy Doug</a>)</li></ul>',
 
     "hobby.eyebrow": "Otok 05",
     "hobby.title": "Hobiji",
