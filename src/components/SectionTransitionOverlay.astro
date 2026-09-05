@@ -152,15 +152,40 @@ import loadingJumpImage from '../images/loading_jump.webp';
        the whip as it sweeps across the screen instead of being
        covered like the rest of the page. */
     position: fixed;
+    /* This image is a REPLACED element, so `inset: 0` on its own
+       is not enough to make it fill the viewport: per the CSS sizing
+       rules for fixed/absolutely-positioned replaced elements, when
+       `width`/`height` are left at their default `auto`, the browser
+       falls back to the image's own INTRINSIC pixel size (confirmed
+       directly: with only `inset: 0` set, this rendered at exactly
+       the source `loading_jump.webp` dimensions instead of the
+       viewport) rather than stretching between the four inset edges
+       the way an ordinary (non-replaced) box would. `width: 100%` /
+       `height: 100%` are what actually force it to fill the
+       containing block (the viewport, for a `position: fixed`
+       element) regardless of the image's own dimensions; `inset: 0`
+       is kept alongside them to pin that box to all four edges. This
+       also sidesteps the `100vw`/`100dvh` version used previously,
+       whose `dvh` recalculation as mobile browser chrome shows/hides
+       is a known trouble spot for FIXED, ANIMATED elements -- `%`
+       here resolves against the same fixed-position containing block
+       without that dynamic-viewport-unit behavior. */
     inset: 0;
+    width: 100%;
+    height: 100%;
     z-index: 10000;
-    width: 100vw;
-    /* `100dvh` accounts for mobile browser chrome (the address bar)
-       resizing the viewport -- `100vh` alone can leave a gap at the
-       bottom on some mobile browsers. `100vh` first as a fallback for
-       browsers without `dvh` support. */
-    height: 100vh;
-    height: 100dvh;
+    /* Now that the box itself reliably fills the viewport edge to
+       edge (see above), `object-fit: cover` is what gives you the
+       "cut off on the sides" look on a narrow phone screen: it scales
+       the image up just enough to cover the box completely (matching
+       whichever dimension -- here, height, on a tall narrow screen --
+       needs the larger scale factor), then crops whatever now
+       overflows the other dimension (the sides, on a phone) rather
+       than letterboxing/pillarboxing the whole image into view. Same
+       rule already did this correctly on wide screens (crops
+       top/bottom there instead) -- the box just wasn't reliably full-
+       screen on mobile for `object-fit` to crop against in the first
+       place. */
     object-fit: cover;
     pointer-events: none;
 
