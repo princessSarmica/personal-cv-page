@@ -1,0 +1,221 @@
+---
+// src/components/SectionTransitionOverlay.astro
+//
+// A full-viewport "whip pan" transition image, per your request: a
+// fast cartoon-style camera-swipe -- like the "camera" whipping
+// between two places in a cartoon -- that plays over every nav-menu
+// section jump (see IslandNavMenu.astro) so the jump reads as a
+// deliberate whoosh instead of an abrupt cut. Rendered once here in
+// Layout.astro (same convention as GitHubLink.astro / IslandNavMenu.astro:
+// a single persistent element that survives every section and every
+// language switch via <ClientRouter />, rather than being duplicated
+// per-section).
+//
+// How this talks to IslandNavMenu.astro: this component owns the
+// overlay image and its CSS animation; IslandNavMenu.astro owns the
+// scroll jump. Neither imports the other -- they're wired together
+// with two DOM CustomEvents instead, so each stays a self-contained,
+// single-purpose component (same spirit as the `body:has(.class:hover)`
+// cross-component pattern already used for the cursor-spotlight in
+// Layout.astro, just event-based here since this needs to run JS at a
+// specific MOMENT, not just toggle a style):
+//
+//   - "section-transition:trigger" -- dispatched BY IslandNavMenu.astro
+//     on every nav-menu click, asking this component to play the
+//     whip-pan animation. Carries `detail: { direction: 1 | -1 }`
+//     (1 = jumping down the page, -1 = jumping up it -- the same
+//     sign IslandNavMenu also uses for its own pre-whip nudge, so
+//     both halves of the motion always agree on which way things
+//     are moving): the whip plays bottom-to-top for a downward
+//     jump, or the mirror image -- top-to-bottom -- for an upward
+//     one, so the sweep always reads as continuing whichever way
+//     the page was already heading rather than always playing the
+//     same direction regardless.
+//   - "section-transition:midpoint" -- dispatched BY this component,
+//     the instant the overlay is fully covering the viewport (halfway
+//     through the animation, see the keyframes below). IslandNavMenu
+//     listens for this once and performs the actual (now instant, see
+//     its own comment) scroll jump at that exact moment -- hidden
+//     behind the overlay, so nobody sees the jump itself, only the
+//     whoosh.
+//
+// `loading="eager"` (not this project's usual lazy default -- see
+// every other section's own note on that) is required here, not just
+// a nice-to-have: a "fast transition" effect that itself has to fetch
+// on first use would show a blank flash on the very FIRST nav click
+// instead of the intended image, defeating the whole point. Eager-
+// loading it as part of the initial page load means it's already
+// decoded and cached long before anyone can click the nav menu.
+import { Image } from 'astro:assets';
+import loadingJumpImage from '../images/loading_jump.webp';
+---
+
+<Image
+  class="section-transition-overlay"
+  src={loadingJumpImage}
+  alt=""
+  aria-hidden="true"
+  loading="eager"
+  decoding="async"
+/>
+
+<script>
+  // Wrapped in `astro:page-load` (not run at the top level) for the
+  // same reason every other per-component script in this project is:
+  // a language switch swaps in a freshly-parsed copy of this
+  // component's markup without ever re-running a top-level script.
+  // `cleanupTransitionOverlay` tears down the previous navigation's
+  // listener before attaching a new one, so switching languages back
+  // and forth all session never piles up duplicates.
+  let cleanupTransitionOverlay: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupTransitionOverlay?.();
+
+    const overlay = document.querySelector<HTMLImageElement>(
+      ".section-transition-overlay"
+    );
+    if (!overlay) return;
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    // Must match the CSS animation's own duration below exactly --
+    // this is how the script knows when "halfway through" actually
+    // is, since `animationend`/a mid-animation callback isn't precise
+    // enough to hit an exact 50% mark on its own.
+    const DURATION_MS = 550;
+
+    document.addEventListener(
+      "section-transition:trigger",
+      (event) => {
+        if (prefersReducedMotion) {
+          // The CSS below already hides this overlay entirely under
+          // this setting (no animation to play), so just fire the
+          // midpoint event immediately -- otherwise IslandNavMenu's
+          // jump would sit there waiting forever for an event that
+          // never comes.
+          document.dispatchEvent(
+            new CustomEvent("section-transition:midpoint")
+          );
+          return;
+        }
+
+        // `direction` defaults to 1 (down) if this ever fires without
+        // a `detail` (there's currently no such caller, but a plain
+        // `dispatchEvent(new Event(...))` from, say, a future caller
+        // or a console test shouldn't throw here).
+        const direction =
+          event instanceof CustomEvent && event.detail?.direction === -1 ? -1 : 1;
+
+        // Restart from scratch even if a previous whip is still
+        // mid-flight (rapid repeat nav clicks): remove both classes,
+        // force a reflow so the browser forgets the animation ever
+        // ran, then re-add them -- without the forced reflow, adding
+        // the same class back-to-back is a no-op and the animation
+        // wouldn't restart. `is-reverse` (see the styles below) is
+        // what actually flips the sweep's direction to match.
+        overlay.classList.remove("is-playing", "is-reverse");
+        void overlay.offsetWidth;
+        if (direction === -1) overlay.classList.add("is-reverse");
+        overlay.classList.add("is-playing");
+
+        window.setTimeout(() => {
+          document.dispatchEvent(
+            new CustomEvent("section-transition:midpoint")
+          );
+        }, DURATION_MS / 2);
+
+        window.setTimeout(() => {
+          overlay.classList.remove("is-playing", "is-reverse");
+        }, DURATION_MS);
+      },
+      { signal }
+    );
+
+    cleanupTransitionOverlay = () => controller.abort();
+  });
+</script>
+
+<style>
+  .section-transition-overlay {
+    /* Fixed + full-viewport, well above every other layer on the page
+       (the nav menu panel, the halftone cursor-spotlight, etc. all
+       sit well under 2000) -- this needs to cover literally
+       everything while it plays, with one deliberate exception:
+       CornerIsland.astro's `.corner-island` sits ABOVE this
+       (z-index: 10001) on purpose, so it stays visible in front of
+       the whip as it sweeps across the screen instead of being
+       covered like the rest of the page. */
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    width: 100vw;
+    /* `100dvh` accounts for mobile browser chrome (the address bar)
+       resizing the viewport -- `100vh` alone can leave a gap at the
+       bottom on some mobile browsers. `100vh` first as a fallback for
+       browsers without `dvh` support. */
+    height: 100vh;
+    height: 100dvh;
+    object-fit: cover;
+    pointer-events: none;
+
+    /* Which way the sweep travels: `--whip-from` is where it enters
+       from (and this element's own resting position, parked fully
+       out of sight below the viewport, ready for the default
+       downward sweep), `--whip-to` is where it exits. `.is-reverse`
+       below overrides both for an upward jump -- enter from the top,
+       exit the bottom -- so ONE `@keyframes` block (using these two
+       variables instead of hardcoded values) serves both directions
+       rather than needing a second, near-duplicate keyframes block. */
+    --whip-from: 100%;
+    --whip-to: -100%;
+    transform: translateY(var(--whip-from));
+  }
+
+  /* The whip itself: enters from `--whip-from`, is fully covering the
+     viewport at the exact midpoint (this is the moment IslandNavMenu
+     performs the actual section jump, hidden underneath), then
+     continues the same direction on off to `--whip-to` -- one
+     continuous sweep, not a bounce. Default (no `.is-reverse`):
+     bottom to top, matching a downward jump -- see `.is-reverse`
+     below for the mirrored, upward-jump variant. */
+  @keyframes section-whip-pan {
+    0% {
+      transform: translateY(var(--whip-from));
+    }
+    50% {
+      transform: translateY(0%);
+    }
+    100% {
+      transform: translateY(var(--whip-to));
+    }
+  }
+
+  .section-transition-overlay.is-playing {
+    animation: section-whip-pan 550ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    will-change: transform;
+  }
+
+  /* Reversed sweep for an upward jump: enters from the top
+     (`--whip-from: -100%`) and exits the bottom (`--whip-to: 100%`)
+     -- the exact mirror of the default, so the whip always continues
+     whichever way the page was already moving instead of always
+     sweeping the same direction regardless of the jump. Toggled
+     alongside `.is-playing` by the script above, per the `direction`
+     carried on the triggering event. */
+  .section-transition-overlay.is-reverse {
+    --whip-from: -100%;
+    --whip-to: 100%;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .section-transition-overlay {
+      display: none;
+    }
+  }
+</style>

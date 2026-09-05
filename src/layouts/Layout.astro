@@ -8,6 +8,7 @@ import CornerIsland from '../components/CornerIsland.astro';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import IslandNavMenu from '../components/IslandNavMenu.astro';
 import GitHubLink from '../components/GitHubLink.astro';
+import SectionTransitionOverlay from '../components/SectionTransitionOverlay.astro';
 
 interface Props {
   title?: string;
@@ -80,6 +81,7 @@ const faviconIcoHref = withBase('favicon.ico');
     <LanguageSwitcher />
     <IslandNavMenu />
     <GitHubLink />
+    <SectionTransitionOverlay />
     <slot />
     <CornerIsland />
     <div class="halftone-spotlight" aria-hidden="true"></div>
