@@ -197,7 +197,7 @@ const optimizedMobileImage = mobileImage
        for every width the way the other sections' single-source
        images can — see the `max-width: 640px` override right below,
        and the warning in this comment block's last paragraph. */
-    aspect-ratio: 3840 / 2160;
+    aspect-ratio: 2560 / 1440; /* resized from the original 3840x2160 export to cut file size ~87% (2.3MB -> 0.3MB); same exact ratio, unaffected layout */
   }
 
   /* New: no other `max-width: 640px` block here any more — mobile
@@ -221,7 +221,7 @@ const optimizedMobileImage = mobileImage
      dimensions change. */
   @media (max-width: 640px) {
     .other-section-image {
-      aspect-ratio: 3840 / 7430;
+      aspect-ratio: 2560 / 4953; /* resized from the original 3840x7430 export to cut file size ~91% (7.0MB -> 0.66MB); same ratio, unaffected layout */
     }
   }
 </style>

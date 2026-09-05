@@ -142,14 +142,14 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
 
   <div class="computer-clouds-bg" aria-hidden="true">
     <div class="computer-clouds-track">
-      <Image class="computer-clouds-tile" src={cloudsBackground} alt="" />
-      <Image class="computer-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="computer-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+      <Image class="computer-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
     </div>
   </div>
 
   <div class="computer-island computer-island-left" aria-hidden="true">
     <div class="computer-island-inner parallax-inner">
-      <Image src={leftImage} alt="" />
+      <Image src={leftImage} alt="" loading="eager" decoding="async" />
     </div>
   </div>
 
@@ -747,7 +747,7 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
   }
 
   .computer-island-right .computer-island-inner img {
-    aspect-ratio: 1680 / 1920;
+    aspect-ratio: 1120 / 1280; /* resized+re-palettized from the original 1680x1920 GIF to cut file size ~66% (37MB -> 12.4MB); same exact ratio, unaffected layout */
   }
 
   /* Telephone-pole island: smaller, mid-left, roughly vertically

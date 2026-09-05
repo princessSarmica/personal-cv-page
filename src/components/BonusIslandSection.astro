@@ -121,8 +121,8 @@ const optimizedBackgroundImage = await getImage({ src: backgroundImage });
 >
   <div class="bonus-clouds-bg" aria-hidden="true">
     <div class="bonus-clouds-track">
-      <Image class="bonus-clouds-tile" src={cloudsBackground} alt="" />
-      <Image class="bonus-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="bonus-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+      <Image class="bonus-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
     </div>
   </div>
 
@@ -294,7 +294,7 @@ const optimizedBackgroundImage = await getImage({ src: backgroundImage });
        lazy image whose box isn't pinned by fixed width+height or a
        declared `aspect-ratio`; `height: 100%; width: auto;` alone
        doesn't count, so this states the real ratio directly. */
-    aspect-ratio: 7680 / 2160;
+    aspect-ratio: 3840 / 1080; /* resized from the original 7680x2160 export to cut file size ~94% (1.4MB -> 0.09MB); same exact ratio, unaffected layout */
   }
 
   @keyframes bonus-clouds-drift {

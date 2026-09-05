@@ -761,7 +761,7 @@ const optimizedFountainImage = fountainImage
       <div class="hobby-layer-slot hobby-layer-slot-back">
         <div class="hobby-layer-bob hobby-layer-bob-back">
           <div class="hobby-layer-drift parallax-inner" data-depth="0.55">
-            <Image class="hobby-layer" src={backIslandImage} alt="" />
+            <Image class="hobby-layer" src={backIslandImage} alt="" loading="eager" decoding="async" />
             {backIslandFrozenImage && (
               <>
                 <div class="hobby-frost-hotspot" data-frost-hotspot></div>
@@ -770,6 +770,8 @@ const optimizedFountainImage = fountainImage
                   src={backIslandFrozenImage}
                   alt=""
                   data-frozen-overlay
+                  loading="eager"
+                  decoding="async"
                 />
               </>
             )}
@@ -781,7 +783,7 @@ const optimizedFountainImage = fountainImage
         <div class="hobby-layer-slot hobby-layer-slot-joycon">
           <div class="hobby-layer-bob hobby-layer-bob-joycon">
             <div class="hobby-layer-drift parallax-inner" data-depth="0.85">
-              <Image class="hobby-layer" src={joyconImage} alt="" />
+              <Image class="hobby-layer" src={joyconImage} alt="" loading="eager" decoding="async" />
             </div>
           </div>
         </div>
@@ -811,6 +813,8 @@ const optimizedFountainImage = fountainImage
               src={frontIslandImage}
               alt=""
               data-front-island-base
+              loading="eager"
+              decoding="async"
             />
             {fountainImage && (
               <>
@@ -819,6 +823,8 @@ const optimizedFountainImage = fountainImage
                   src={fountainImage}
                   alt=""
                   data-fountain-image
+                  loading="eager"
+                  decoding="async"
                 />
                 <div
                   class="hobby-fountain-sparkle"
@@ -842,6 +848,8 @@ const optimizedFountainImage = fountainImage
                 src={palmTreeImage}
                 alt=""
                 data-palm-base
+                loading="eager"
+                decoding="async"
               />
             )}
             {palmTreeImage && palmTree80sImage && (
@@ -849,10 +857,12 @@ const optimizedFountainImage = fountainImage
                 class="hobby-layer hobby-palm-80s"
                 src={palmTree80sImage}
                 alt=""
+                loading="eager"
+                decoding="async"
               />
             )}
             {monadoImage && (
-              <Image class="hobby-layer hobby-monado" src={monadoImage} alt="" />
+              <Image class="hobby-layer hobby-monado" src={monadoImage} alt="" loading="eager" decoding="async" />
             )}
             {monadoImage &&
               monadoSymbolImages &&
@@ -862,6 +872,8 @@ const optimizedFountainImage = fountainImage
                   src={src}
                   alt=""
                   data-monado-symbol
+                  loading="eager"
+                  decoding="async"
                 />
               ))}
           </div>

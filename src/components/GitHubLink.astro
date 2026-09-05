@@ -22,7 +22,7 @@ const t = useTranslations(Astro.currentLocale);
   rel="noopener noreferrer"
   aria-label={t("nav.githubLabel")}
 >
-  <Image class="github-link-icon" src={githubIcon} alt="" />
+  <Image class="github-link-icon" src={githubIcon} alt="" loading="eager" decoding="async" />
 </a>
 
 <style>

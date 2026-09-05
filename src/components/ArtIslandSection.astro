@@ -347,8 +347,8 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
   <div class="art-moon-bg" style={`background-image: url(${optimizedMoonBackground.src});`} aria-hidden="true"></div>
   <div class="art-clouds-bg" aria-hidden="true">
     <div class="art-clouds-track">
-      <Image class="art-clouds-tile" src={cloudsBackground} alt="" />
-      <Image class="art-clouds-tile" src={cloudsBackground} alt="" />
+      <Image class="art-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+      <Image class="art-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
     </div>
   </div>
 
@@ -356,11 +356,11 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     <div class="art-island-inner parallax-inner">
       {topImageLoading ? (
         <div class="art-island-reveal">
-          <Image class="art-island-reveal-final" src={topImage} alt="" />
-          <Image class="art-island-reveal-loading" src={topImageLoading} alt="" />
+          <Image class="art-island-reveal-final" src={topImage} alt="" loading="eager" decoding="async" />
+          <Image class="art-island-reveal-loading" src={topImageLoading} alt="" loading="eager" decoding="async" />
         </div>
       ) : (
-        <Image src={topImage} alt="" />
+        <Image src={topImage} alt="" loading="eager" decoding="async" />
       )}
     </div>
   </div>
@@ -378,11 +378,11 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     <div class="art-island-inner parallax-inner">
       {bottomImageLoading ? (
         <div class="art-island-reveal">
-          <Image class="art-island-reveal-final" src={bottomImage} alt="" />
-          <Image class="art-island-reveal-loading" src={bottomImageLoading} alt="" />
+          <Image class="art-island-reveal-final" src={bottomImage} alt="" loading="eager" decoding="async" />
+          <Image class="art-island-reveal-loading" src={bottomImageLoading} alt="" loading="eager" decoding="async" />
         </div>
       ) : (
-        <Image src={bottomImage} alt="" />
+        <Image src={bottomImage} alt="" loading="eager" decoding="async" />
       )}
     </div>
   </div>
@@ -899,7 +899,7 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
        lazy image whose box isn't pinned by fixed width+height or a
        declared `aspect-ratio`; `height: 100%; width: auto;` alone
        doesn't count, so this states the real ratio directly. */
-    aspect-ratio: 7679 / 2160;
+    aspect-ratio: 3840 / 1080; /* resized from the original 7679x2160 export to cut file size ~95% (5.9MB -> 0.3MB); same ratio, unaffected layout */
   }
 
   /* FROM -50% TO 0% (not the reverse) is what makes the visible drift

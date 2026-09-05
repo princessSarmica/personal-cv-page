@@ -194,13 +194,13 @@ const {
     <div class="achievement-clouds-fill"></div>
     <div class="achievement-clouds-track-row">
       <div class="achievement-clouds-track">
-        <Image class="achievement-clouds-tile" src={cloudsBackground} alt="" />
-        <Image class="achievement-clouds-tile" src={cloudsBackground} alt="" />
+        <Image class="achievement-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
+        <Image class="achievement-clouds-tile" src={cloudsBackground} alt="" loading="lazy" decoding="async" />
       </div>
     </div>
   </div>
 
-  <Image class="achievement-background-image" src={backgroundImage} alt="" aria-hidden="true" />
+  <Image class="achievement-background-image" src={backgroundImage} alt="" aria-hidden="true" loading="lazy" decoding="async" />
 
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
@@ -214,10 +214,10 @@ const {
   <div class="achievement-island achievement-island-right" aria-hidden="true">
     <div class="achievement-island-inner parallax-inner">
       <div class="achievement-glitch-swap">
-        <Image class="achievement-glitch-swap-base" src={leftImage} alt="" />
+        <Image class="achievement-glitch-swap-base" src={leftImage} alt="" loading="eager" decoding="async" />
         {leftImageGlitched && (
           <div class="achievement-glitch-swap-alt">
-            <Image src={leftImageGlitched} alt="" />
+            <Image src={leftImageGlitched} alt="" loading="eager" decoding="async" />
           </div>
         )}
       </div>
@@ -835,7 +835,7 @@ const {
        down) — same lazy-loading-needs-a-declared-ratio reasoning as
        `.achievement-clouds-tile` above, now stated on the desktop rule
        too instead of only the mobile one. */
-    aspect-ratio: 4044 / 3413;
+    aspect-ratio: 2560 / 2161; /* resized from the original 4044x3413 export to cut file size ~82% (1.8MB -> 0.32MB); same ratio, unaffected layout */
     /* New: on mid/big screens (this base rule -- the mobile override
        below has its own separate crop via `object-fit: cover`), crop
        the new background image a bit more off the LEFT side and zoom
@@ -1349,7 +1349,7 @@ const {
          cover, so a taller min-height forces a bigger horizontal
          crop the same way it did before -- just dialed up). */
       min-height: 90vh;
-      aspect-ratio: 4044 / 3413;
+      aspect-ratio: 2560 / 2161; /* resized from the original 4044x3413 export to cut file size ~82% (1.8MB -> 0.32MB); same ratio, unaffected layout */
       height: auto;
       object-fit: cover;
       object-position: bottom;
