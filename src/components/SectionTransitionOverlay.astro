@@ -258,19 +258,51 @@ import loadingJumpImage from '../images/loading_jump.webp';
     width: 100%;
     height: 100%;
     z-index: 10000;
-    /* Now that the box itself reliably fills the viewport edge to
-       edge (see above), `object-fit: cover` is what gives you the
-       "cut off on the sides" look on a narrow phone screen: it scales
-       the image up just enough to cover the box completely (matching
-       whichever dimension -- here, height, on a tall narrow screen --
-       needs the larger scale factor), then crops whatever now
-       overflows the other dimension (the sides, on a phone) rather
-       than letterboxing/pillarboxing the whole image into view. Same
-       rule already did this correctly on wide screens (crops
-       top/bottom there instead) -- the box just wasn't reliably full-
-       screen on mobile for `object-fit` to crop against in the first
-       place. */
-    object-fit: cover;
+    /* `loading_jump.webp` itself has a soft transparent fade baked
+       into its own top and bottom edges (checked directly against
+       the source file: fully transparent at the very edge, ramping
+       up to opaque over roughly the first/last 10% of its height) --
+       that's what you were actually seeing peek through as "blinking"
+       at the top and bottom, on every screen size, not a sizing or
+       object-fit problem (that band is a fixed PROPORTION of the
+       image regardless of screen size, so it was always there -- just
+       more pixels, and so more noticeable, on a bigger screen, and
+       extra obvious now that the whip sits still for a moment during
+       the hold instead of always being mid-motion). Neither `cover`
+       nor `fill` can fix transparency actually baked into the image
+       -- object-fit only ever decides how the image's own pixels map
+       onto the box, not what shows through pixels that are see-through
+       to begin with. This background-color is what actually fixes it:
+       it sits BEHIND the image (a plain `<img>`, so its own
+       transparent/semi-transparent pixels let this show through
+       directly), sampled as the image's own alpha-weighted average
+       color, so the fade blends into more of the same sky-blue
+       instead of the real page underneath. */
+    background-color: #2edef8;
+    /* `object-fit: fill` (changed from `cover`) per your report that
+       you were still seeing thin gaps -- the real page blinking
+       through -- at the top and bottom of the screen even with the
+       box itself now reliably full-viewport (see above): `cover`
+       only guarantees no gaps when the box's own size and the
+       image's aspect ratio line up exactly on every single frame,
+       and on a real phone the box's `%`-based size can still shift
+       very slightly as the browser's own address bar shows/hides
+       mid-animation -- `cover` would then briefly be scaled for the
+       PREVIOUS box size, leaving a sliver uncovered until it catches
+       up. `fill` sidesteps that risk entirely: instead of preserving
+       the image's own proportions and cropping the overflow, it
+       always stretches the image to EXACTLY match the box's current
+       width and height, on every frame, no matter what that size is
+       -- so there is no aspect-ratio math that can fall out of sync
+       with a shifting box, and the image always covers it edge to
+       edge with zero gap by construction. The trade-off is that the
+       image itself can look slightly squashed or stretched rather
+       than perfectly proportioned (no longer cropping the sides on a
+       narrow phone or the top/bottom on a wide screen, just scaling
+       to fit) -- worth it here since this only shows for a few
+       hundred ms during a fast whip-pan sweep, where "zero gaps,
+       every time" matters far more than pixel-perfect proportions. */
+    object-fit: fill;
     pointer-events: none;
 
     /* Which way the sweep travels: `--whip-from` is where it enters
