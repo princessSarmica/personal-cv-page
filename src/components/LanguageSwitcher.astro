@@ -70,7 +70,8 @@ const GLOBE_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" 
 
 <style>
   /* Fixed to the top-right corner -- IslandNavMenu.astro's own
-     comment covers the shared reasoning (z-index tier, the
+     comment covers the shared reasoning (z-index tier -- now 10002,
+     above both CornerIsland and the whip-pan overlay -- the
      `pointer-events` fix, the `--circle` custom property for the
      mobile size bump) in more depth; this file follows the same
      patterns rather than re-explaining them from scratch. */
@@ -80,7 +81,12 @@ const GLOBE_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" 
     position: fixed;
     top: 0.75rem;
     right: 0.75rem;
-    z-index: 1000;
+    /* See IslandNavMenu.astro's `.island-nav` for the full reasoning
+       -- this needs to stay visible in front of CornerIsland
+       (z-index: 10001) and the whip-pan overlay (z-index: 10000) at
+       all times, including mid-transition, not just tied with the
+       other corner controls at the old 1000 tier. */
+    z-index: 10002;
 
     display: flex;
     flex-direction: column;

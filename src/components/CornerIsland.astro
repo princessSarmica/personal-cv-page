@@ -93,10 +93,13 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
        (z-index: 10000) on purpose, per your request -- this island
        stays visible IN FRONT of that overlay while it sweeps across
        the screen during a nav-menu jump, rather than being covered
-       like the rest of the page. Every other fixed page chrome
-       (IslandNavMenu, GitHubLink, LanguageSwitcher) sits at
-       z-index: 1000, well below the overlay, so this is the one
-       deliberate exception. */
+       like the rest of the page. IslandNavMenu, GitHubLink and
+       LanguageSwitcher now sit one tier above THIS (z-index: 10002,
+       per your later request that the nav menu -- and the other two
+       corner controls with it -- stay on top of this island whenever
+       they get close together), so the final front-to-back order is:
+       those three controls, then this island, then the whip-pan
+       overlay, then everything else on the page. */
     z-index: 10001;
     pointer-events: none;
     animation: bob 6s ease-in-out infinite;

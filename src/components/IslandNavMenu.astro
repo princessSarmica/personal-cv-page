@@ -95,8 +95,8 @@ const ICONS: Record<string, string> = {
 <style>
   /* Fixed to the top-left corner -- the mirror image of
      LanguageSwitcher's top-right placement, same z-index tier (see
-     that component's own comment for why 1000 is plenty to clear
-     every section/island on the page). `align-items: flex-start`
+     that component's own comment for why this now sits above
+     CornerIsland AND the whip-pan transition overlay). `align-items: flex-start`
      keeps the toggle button and the expandable panel below it
      sharing one left edge, which is what lets the dashed connector
      line (further down) line up with every circle's center using
@@ -125,7 +125,18 @@ const ICONS: Record<string, string> = {
     position: fixed;
     top: 0.75rem;
     left: 0.75rem;
-    z-index: 1000;
+    /* Bumped from 1000 to 10002 per your request: this needs to sit
+       above BOTH CornerIsland.astro's `.corner-island` (z-index:
+       10001 -- previously higher than this, which is what let it
+       paint over the nav menu whenever the two got close together)
+       and SectionTransitionOverlay.astro's whip-pan image (z-index:
+       10000), so the nav menu stays visible and clickable in front
+       of everything else on the page at all times, including while
+       the whip-pan is mid-sweep -- not just tied with
+       LanguageSwitcher/GitHubLink at the old 1000 tier, which sat
+       well UNDER the whip and would vanish under it. See those two
+       components' own comments for the matching tier. */
+    z-index: 10002;
 
     display: flex;
     flex-direction: column;

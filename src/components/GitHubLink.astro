@@ -35,7 +35,11 @@ const t = useTranslations(Astro.currentLocale);
     position: fixed;
     bottom: 0.75rem;
     left: 0.75rem;
-    z-index: 1000;
+    /* See IslandNavMenu.astro's `.island-nav` for the full reasoning
+       -- bumped from 1000 to 10002 so this stays visible in front of
+       CornerIsland (z-index: 10001) and the whip-pan overlay
+       (z-index: 10000) at all times, including mid-transition. */
+    z-index: 10002;
     box-sizing: border-box;
 
     width: var(--circle);

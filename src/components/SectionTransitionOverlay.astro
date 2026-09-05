@@ -84,11 +84,64 @@ import loadingJumpImage from '../images/loading_jump.webp';
       "(prefers-reduced-motion: reduce)"
     ).matches;
 
-    // Must match the CSS animation's own duration below exactly --
-    // this is how the script knows when "halfway through" actually
-    // is, since `animationend`/a mid-animation callback isn't precise
-    // enough to hit an exact 50% mark on its own.
-    const DURATION_MS = 550;
+    // Three explicit phases, each a separate CSS animation swapped in
+    // by this script (not one continuous 0%/50%/100% keyframe block
+    // like an earlier version of this used) -- per your report that
+    // the transition on phones would finish its sweep and reveal the
+    // destination section before that section had actually finished
+    // scrolling/painting into place, leaving a stale frame of the OLD
+    // section visible for a moment before it finally snapped over:
+    //
+    //   1. COVER (ENTER_MS) -- the whip sweeps in from off-screen to
+    //      fully covering the viewport. Matches `section-whip-cover`
+    //      below exactly.
+    //   2. HOLD (HOLD_MS) -- the whip stays fully covering the screen,
+    //      not animating at all (no keyframes running -- just sitting
+    //      at the position COVER finished at, via that animation's own
+    //      `forwards` fill mode). This is the actual fix: the old
+    //      version had no real hold at all, just the single instant
+    //      the 0%/50%/100% keyframes happened to pass through "fully
+    //      covered" on their way from entering to exiting -- on a slow
+    //      phone, painting the destination section (images decoding,
+    //      every section's own always-on bob/drift/sparkle CSS loops
+    //      starting up, etc.) can take noticeably longer than that
+    //      single instant, so the whip would already be uncovering
+    //      the page again before the destination was actually ready,
+    //      showing the stale OLD section peeking through underneath.
+    //      HOLD_MS is dead time bought specifically to cover that.
+    //   3. EXIT (EXIT_MS) -- the whip continues on to fully off-screen
+    //      the other side. Matches `section-whip-exit` below exactly.
+    //
+    // The actual scroll jump (IslandNavMenu.astro's listener on
+    // "section-transition:midpoint") happens the INSTANT phase 1
+    // ends and phase 2's hold begins -- i.e. as early as possible
+    // while still fully hidden -- so the whole of HOLD_MS plus all of
+    // EXIT_MS is buffer time before anyone could see anything, not
+    // just a fraction of it.
+    //
+    // All three numbers must match their CSS `animation-duration`
+    // counterparts below exactly, the same reason the old single
+    // DURATION_MS had to match its own CSS -- this script has no
+    // other way to know when a CSS-driven animation phase ends.
+    const ENTER_MS = 300;
+    const HOLD_MS = 350;
+    const EXIT_MS = 300;
+
+    // Tracks this component's own in-flight phase timers so a rapid
+    // repeat nav click (a fresh "trigger" event arriving before the
+    // previous whip finished its full cover-hold-exit sequence) can
+    // clear them before scheduling its own -- otherwise the OLD
+    // click's stale timers would still fire later, e.g. yanking
+    // `.is-covering`/`.is-exiting` off mid-way through the NEW click's
+    // own animation. IslandNavMenu.astro cancels its own scroll-jump
+    // side (via its per-click AbortController), but it doesn't know
+    // about this component's internal timers, so this needs its own
+    // bookkeeping.
+    let pendingTimeouts: number[] = [];
+    const clearPendingTimeouts = () => {
+      pendingTimeouts.forEach((id) => window.clearTimeout(id));
+      pendingTimeouts = [];
+    };
 
     document.addEventListener(
       "section-transition:trigger",
@@ -112,45 +165,76 @@ import loadingJumpImage from '../images/loading_jump.webp';
         const direction =
           event instanceof CustomEvent && event.detail?.direction === -1 ? -1 : 1;
 
+        // Cancel whichever phase a previous, still-in-flight whip was
+        // in before starting this one -- see `pendingTimeouts` above.
+        clearPendingTimeouts();
+
         // Restart from scratch even if a previous whip is still
-        // mid-flight (rapid repeat nav clicks): remove both classes,
-        // force a reflow so the browser forgets the animation ever
-        // ran, then re-add them -- without the forced reflow, adding
-        // the same class back-to-back is a no-op and the animation
-        // wouldn't restart. `is-reverse` (see the styles below) is
-        // what actually flips the sweep's direction to match.
-        overlay.classList.remove("is-playing", "is-reverse");
+        // mid-flight (rapid repeat nav clicks): remove every phase
+        // class, force a reflow so the browser forgets any animation
+        // ever ran, then re-add the first one -- without the forced
+        // reflow, adding the same class back-to-back is a no-op and
+        // the animation wouldn't restart. `is-reverse` (see the
+        // styles below) is what actually flips the sweep's direction
+        // to match.
+        overlay.classList.remove("is-covering", "is-exiting", "is-reverse");
         void overlay.offsetWidth;
         if (direction === -1) overlay.classList.add("is-reverse");
-        overlay.classList.add("is-playing");
+        overlay.classList.add("is-covering");
 
-        window.setTimeout(() => {
-          document.dispatchEvent(
-            new CustomEvent("section-transition:midpoint")
-          );
-        }, DURATION_MS / 2);
+        // Phase 1 -> 2: the instant COVER finishes, the whip is fully
+        // covering the screen and just sits there (see the HOLD
+        // explanation above) -- this is also the earliest safe moment
+        // for the actual scroll jump, so fire it right here.
+        pendingTimeouts.push(
+          window.setTimeout(() => {
+            document.dispatchEvent(
+              new CustomEvent("section-transition:midpoint")
+            );
+          }, ENTER_MS)
+        );
 
-        window.setTimeout(() => {
-          overlay.classList.remove("is-playing", "is-reverse");
-        }, DURATION_MS);
+        // Phase 2 -> 3: HOLD_MS after that, swap to the EXIT
+        // animation. `section-whip-exit`'s own 0% keyframe is
+        // `translateY(0%)` -- exactly where COVER's `forwards` fill
+        // left the element sitting during the hold -- so this is a
+        // seamless continuation, not a jump.
+        pendingTimeouts.push(
+          window.setTimeout(() => {
+            overlay.classList.remove("is-covering");
+            overlay.classList.add("is-exiting");
+          }, ENTER_MS + HOLD_MS)
+        );
+
+        // Phase 3 done: fully off-screen again, clean up both classes.
+        pendingTimeouts.push(
+          window.setTimeout(() => {
+            overlay.classList.remove("is-exiting", "is-reverse");
+          }, ENTER_MS + HOLD_MS + EXIT_MS)
+        );
       },
       { signal }
     );
 
-    cleanupTransitionOverlay = () => controller.abort();
+    cleanupTransitionOverlay = () => {
+      controller.abort();
+      clearPendingTimeouts();
+    };
   });
 </script>
 
 <style>
   .section-transition-overlay {
     /* Fixed + full-viewport, well above every other layer on the page
-       (the nav menu panel, the halftone cursor-spotlight, etc. all
-       sit well under 2000) -- this needs to cover literally
-       everything while it plays, with one deliberate exception:
-       CornerIsland.astro's `.corner-island` sits ABOVE this
-       (z-index: 10001) on purpose, so it stays visible in front of
-       the whip as it sweeps across the screen instead of being
-       covered like the rest of the page. */
+       (the halftone cursor-spotlight, section content, etc. all sit
+       well under 2000) -- this needs to cover literally everything
+       while it plays, with two deliberate exceptions, both per your
+       requests: CornerIsland.astro's `.corner-island` sits ABOVE this
+       (z-index: 10001), and IslandNavMenu/LanguageSwitcher/GitHubLink
+       sit above THAT (z-index: 10002) -- so the nav menu, language
+       switcher, GitHub link and the corner island all stay visible in
+       front of the whip as it sweeps across the screen, instead of
+       being covered like the rest of the page. */
     position: fixed;
     /* This image is a REPLACED element, so `inset: 0` on its own
        is not enough to make it fill the viewport: per the CSS sizing
@@ -202,27 +286,51 @@ import loadingJumpImage from '../images/loading_jump.webp';
     transform: translateY(var(--whip-from));
   }
 
-  /* The whip itself: enters from `--whip-from`, is fully covering the
-     viewport at the exact midpoint (this is the moment IslandNavMenu
-     performs the actual section jump, hidden underneath), then
-     continues the same direction on off to `--whip-to` -- one
-     continuous sweep, not a bounce. Default (no `.is-reverse`):
-     bottom to top, matching a downward jump -- see `.is-reverse`
-     below for the mirrored, upward-jump variant. */
-  @keyframes section-whip-pan {
-    0% {
+  /* Phase 1 (COVER): sweeps in from `--whip-from` (fully off-screen)
+     to fully covering the viewport. `forwards` fill mode below is
+     what makes the element actually STAY at `translateY(0%)` once
+     this finishes, rather than snapping back to its CSS resting
+     position -- that held-in-place moment IS the hold described in
+     the script above, not a separate animation of its own. */
+  @keyframes section-whip-cover {
+    from {
       transform: translateY(var(--whip-from));
     }
-    50% {
+    to {
       transform: translateY(0%);
     }
-    100% {
+  }
+
+  /* Phase 3 (EXIT): continues on from fully covering (`from` here
+     matches exactly where COVER's `forwards` fill left the element)
+     to fully off-screen the other side (`--whip-to`). Split from
+     COVER into its own animation/class specifically so the script
+     above can delay STARTING this one by an arbitrary hold, rather
+     than the whole cover-hold-exit sweep being one fixed-duration
+     animation with no way to pause partway through. */
+  @keyframes section-whip-exit {
+    from {
+      transform: translateY(0%);
+    }
+    to {
       transform: translateY(var(--whip-to));
     }
   }
 
-  .section-transition-overlay.is-playing {
-    animation: section-whip-pan 550ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  /* Default (no `.is-reverse`) direction for both phases: bottom to
+     top, matching a downward jump -- see `.is-reverse` below for the
+     mirrored, upward-jump variant. `300ms` here must match
+     ENTER_MS/EXIT_MS in the script above exactly (the hold between
+     them, HOLD_MS, is pure JS-side delay -- it has no CSS duration of
+     its own, since it's just the element sitting still between the
+     two animations). */
+  .section-transition-overlay.is-covering {
+    animation: section-whip-cover 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    will-change: transform;
+  }
+
+  .section-transition-overlay.is-exiting {
+    animation: section-whip-exit 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
     will-change: transform;
   }
 
@@ -231,8 +339,9 @@ import loadingJumpImage from '../images/loading_jump.webp';
      -- the exact mirror of the default, so the whip always continues
      whichever way the page was already moving instead of always
      sweeping the same direction regardless of the jump. Toggled
-     alongside `.is-playing` by the script above, per the `direction`
-     carried on the triggering event. */
+     alongside `.is-covering` (and kept through the later `.is-exiting`
+     hand-off) by the script above, per the `direction` carried on the
+     triggering event. */
   .section-transition-overlay.is-reverse {
     --whip-from: -100%;
     --whip-to: 100%;
