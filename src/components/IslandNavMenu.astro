@@ -358,6 +358,28 @@ const ICONS: Record<string, string> = {
     const controller = new AbortController();
     const { signal } = controller;
 
+    // Mobile perf fix: a long `scrollIntoView({behavior: "smooth"})` jump
+    // (e.g. Intro -> Bonus) forces the browser to animate-scroll across
+    // every section in between, each with its own always-on CSS bob/
+    // drift/sparkle loops still compositing the whole time -- exactly
+    // the kind of sustained, scroll-linked work that drops frames on
+    // mobile hardware (per your report that fast nav-menu jumps still
+    // feel stiff there even after the other perf fixes). An instant
+    // jump sidesteps that multi-section animation window entirely --
+    // same reasoning already used for the language-switch scroll
+    // restore in Layout.astro (`behavior: "instant"` to skip the
+    // page-wide `scroll-behavior: smooth` for that one jump). Also
+    // applied under `prefers-reduced-motion`, which this menu never
+    // checked before -- an animated scroll is exactly the kind of
+    // motion that setting asks to skip, matching how every other
+    // component in this project already treats it.
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    const scrollBehavior: ScrollBehavior =
+      prefersReducedMotion || isMobile ? "instant" : "smooth";
+
     const openLabel = toggle.dataset.labelOpen ?? "";
     const closeLabel = toggle.dataset.labelClose ?? "";
 
@@ -392,7 +414,7 @@ const ICONS: Record<string, string> = {
           // doesn't have one, so a menu click still goes somewhere.
           const targetEl = section?.querySelector(".content") ?? section;
           setOpen(false);
-          targetEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+          targetEl?.scrollIntoView({ behavior: scrollBehavior, block: "center" });
         },
         { signal }
       );
