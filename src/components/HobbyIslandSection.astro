@@ -916,7 +916,7 @@ const optimizedFountainImage = fountainImage
     // file (see the `.content` rule in that same media block).
     const isMobile = window.matchMedia("(max-width: 640px)").matches;
 
-    if (islands.length && !prefersReducedMotion) {
+    if (islands.length && !prefersReducedMotion && !isMobile) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
       const influenceRadius = 500; // px, push fades to 0 beyond this distance
       const ease = 0.08;
@@ -1104,7 +1104,15 @@ const optimizedFountainImage = fountainImage
     const desktopQuery = window.matchMedia("(min-width: 641px)");
 
     let frontIslandTopFraction = 0;
-    const frontIslandAlphaReady = frontIslandBaseImg
+    // Mobile perf fix: `positionFrontGroupBelowContent` below returns
+    // immediately (before ever reading `frontIslandTopFraction`) whenever
+    // `!desktopQuery.matches` -- the mobile stylesheet already stacks this
+    // group in normal flow instead. So on mobile this scan's result is
+    // never actually used; skipping it avoids decoding + walking the
+    // full (3840x2160) canvas of `frontIslandBaseImg` for a value nothing
+    // reads, on top of the two hotspot scans already skipped there (see
+    // the `isMobile` checks further below).
+    const frontIslandAlphaReady = frontIslandBaseImg && !isMobile
       ? scanAlphaBBoxFraction(frontIslandBaseImg).then((bbox) => {
           if (bbox) frontIslandTopFraction = bbox.top;
         })

@@ -259,8 +259,16 @@ const {
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
+    // Mobile perf fix: this loop drives the cursor-repel drift on the
+    // islands purely from `mousemove`, which never fires on a
+    // touchscreen -- without this guard it still self-schedules via
+    // `requestAnimationFrame` forever, reading `getBoundingClientRect()`
+    // on every island every frame for a "mouse position" that will
+    // never arrive. Matches the same `isMobile` gate already used for
+    // this exact loop in ArtIslandSection.astro.
+    const isMobile = window.matchMedia("(max-width: 640px)").matches;
 
-    if (islands.length && !prefersReducedMotion) {
+    if (islands.length && !prefersReducedMotion && !isMobile) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
       const influenceRadius = 500; // px, push fades to 0 beyond this distance
       const ease = 0.08;
