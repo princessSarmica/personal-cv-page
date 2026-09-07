@@ -1398,18 +1398,29 @@ const optimizedMoonBackground = await getImage({ src: moonBackground, width: 240
        ever add `.is-revealed` or play the bob keyframes, so the CSS
        needs to put both islands in their final, floating-but-static
        state on its own -- final artwork visible immediately, no
-       wireframe, no bob loop, no clouds drift either (this file's
-       other continuously-animated background layer, right below).
-       This is also a straightforward performance win on top of
-       fixing the disappearing islands: one less pair of rAF loops
-       (drift + hover-poll) and three fewer decorative animations
-       running on every mobile page-load. */
+       wireframe, no bob loop. This is also a straightforward
+       performance win on top of fixing the disappearing islands: one
+       less pair of rAF loops (drift + hover-poll) and two fewer
+       decorative animations running on every mobile page-load.
+
+       Follow-up, per your report that the clouds specifically
+       weren't moving on mobile: they used to be stopped here too
+       (`.art-clouds-track { animation: none; }`, right below this
+       comment in an earlier version) as an extra, bundled-in
+       performance trim alongside the two rules above -- but unlike
+       the mouse-repel drift (a `requestAnimationFrame` loop reading
+       `getBoundingClientRect()` every frame) or the wireframe reveal
+       (a canvas-adjacent IntersectionObserver + JS-driven class
+       toggle), the clouds are a single, plain CSS `@keyframes` loop
+       animating nothing but `transform` -- cheap, GPU-composited,
+       and not something this project's mobile perf work elsewhere
+       this session was ever actually targeting. Removed the override
+       here so the clouds keep drifting on mobile the same as
+       desktop; still frozen under `@media (prefers-reduced-motion:
+       reduce)` above, since THAT one is a genuine accessibility
+       requirement rather than a performance trim. */
     .art-island-top,
     .art-island-bottom {
-      animation: none;
-    }
-
-    .art-clouds-track {
       animation: none;
     }
 
@@ -1513,17 +1524,19 @@ const optimizedMoonBackground = await getImage({ src: moonBackground, width: 240
        islands permanently stuck at `opacity: 0`. With the JS no
        longer running here either, the CSS puts both islands straight
        into their final, floating-but-static state: final artwork
-       visible immediately, no wireframe, no bob loop, no clouds
-       drift. No `.content` width change here (unlike some of this
-       file's sibling sections) -- these islands already sit close
-       enough to the text column at this width that widening it risks
-       the two overlapping. */
+       visible immediately, no wireframe, no bob loop. No `.content`
+       width change here (unlike some of this file's sibling
+       sections) -- these islands already sit close enough to the
+       text column at this width that widening it risks the two
+       overlapping.
+
+       Follow-up: the clouds keep drifting here too now, same as the
+       portrait block above -- see that block's comment for why the
+       `.art-clouds-track { animation: none; }` rule that used to sit
+       here was removed (a plain, cheap CSS loop, not one of the
+       actual perf-motivated cuts). */
     .art-island-top,
     .art-island-bottom {
-      animation: none;
-    }
-
-    .art-clouds-track {
       animation: none;
     }
 

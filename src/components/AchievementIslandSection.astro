@@ -1313,7 +1313,7 @@ const {
        vertical position needs its own tweak too. */
     .achievement-island-right {
       left: 50%;
-      margin-left: -45px;
+      margin-left: -65px;
       right: auto;
       top: 20vh;
       /* New: the base rule's `width: clamp(130px, 12vw, 200px)`
@@ -1321,14 +1321,26 @@ const {
          screen — 12vw of a ~375px-wide screen is only ~45px, well
          under that floor, so the clamp was always resolving to a
          flat 130px on mobile regardless of viewport width, never
-         actually shrinking further. Per your request to make the
-         floating island smaller specifically on mobile, this
-         overrides that floor directly with a smaller flat size
+         actually shrinking further. Per your request (back then) to
+         make the floating island smaller specifically on mobile,
+         this overrode that floor directly with a smaller flat size
          instead of trying to coax the clamp lower (the `12vw` middle
          term still won't win at these widths, so a clamp isn't doing
-         anything useful here) — adjust this value directly for a
-         bigger/smaller look. */
-      width: 90px;
+         anything useful here).
+
+         Follow-up, per your later request to make the statue a bit
+         bigger on mobile again: `90px` -> `130px` -- which happens to
+         land exactly back on the base rule's own clamp floor, i.e.
+         the size it would already be at this width with no mobile
+         override at all (matching how it already renders on
+         landscape phones, which have no override of their own).
+         `margin-left` is hard-coded to half of `width` (see the
+         component-level comment above for why: it's the fixed-width
+         horizontal-centering trick) so it had to move too --
+         `-45px` -> `-65px` (half of `130px`) -- to keep the statue
+         centered rather than drifting off-center. Adjust both
+         together for any further size change. */
+      width: 130px;
     }
 
     /* New: on mobile, crop `.achievement-background-image` left/right
