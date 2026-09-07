@@ -184,6 +184,99 @@ const faviconIcoHref = withBase('favicon.ico');
   });
 </script>
 
+<script>
+  // Pauses every currently-running animation on the page for as long
+  // as you're actively scrolling, per your report that fast scrolling
+  // and fast nav-menu jumps both still felt stiff even after the
+  // loading_jump.webp cover (and the forced mobile paging that used
+  // to trigger it) were removed. That stiffness was never really
+  // ABOUT the cover or the paging -- it's that every section on this
+  // page runs its own always-on decorative loop (each island's own
+  // `bob-*`, every section's own cloud-drift track, ~25-30 of them in
+  // total across the whole page), all animating at once regardless of
+  // scroll position. A native smooth-scroll or a fast fling has to
+  // share the compositor with every one of those loops the whole way
+  // down, which is the actual source of the jank -- the whip-pan
+  // never fixed that cost, it only ever hid it behind a cover image
+  // while it happened.
+  //
+  // `document.getAnimations()` (no per-section changes needed at
+  // all -- this reaches every CSS animation AND transition on the
+  // page, whatever selector or file it's declared in) returns every
+  // one of those as a pausable `Animation` object. Pausing all of
+  // them the instant a scroll starts, then resuming all of them a
+  // short beat after the LAST scroll event (not the first -- see
+  // `RESUME_DELAY_MS` below), removes exactly the extra compositor
+  // work a scroll was competing with, for exactly as long as a scroll
+  // is actually happening, with nothing to look at for the visitor:
+  // a decorative loop simply continues from the exact point it was
+  // paused at once you stop, and a one-shot reveal animation (a
+  // glitch-pop, a materialize) that happens to be mid-play when a
+  // scroll starts pauses and resumes the same way -- neither restarts
+  // or skips ahead, so nothing looks different, it just stops costing
+  // anything while you're mid-scroll.
+  //
+  // Feature-detected (`typeof document.getAnimations === "function"`)
+  // since it's a newer API than most of what this project otherwise
+  // relies on -- on a browser old enough not to have it, this quietly
+  // does nothing rather than throwing, leaving scrolling exactly as
+  // stiff (or not) as it already was for that visitor.
+  let cleanupScrollAnimationPause: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupScrollAnimationPause?.();
+
+    if (typeof document.getAnimations !== "function") {
+      cleanupScrollAnimationPause = null;
+      return;
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // How long a scroll has to have been quiet before animations
+    // resume -- long enough to not immediately flip back on between
+    // two ticks of the same fling, short enough that resuming still
+    // reads as "right after you stopped" rather than a noticeable
+    // extra delay.
+    const RESUME_DELAY_MS = 200;
+
+    let isPaused = false;
+    let resumeTimer: number | undefined;
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (!isPaused) {
+          isPaused = true;
+          document.getAnimations().forEach((animation) => animation.pause());
+        }
+
+        // Pushes the resume point back on every scroll event, so a
+        // sustained fling (many events in a row) only resumes once
+        // AFTER the last one of them, not partway through.
+        window.clearTimeout(resumeTimer);
+        resumeTimer = window.setTimeout(() => {
+          isPaused = false;
+          document.getAnimations().forEach((animation) => animation.play());
+        }, RESUME_DELAY_MS);
+      },
+      { signal, passive: true }
+    );
+
+    cleanupScrollAnimationPause = () => {
+      controller.abort();
+      window.clearTimeout(resumeTimer);
+      // Belt-and-suspenders for a language switch landing mid-scroll:
+      // don't leave anything paused behind for the next page's own
+      // init to inherit.
+      if (isPaused) {
+        document.getAnimations().forEach((animation) => animation.play());
+      }
+    };
+  });
+</script>
+
 <style is:global>
   :root {
     color-scheme: light;
