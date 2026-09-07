@@ -926,7 +926,23 @@ const optimizedFountainImage = fountainImage
     // with how every other one-time capability check in this codebase
     // works. 640px matches the breakpoint used everywhere else in this
     // file (see the `.content` rule in that same media block).
-    const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    //
+    // Widened to also catch short LANDSCAPE phones, matching the same
+    // follow-up already made to this exact check in
+    // ArtIslandSection.astro/AchievementIslandSection.astro/
+    // ComputerIslandSection.astro -- a landscape phone is wide enough
+    // to dodge the 640px width check but is still a touchscreen with
+    // no mouse to drift toward and no cursor to hover the frost/palm
+    // hotspots with, so without this the parallax rAF loop AND both
+    // hotspots' `fitHotspotToAlpha()` canvas scans were still running
+    // on wide phone screens, per your report that scrolling still felt
+    // like it was struggling there. The matching CSS `display: none`
+    // rule is folded into the landscape media query below too, so the
+    // hotspots don't get left as dangling, invisible tap targets now
+    // that their JS wiring is skipped here as well.
+    const isMobile = window.matchMedia(
+      "(max-width: 640px), (max-height: 500px) and (orientation: landscape)"
+    ).matches;
 
     if (islands.length && !prefersReducedMotion && !isMobile) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
@@ -2683,6 +2699,21 @@ const optimizedFountainImage = fountainImage
 
     .body-text {
       font-size: clamp(0.85rem, 4vh, 1rem);
+    }
+
+    /* Same fix as the `@media (max-width: 640px)` block above, folded
+       in here too now that the `isMobile` check in the <script> above
+       treats short landscape phones the same as narrow portrait ones
+       (see that comment for the full story) -- without this, a
+       landscape phone would skip the JS that wires up the frost/palm
+       hotspots but still show their now-inert, invisible
+       `pointer-events: auto` tap targets, along with the overlay
+       artwork stuck in its clipped-away resting state. */
+    .hobby-frozen-overlay,
+    .hobby-frost-hotspot,
+    .hobby-palm-80s,
+    .hobby-palm-hotspot {
+      display: none;
     }
   }
 </style>

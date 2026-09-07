@@ -265,8 +265,16 @@ const {
     // `requestAnimationFrame` forever, reading `getBoundingClientRect()`
     // on every island every frame for a "mouse position" that will
     // never arrive. Matches the same `isMobile` gate already used for
-    // this exact loop in ArtIslandSection.astro.
-    const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    // this exact loop in ArtIslandSection.astro -- including that
+    // file's later widening to ALSO catch short landscape phones
+    // (`max-width: 640px` alone misses those, since they're wide
+    // enough to dodge it but are still touchscreens with no mouse to
+    // repel from), per your report that scrolling still felt like it
+    // was struggling on wide phone screens. See ArtIslandSection.astro's
+    // own comment on this exact line for the full reasoning.
+    const isMobile = window.matchMedia(
+      "(max-width: 640px), (max-height: 500px) and (orientation: landscape)"
+    ).matches;
 
     if (islands.length && !prefersReducedMotion && !isMobile) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
