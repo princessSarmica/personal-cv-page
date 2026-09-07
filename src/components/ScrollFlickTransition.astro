@@ -1,0 +1,154 @@
+---
+// src/components/ScrollFlickTransition.astro
+//
+// Experimental, per your request: play the SAME whip-pan overlay that
+// IslandNavMenu.astro's menu clicks trigger, but now also for a fast
+// scroll-flick past a section boundary on phones -- purely as a
+// visual flourish. This does NOT touch scroll position at all (unlike
+// the nav-menu path, which jumps you and hides that jump behind the
+// whip): your own scroll is already moving you smoothly from section
+// to section, so there's no jump to disguise here. This component's
+// only job is deciding WHEN a scroll felt like a deliberate fast
+// flick (as opposed to a slow, deliberate read-as-you-go scroll) and,
+// when it does, dispatching the exact same "section-transition:trigger"
+// event IslandNavMenu.astro dispatches on click -- see
+// SectionTransitionOverlay.astro's top-of-file comment for the full
+// event contract this reuses. Nothing else needs to change: the
+// overlay component doesn't know or care WHICH of the two callers
+// asked it to play, and nothing here ever listens for
+// "section-transition:midpoint" (that event only matters to
+// IslandNavMenu.astro's own jump-hiding logic), so this can never
+// accidentally cause a scroll jump.
+//
+// Renders no markup of its own -- this is a pure behavior component,
+// same idea as the halftone-spotlight driver script at the bottom of
+// Layout.astro, just broken out to its own file since it's a distinct
+// concern (deciding when a "transition" should play) from the overlay
+// itself (playing it).
+---
+
+<script>
+  // Same re-init-on-every-soft-navigation pattern as every other
+  // per-component script in this project -- see any other
+  // `astro:page-load` listener's comment for why (a `<ClientRouter />`
+  // soft navigation reuses the same document, so a script that only
+  // ever ran at the top level would go quiet after the first language
+  // switch).
+  let cleanupScrollFlick: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupScrollFlick?.();
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    // Phones only, per your request ("is it possible to play this
+    // when you scroll on phones?") -- same widened check (portrait
+    // AND short landscape) used everywhere else in this codebase for
+    // "is this actually a phone", not a desktop window that happens
+    // to be narrow or short. A desktop mouse-wheel scroll never
+    // enters this at all.
+    const isMobile = window.matchMedia(
+      "(max-width: 640px), (max-height: 500px) and (orientation: landscape)"
+    ).matches;
+
+    if (prefersReducedMotion || !isMobile) {
+      cleanupScrollFlick = null;
+      return;
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // How fast counts as a deliberate "flick" rather than an ordinary
+    // read-as-you-scroll pace, in pixels per millisecond (1.4 ==
+    // ~1400px every second). Tuned by feel against a phone-sized
+    // viewport, not measured -- if this fires too eagerly (playing on
+    // completely normal scrolling) raise it; if it barely ever fires,
+    // lower it.
+    const FLICK_VELOCITY_PX_MS = 1.4;
+
+    // Plain `scrollY`/`performance.now()` reads on a passive scroll
+    // listener -- no `getBoundingClientRect()` here (that would force
+    // a layout read on every single scroll event, fighting the exact
+    // scroll-perf work done elsewhere in this project) -- so this
+    // stays cheap enough to run on every native scroll event without
+    // its own `requestAnimationFrame` throttling.
+    let lastScrollY = window.scrollY;
+    let lastScrollT = performance.now();
+    let velocityPxMs = 0;
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        const now = performance.now();
+        const y = window.scrollY;
+        const dt = now - lastScrollT;
+        // Guards against a division blow-up on two events landing in
+        // the same tick (dt could be 0) -- just skip updating the
+        // velocity for that one event rather than producing Infinity.
+        if (dt > 0) {
+          velocityPxMs = (y - lastScrollY) / dt;
+        }
+        lastScrollY = y;
+        lastScrollT = now;
+      },
+      { passive: true, signal }
+    );
+
+    // One shared observer across every real content section (all of
+    // them carry `.sky-chain` -- see EducationIslandSection.astro,
+    // ArtIslandSection.astro, etc.) instead of one per section, so
+    // "which section are we currently over" is tracked in a single
+    // place. Same `rootMargin: "-40% 0px -40% 0px"`, `threshold: 0`
+    // shape as each section's own text-highlight observer (see e.g.
+    // ArtIslandSection.astro's `.content.is-highlighted` script) --
+    // shrinks the trigger area to a thin band across the viewport's
+    // vertical middle, so `isIntersecting` flips to `true` right as a
+    // section becomes the one centered on screen, independent of how
+    // tall any individual section is.
+    const sections = document.querySelectorAll<HTMLElement>(".sky-chain");
+    // Skips the very first callback IntersectionObserver always fires
+    // immediately for every newly-observed target (reporting whichever
+    // sections already happen to overlap the middle band at page-load
+    // time) -- without this, landing on the page at all would count as
+    // "crossing into" that first section and could fire the whip-pan
+    // before you've scrolled even once.
+    let hasSettledInitialSections = false;
+
+    if (sections.length) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (!hasSettledInitialSections) {
+            hasSettledInitialSections = true;
+            return;
+          }
+
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+
+            if (Math.abs(velocityPxMs) >= FLICK_VELOCITY_PX_MS) {
+              const direction: 1 | -1 = velocityPxMs > 0 ? 1 : -1;
+              document.dispatchEvent(
+                new CustomEvent("section-transition:trigger", {
+                  detail: { direction },
+                })
+              );
+            }
+          }
+        },
+        { rootMargin: "-40% 0px -40% 0px", threshold: 0 }
+      );
+
+      sections.forEach((section) => observer.observe(section));
+
+      cleanupScrollFlick = () => {
+        controller.abort();
+        observer.disconnect();
+      };
+    } else {
+      cleanupScrollFlick = () => controller.abort();
+    }
+  });
+</script>
