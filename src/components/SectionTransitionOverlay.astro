@@ -253,10 +253,40 @@ import loadingJumpImage from '../images/loading_jump.webp';
        whose `dvh` recalculation as mobile browser chrome shows/hides
        is a known trouble spot for FIXED, ANIMATED elements -- `%`
        here resolves against the same fixed-position containing block
-       without that dynamic-viewport-unit behavior. */
+       without that dynamic-viewport-unit behavior.
+
+       Follow-up, per your report of a gap of cut-off space at the
+       bottom of the screen (the sweep image not quite reaching the
+       edge) specifically once the scroll-flick trigger was added:
+       `%`/`vh`-based sizing here resolves against the SMALL viewport
+       (the shorter measurement, with the browser's address bar still
+       showing) on the phones that make this distinction. A fast
+       flick is exactly what makes a mobile browser auto-collapse
+       that address bar mid-scroll, which hands you back MORE visible
+       height than the overlay was sized for an instant earlier --
+       precisely the gap you saw, and precisely why it only showed up
+       "sometimes" (only alongside a fast flick, not a slow scroll or
+       a nav-menu click, where the chrome doesn't move mid-animation).
+       `height: 100lvh` (Large Viewport Height -- the viewport's size
+       with the browser's UI treated as fully RETRACTED, i.e. the
+       biggest it can ever be) fixes this without bringing back the
+       `dvh` problem noted above: unlike `dvh`, `lvh` is a STATIC
+       value that does not itself re-fire/recalculate as the address
+       bar animates in and out mid-scroll, so there's no live-resizing
+       containing block for the whip's own `translateY` sweep to
+       glitch against -- it's simply always sized generously enough
+       to cover the tallest the visible area can ever get, in one
+       shot, which happens to slightly overshoot (harmlessly, off the
+       bottom edge) on the rarer occasions the address bar is still
+       showing. `height: 100%` is kept directly above as the fallback
+       for any browser old enough not to understand `lvh` -- an
+       unsupported unit makes the whole declaration invalid, which
+       CSS ignores outright, silently leaving the plain `%` value
+       from the line above still in effect. */
     inset: 0;
     width: 100%;
     height: 100%;
+    height: 100lvh;
     z-index: 10000;
     /* `loading_jump.webp` itself has a soft transparent fade baked
        into its own top and bottom edges (checked directly against
