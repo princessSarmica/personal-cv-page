@@ -123,7 +123,17 @@ import loadingJumpImage from '../images/loading_jump.webp';
     // counterparts below exactly, the same reason the old single
     // DURATION_MS had to match its own CSS -- this script has no
     // other way to know when a CSS-driven animation phase ends.
-    const ENTER_MS = 300;
+    // ENTER_MS trimmed from 300 to 200, per your report that when the
+    // page is struggling to finish loading/decoding a section's
+    // assets, having this whip cover the screen SOONER helps hide
+    // that stutter -- the sooner COVER finishes, the sooner
+    // `section-transition:midpoint` fires below and the sooner the
+    // (still fully hidden) destination section gets its scroll jump
+    // and starts painting behind the now-opaque overlay, buying it
+    // more of HOLD_MS to actually finish before EXIT reveals it.
+    // HOLD_MS/EXIT_MS left as-is -- only how fast the cover itself
+    // arrives was the ask.
+    const ENTER_MS = 200;
     const HOLD_MS = 350;
     const EXIT_MS = 300;
 
@@ -381,13 +391,17 @@ import loadingJumpImage from '../images/loading_jump.webp';
 
   /* Default (no `.is-reverse`) direction for both phases: bottom to
      top, matching a downward jump -- see `.is-reverse` below for the
-     mirrored, upward-jump variant. `300ms` here must match
+     mirrored, upward-jump variant. `200ms`/`300ms` here must match
      ENTER_MS/EXIT_MS in the script above exactly (the hold between
      them, HOLD_MS, is pure JS-side delay -- it has no CSS duration of
      its own, since it's just the element sitting still between the
-     two animations). */
+     two animations). COVER is intentionally quicker than EXIT now --
+     see ENTER_MS's own comment above -- getting the screen covered
+     sooner matters more here than a leisurely entrance, while EXIT
+     (already hidden behind a fully-opaque frame) has nothing left to
+     rush. */
   .section-transition-overlay.is-covering {
-    animation: section-whip-cover 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: section-whip-cover 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
     will-change: transform;
   }
 
