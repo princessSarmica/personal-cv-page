@@ -8,13 +8,15 @@ import CornerIsland from '../components/CornerIsland.astro';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import IslandNavMenu from '../components/IslandNavMenu.astro';
 import GitHubLink from '../components/GitHubLink.astro';
-import SectionTransitionOverlay from '../components/SectionTransitionOverlay.astro';
-// ScrollFlickTransition.astro's own mount used to live here -- replaced
-// by MobileSectionScroll.astro per your request to turn mobile
-// scrolling itself into full section-to-section paging (see that
-// file's own top-of-file comment for why the older, cosmetic-only
-// component no longer fits alongside it). Left on disk, just unused.
-import MobileSectionScroll from '../components/MobileSectionScroll.astro';
+// SectionTransitionOverlay.astro (the loading_jump.webp whip-pan
+// cover) and MobileSectionScroll.astro (the "one swipe = one section"
+// mobile paging that used to trigger it) are both unmounted per your
+// request: nav-menu clicks and mobile scrolling should just go
+// straight to the target section, with no image sweeping across the
+// screen in between and no scroll-hijacking on mobile at all. Both
+// files -- along with ScrollFlickTransition.astro, unused even
+// earlier -- are left on disk rather than deleted; say the word if
+// you'd like any of them actually removed.
 
 interface Props {
   title?: string;
@@ -87,8 +89,6 @@ const faviconIcoHref = withBase('favicon.ico');
     <LanguageSwitcher />
     <IslandNavMenu />
     <GitHubLink />
-    <SectionTransitionOverlay />
-    <MobileSectionScroll />
     <slot />
     <CornerIsland />
     <div class="halftone-spotlight" aria-hidden="true"></div>
@@ -234,26 +234,6 @@ const faviconIcoHref = withBase('favicon.ico');
        in the first place. */
     overflow-x: hidden;
     overflow-x: clip;
-  }
-
-  /* MobileSectionScroll.astro clamps `window.scrollY` back to the
-     current section's own edge the instant you try to scroll past
-     it, then plays the whip-pan to hand off to the next/previous
-     section. Without this, that clamp was visibly fighting iOS
-     Safari's own elastic rubber-band bounce at each section boundary
-     (the page would bounce past the edge on its own, then get
-     yanked back by the clamp) -- `contain` stops the browser's own
-     overscroll effect (and, just as importantly, stops a spent
-     scroll gesture from "chaining" past this page's own scroll
-     container into browser-chrome gestures like pull-to-refresh)
-     without needing MobileSectionScroll.astro to fight it frame by
-     frame. Scoped to the same mobile breakpoint as that component's
-     own `isMobile` check -- desktop's scroll is untouched by any of
-     this. */
-  @media (max-width: 640px), (max-height: 500px) and (orientation: landscape) {
-    html {
-      overscroll-behavior-y: contain;
-    }
   }
 
   body {

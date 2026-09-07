@@ -374,114 +374,13 @@ const ICONS: Record<string, string> = {
     const controller = new AbortController();
     const { signal } = controller;
 
-    // Tracks whichever nav click is still mid-flight -- either still
-    // waiting out its NUDGE_DURATION_MS delay, or already waiting on the
-    // whip-pan's midpoint. A fast second click aborts this instead of
-    // leaving the first click's timer/listener registered -- otherwise
-    // both would eventually fire (each hidden behind its own overlay
-    // sweep, or worse, overlapping), landing on whichever happened to
-    // resolve last instead of cleanly cancelling in favor of the
-    // section you actually clicked last.
-    let pendingJump: AbortController | null = null;
-
-    // Every nav-menu jump now happens in two phases, so it reads as
-    // an actual scroll gaining speed rather than a flat teleport:
-    //
-    //   1. A short, hand-animated NUDGE in the correct direction
-    //      plays immediately, over exactly NUDGE_DURATION_MS -- a
-    //      real `window.scrollTo` driven frame-by-frame below, not
-    //      the browser's own `behavior: "smooth"`. Two earlier
-    //      versions of this used native smooth-scroll instead, and
-    //      both hit the same root problem: a native smooth-scroll's
-    //      real duration isn't something you actually control, so it
-    //      was either too short (`scrollIntoView` toward a nearby
-    //      section finishing well before the whip-pan even started,
-    //      so the page had already fully arrived by the time it
-    //      played -- looking like "arrive, THEN this random frame
-    //      plays") or just unpredictable (a `scrollBy` nudge whose
-    //      native animation settled noticeably before the whip-pan's
-    //      own fixed delay was up, leaving a visible dead pause in
-    //      between). Driving the nudge by hand means its duration IS
-    //      a number we choose, so it lines up with when the whip-pan
-    //      starts by construction, not by guessing at someone else's
-    //      animation.
-    //   2. The instant NUDGE_DURATION_MS is up, the whip-pan overlay
-    //      (see SectionTransitionOverlay.astro) sweeps in and masks
-    //      the rest of the trip: dispatching "section-transition:
-    //      trigger" and waiting for that component's "section-
-    //      transition:midpoint" event, which fires the instant the
-    //      overlay is fully covering the screen. At that moment we
-    //      snap straight to the exact target with "instant" --
-    //      hidden behind the overlay, this covers the entire
-    //      remaining distance (all of it, since step 1 only ever
-    //      nudged a little way) AND sidesteps the same multi-section
-    //      animation cost (every section's own always-on CSS
-    //      bob/drift/sparkle loops compositing the whole way) that
-    //      the old mobile-only "instant" fix targeted -- now handled
-    //      for every device via the overlay.
-    //
-    // `prefersReducedMotion` skips step 1's visible nudge entirely
-    // (jumping straight to the trigger) on top of the overlay
-    // component's own check, which already skips ITS animation and
-    // fires the midpoint immediately -- between the two, reduced
-    // motion gets a single instant jump with no visible motion at
-    // all, same as before this two-phase version.
+    // Whether to skip the animated scroll below in favor of landing
+    // instantly -- prefers-reduced-motion means "skip animated
+    // scrolling in general", not just this project's own decorative
+    // animation loops, so a nav-menu click respects it too.
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
-
-    // How far step 1 nudges the page, in pixels, and exactly how
-    // long that nudge takes to play. Deliberately a short distance
-    // relative to how tall a section is (this is a "we're moving"
-    // cue, not a real fraction of the trip), and the whip-pan is
-    // triggered the moment this many ms are up -- see the comment
-    // above for why one shared, exact number beats two independently
-    // guessed ones.
-    const NUDGE_PX = 140;
-    const NUDGE_DURATION_MS = 220;
-
-    // Animates `window.scrollY` by `distance` pixels over `duration`
-    // ms, ease-out (fast start, gentle finish -- reads as "giving it
-    // a push," not a linear slide). Explicit `behavior: "instant"`
-    // on every frame bypasses this page's global
-    // `scroll-behavior: smooth` (see the styles below), which would
-    // otherwise try to smooth-animate each of OUR already-animated
-    // intermediate positions too, stacking a second, fighting
-    // animation on top of this one. `signal` is `jumpSignal` (below)
-    // -- a fast second click aborting mid-nudge stops this from
-    // still fighting over the scroll position once the new click's
-    // own nudge starts.
-    function animateNudge(distance: number, duration: number, signal: AbortSignal) {
-      const startY = window.scrollY;
-      const startTime = performance.now();
-      const step = (now: number) => {
-        if (signal.aborted) return;
-        const t = Math.min(1, (now - startTime) / duration);
-        const eased = 1 - Math.pow(1 - t, 3);
-        window.scrollTo({ top: startY + distance * eased, behavior: "instant" });
-        if (t < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    }
-
-    // Same warm-up MobileSectionScroll.astro's own `jumpTo` does, and
-    // for the same reason -- see that file's `preloadSectionImages`
-    // for the full explanation. Duplicated rather than shared because
-    // a nav-menu click's own jump is dispatched from here, not there:
-    // this component needs its own copy of "flip this section's still-
-    // lazy images to eager" to warm the section BEFORE the whip-pan
-    // even starts covering the screen, exactly like the mobile-scroll
-    // paging case does. Harmless to call twice for the same section
-    // (once from here, once from there) -- the selector only matches
-    // images still marked "lazy", so a second call simply finds
-    // nothing left to flip.
-    function preloadSectionImages(section: Element | null) {
-      section
-        ?.querySelectorAll<HTMLImageElement>('img[loading="lazy"]')
-        .forEach((img) => {
-          img.loading = "eager";
-        });
-    }
 
     const openLabel = toggle.dataset.labelOpen ?? "";
     const closeLabel = toggle.dataset.labelClose ?? "";
@@ -517,80 +416,17 @@ const ICONS: Record<string, string> = {
           // doesn't have one, so a menu click still goes somewhere.
           const targetEl = section?.querySelector(".content") ?? section;
           setOpen(false);
-          preloadSectionImages(section);
 
-          // Which way this jump actually goes -- above vs. below where
-          // the target needs to end up, by the sign of its current
-          // position relative to the viewport's own vertical center.
-          // Shared by phase 1's nudge (below) AND passed along to the
-          // whip-pan overlay via the trigger event's `detail`, so the
-          // overlay can play its sweep in the matching direction --
-          // entering from the bottom and exiting the top for a downward
-          // jump, or reversed (enter top, exit bottom) for an upward
-          // one -- instead of always playing the same way regardless of
-          // which way the page is actually moving.
-          const direction: 1 | -1 =
-            targetEl && targetEl.getBoundingClientRect().top < window.innerHeight / 2
-              ? -1
-              : 1;
-
-          // `pendingJump` (its own AbortController, separate from the
-          // shared `signal`) is what lets a fast second click cancel
-          // whichever phase the previous click is still in -- the
-          // nudge/timer below, or the wait on the whip-pan's midpoint
-          // -- instead of both eventually landing; `cleanupIslandNav`
-          // also aborts it, so a language switch mid-flight cleans it
-          // up the same way.
-          pendingJump?.abort();
-          const thisJump = new AbortController();
-          pendingJump = thisJump;
-          const jumpSignal = thisJump.signal;
-
-          // Phases 2+3 (whip-pan sweep, then the exact-target snap at
-          // its midpoint) -- shared between the reduced-motion path
-          // (called immediately, below) and the normal path (called
-          // after NUDGE_DURATION_MS, once phase 1 has had its moment).
-          const playWhipAndJump = () => {
-            document.addEventListener(
-              "section-transition:midpoint",
-              () => {
-                targetEl?.scrollIntoView({ behavior: "instant", block: "center" });
-                // Belt-and-suspenders: if this click's own nudge (below)
-                // still has a frame queued -- e.g. it got paused by the
-                // tab being backgrounded mid-animation and is only now
-                // catching up -- abort it via its own controller
-                // (`thisJump`, not the outer `pendingJump`, in case a
-                // newer click has already replaced that) so it can't
-                // fire one more `scrollTo` afterward and undo the jump
-                // we just made.
-                thisJump.abort();
-              },
-              { signal: jumpSignal, once: true }
-            );
-            document.dispatchEvent(
-              new CustomEvent("section-transition:trigger", { detail: { direction } })
-            );
-          };
-
-          if (prefersReducedMotion) {
-            playWhipAndJump();
-            return;
-          }
-
-          // Phase 1: a short, hand-animated nudge in the correct
-          // direction (computed above) starts moving right away.
-          if (targetEl) {
-            animateNudge(direction * NUDGE_PX, NUDGE_DURATION_MS, jumpSignal);
-          }
-
-          const preScrollTimer = window.setTimeout(playWhipAndJump, NUDGE_DURATION_MS);
-
-          // A plain `setTimeout` doesn't know about AbortSignal on its
-          // own -- without this, a click superseded by a faster second
-          // one would still fire its whip NUDGE_DURATION_MS later even
-          // though `pendingJump` (and everyone listening on it) has
-          // already moved on.
-          jumpSignal.addEventListener("abort", () => window.clearTimeout(preScrollTimer));
+          // Straight to the target -- no whip-pan cover, no
+          // preparatory nudge -- per your request, a nav-menu click
+          // just scrolls to the section it points at. `instant` under
+          // prefers-reduced-motion, `smooth` otherwise, leaning
+          // entirely on the browser's own native scroll animation
+          // rather than anything hand-driven.
+          targetEl?.scrollIntoView({
+            behavior: prefersReducedMotion ? "instant" : "smooth",
+            block: "center",
+          });
         },
         { signal }
       );
@@ -623,7 +459,6 @@ const ICONS: Record<string, string> = {
 
     cleanupIslandNav = () => {
       controller.abort();
-      pendingJump?.abort();
     };
   });
 </script>
