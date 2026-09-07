@@ -1437,6 +1437,8 @@ const {
     }
   }
 
+
+
   .eyebrow {
     position: relative;
     isolation: isolate;
@@ -1653,6 +1655,44 @@ const {
        inherited from the base rule unchanged. */
     .content {
       top: 26%;
+    }
+  }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- h2's `4vw` term a few rules down keeps
+     growing with that extra width even though there's no extra
+     height to fit the wrapped lines it produces, which is what was
+     pushing this section's text into neighboring sections. Two
+     changes together: `.content` gets noticeably wider here (nothing
+     else in this section sits near it at this width, unlike e.g.
+     ComputerIslandSection or ArtIslandSection, which don't get this
+     because their islands already sit close enough to the text to
+     collide with a wider box), so a line of text has more room
+     before it needs to wrap at all; and the three font sizes below
+     switch from scaling off viewport WIDTH to viewport HEIGHT, tying
+     text size to whichever dimension is actually scarce in this
+     orientation instead of the one that isn't. `max-height: 500px`
+     catches real landscape phones (a portrait phone is always taller
+     than that) without also catching a landscape TABLET (iPad
+     landscape is 768px tall, well clear of this), and
+     `orientation: landscape` on top of that keeps a genuinely short
+     DESKTOP window from picking up phone-tuned sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .content {
+      width: min(46ch, 62%);
+    }
+
+    .eyebrow {
+      font-size: clamp(0.65rem, 3.2vh, 0.8rem);
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 7vh, 2rem);
+    }
+
+    .body-text {
+      font-size: clamp(0.85rem, 4vh, 1rem);
     }
   }
 </style>

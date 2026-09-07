@@ -337,7 +337,23 @@ const {
   moonBackground,
   cloudsBackground,
 } = Astro.props;
-const optimizedMoonBackground = await getImage({ src: moonBackground });
+// New: capped to `width: 2400` -- per your report of choppy/"pop-in"
+// scrolling on mobile, this file was traced as the single biggest
+// outlier among this site's background images by far (5.7MB, vs
+// under 1MB for every other one at similar or even larger pixel
+// dimensions -- almost certainly the alpha channel from the fade
+// added to this image's edges, per the comment above). Every use of
+// this image is a `background-size: cover` full-bleed background (see
+// `.art-moon-bg` below), so it's never actually rendered wider than
+// the viewport -- `2400` comfortably covers a 2400px-wide screen at
+// 1x, or a ~1200px-wide screen at 2x (retina) DPI, which is the
+// overwhelming majority of real devices, phones very much included,
+// while cutting the pixel count (and so, roughly, the file size) to
+// well under half of the original 3840px-wide source. A background
+// this soft/ambient doesn't need pixel-for-pixel sharpness at 3840px
+// for anyone to notice the difference, but a phone decoding a fifth
+// of the data on every scroll past this section very much will.
+const optimizedMoonBackground = await getImage({ src: moonBackground, width: 2400 });
 ---
 
 <section
@@ -443,7 +459,21 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     // without any of this JS needing to run at all. 640px matches the
     // breakpoint used everywhere else in this file (see the `.content`
     // rule in that same media block, and the clamp() anchors above).
-    const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    //
+    // Also matches short LANDSCAPE phones (`max-height: 500px` +
+    // `orientation: landscape`, the same pair used for the font-size
+    // overrides further down this file): a landscape phone is WIDE
+    // enough to fail the 640px width check above, but it's still
+    // genuinely SHORT -- often shorter than these islands are tall --
+    // so `threshold: 1.0` is just as unreachable there as it is on
+    // portrait mobile, and without this the islands were disappearing
+    // in landscape too even though the width check alone said
+    // "desktop". See the matching rules folded into that same
+    // `@media (max-height: 500px) and (orientation: landscape)` block
+    // in the <style> below.
+    const isMobile = window.matchMedia(
+      "(max-width: 640px), (max-height: 500px) and (orientation: landscape)"
+    ).matches;
 
     if (islands.length && !prefersReducedMotion && !isMobile) {
       const maxOffset = 36; // px, strongest push when cursor is right on top of the island
@@ -981,6 +1011,8 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
     }
   }
 
+
+
   .eyebrow {
     position: relative;
     isolation: isolate;
@@ -1336,6 +1368,19 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
   }
 
   @media (max-width: 640px) {
+    /* Bigger overall on phones per your request: the base rule above
+       has `min-height: 100vh` losing to `aspect-ratio: 16/9` on wider
+       screens, but on a portrait phone (taller than 16:9) `min-height`
+       is what actually wins, locking the section to exactly one
+       screen tall -- so this override is what actually has any effect
+       here. 130vh gives the section (and everything positioned
+       relative to it, islands included) noticeably more room without
+       ballooning it the way AchievementIslandSection's much taller
+       background image needed. */
+    .art-section {
+      min-height: 130vh;
+    }
+
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
@@ -1374,6 +1419,147 @@ const optimizedMoonBackground = await getImage({ src: moonBackground });
 
     .art-island-reveal-loading {
       display: none;
+    }
+
+    /* Smaller on phones per your request, plus a slight reposition:
+       the base `width` clamps above (320px/380px) are already at
+       their floor through this whole range, so this simply overrides
+       them with smaller flat values instead of fighting the clamp.
+       `left`/`right` are left alone (untouched here, so the base
+       rule's values keep applying) -- only the vertical anchor moves:
+       this island (left one) shifts UP an extra 1.5rem (`top` more
+       negative), the other (right one) shifts DOWN an extra 3rem
+       (`bottom` smaller).
+
+       Follow-up: the left island (top) came back up a bit bigger --
+       210px -> 260px -- and higher still -- -2.5rem -> -3.5rem, an
+       extra 1rem on top of the shift above -- per your next request.
+       The right island (bottom) is untouched from the sizing above.
+
+       Second follow-up: growing `.art-section`'s own `min-height`
+       (see that rule above) made the SECTION bigger but left these
+       two images at the same pixel size, which isn't what you meant
+       by "make the section bigger" -- widening the actual artwork
+       here instead: top 260px -> 340px, bottom 250px -> 320px.
+
+       Third follow-up: left (top) island nudged up again -- another
+       1rem more negative, -3.5rem -> -4.5rem. */
+    .art-island-top {
+      top: -4.5rem;
+      width: 340px;
+    }
+
+    .art-island-bottom {
+      bottom: 3rem;
+      width: 320px;
+    }
+  }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- h2's `4vw` term a few rules down keeps
+     growing with that extra width even though there's no extra
+     height to fit the wrapped lines it produces, which is what was
+     pushing text into neighboring sections. Text-only fix here, no
+     width change: this section's own islands already sit close
+     enough to `.content` at this width that widening the text box
+     risks the two overlapping, so only the three font sizes below
+     switch from scaling off viewport WIDTH to viewport HEIGHT, tying
+     text size to whichever dimension is actually scarce in this
+     orientation instead of the one that isn't (see
+     BonusIslandSection/EducationIslandSection/IntroIslandSection for
+     the sections that DO also widen `.content`, where nothing sits
+     close enough to collide). `max-height: 500px` catches real
+     landscape phones (a portrait phone is always taller than that)
+     without also catching a landscape TABLET (iPad landscape is
+     768px tall, well clear of this), and `orientation: landscape` on
+     top of that keeps a genuinely short DESKTOP window from picking
+     up phone-tuned sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    /* Bigger overall on wide/landscape phones per your request too.
+       The base rule's `aspect-ratio: 16/9` already wins over
+       `min-height: 100vh` at this width (a landscape phone is wider
+       than 16:9 relative to its own height), so the section is
+       already taller than one screen without any override -- this
+       just asks for more of that than the aspect ratio alone
+       produces. Plain `min-height` here (not `aspect-ratio`) since
+       the browser takes whichever constraint needs MORE height (see
+       the base rule's own comment), so this only ever grows the
+       section, never shrinks it below the aspect-ratio-driven
+       height. */
+    .art-section {
+      min-height: 160vh;
+    }
+
+    .eyebrow {
+      font-size: clamp(0.65rem, 3.2vh, 0.8rem);
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 7vh, 2rem);
+    }
+
+    .body-text {
+      font-size: clamp(0.85rem, 4vh, 1rem);
+    }
+
+    /* Same fix as the `@media (max-width: 640px)` block above, folded
+       in here too now that the `isMobile` check in the <script> above
+       treats short landscape phones the same as narrow portrait ones
+       (see that comment for the full story) -- without this, a
+       landscape phone is wide enough to dodge the 640px check but
+       still short enough that the entrance reveal's `threshold: 1.0`
+       IntersectionObserver could never be satisfied, leaving both
+       islands permanently stuck at `opacity: 0`. With the JS no
+       longer running here either, the CSS puts both islands straight
+       into their final, floating-but-static state: final artwork
+       visible immediately, no wireframe, no bob loop, no clouds
+       drift. No `.content` width change here (unlike some of this
+       file's sibling sections) -- these islands already sit close
+       enough to the text column at this width that widening it risks
+       the two overlapping. */
+    .art-island-top,
+    .art-island-bottom {
+      animation: none;
+    }
+
+    .art-clouds-track {
+      animation: none;
+    }
+
+    .art-island-reveal-final {
+      opacity: 1;
+    }
+
+    .art-island-reveal-loading {
+      display: none;
+    }
+
+    /* Same shrink-and-reposition as the `@media (max-width: 640px)`
+       block above, folded in here too so wide/landscape phones get
+       the same smaller, repositioned islands rather than falling
+       back to the (larger) base sizing -- see that block's comment
+       for the full reasoning.
+
+       Follow-up: sized back up here too, same as the portrait block
+       above -- top 210px -> 270px, bottom 250px -> 320px -- since
+       growing `.art-section`'s `min-height` alone didn't change
+       these images' actual pixel size.
+
+       Another follow-up: left (top) island nudged up again here too,
+       matching the portrait block -- -2.5rem -> -3.5rem.
+
+       Final follow-up: sized up to match the portrait block's left
+       island exactly -- 270px -> 340px -- per your request to make
+       it that big here too. */
+    .art-island-top {
+      top: -3.5rem;
+      width: 340px;
+    }
+
+    .art-island-bottom {
+      bottom: 3rem;
+      width: 320px;
     }
   }
 </style>

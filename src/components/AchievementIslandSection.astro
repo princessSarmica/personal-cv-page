@@ -939,6 +939,8 @@ const {
     }
   }
 
+
+
   .eyebrow {
     position: relative;
     isolation: isolate;
@@ -1367,5 +1369,71 @@ const {
        technique already lands the clouds at the right spot on every
        breakpoint by construction, so no mobile-specific override is
        needed here any more. */
+  }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- h2's `4vw` term a few rules down keeps
+     growing with that extra width even though there's no extra
+     height to fit the wrapped lines it produces, which is what was
+     pushing text into neighboring sections. Text-only fix here, no
+     width change: `.achievement-island-ri` already sits close enough
+     to `.content`'s right edge at this width that widening the text
+     box risks the two overlapping, so only the three font sizes below
+     switch from scaling off viewport WIDTH to viewport HEIGHT, tying
+     text size to whichever dimension is actually scarce in this
+     orientation instead of the one that isn't (see
+     BonusIslandSection/EducationIslandSection/IntroIslandSection for
+     the sections that DO also widen `.content`, where nothing sits
+     close enough to collide). `max-height: 500px` catches real
+     landscape phones (a portrait phone is always taller than that)
+     without also catching a landscape TABLET (iPad landscape is
+     768px tall, well clear of this), and `orientation: landscape` on
+     top of that keeps a genuinely short DESKTOP window from picking
+     up phone-tuned sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .eyebrow {
+      font-size: clamp(0.65rem, 3.2vh, 0.8rem);
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 7vh, 2rem);
+    }
+
+    .body-text {
+      font-size: clamp(0.85rem, 4vh, 1rem);
+    }
+
+    /* New: per your follow-up -- the previous attempt here
+       (`max-height` + `object-fit: cover`) stopped the bleed by
+       CROPPING the image's top edge off, which isn't what you
+       wanted; reverted that entirely; nothing here touches
+       `.achievement-background-image` any more, so it's back to
+       rendering fully uncut top-to-bottom, exactly like every other
+       breakpoint.
+
+       Root cause instead addressed at the SECTION level: the base
+       rule sizes this image via `width: 100%; height: auto;
+       aspect-ratio: 2560/2161` -- its height is a near-1:1 function
+       of viewport WIDTH, not height, and a landscape phone has a lot
+       of width to work with. At a typical landscape-phone size that
+       resolves to somewhere around 180-200vh tall (varies a bit with
+       the exact phone's own width:height ratio), taller than this
+       section's base `min-height: 140vh` floor -- so the excess above
+       140vh had nowhere to go but bleeding upward past this section's
+       own top edge into Computer's box above it, without any cropping
+       being involved at all.
+
+       `min-height: 210vh` here simply gives the SECTION enough of its
+       own room to contain the full, uncropped image (bottom-anchored,
+       so it grows upward) with margin to spare across realistic
+       landscape-phone aspect ratios, instead of shrinking or cropping
+       the image to fit the old, shorter floor. The whole image stays
+       fully visible; it's the section around it that's bigger now,
+       which is what actually keeps it from spilling into
+       ComputerIslandSection above. */
+    .achievement-section {
+      min-height: 210vh;
+    }
   }
 </style>

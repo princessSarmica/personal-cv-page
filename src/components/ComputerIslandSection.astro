@@ -99,7 +99,7 @@
 //
 // Usage:
 //   <ComputerIslandSection
-//     id="section-cs"
+//     id="section-computer"
 //     eyebrow="Island 02"
 //     title="Lorem Ipsum Dolor"
 //     text="Lorem ipsum dolor sit amet..."
@@ -615,6 +615,8 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     }
   }
 
+
+
   .eyebrow {
     position: relative;
     isolation: isolate;
@@ -853,6 +855,70 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
   @media (min-width: 641px) {
     .computer-section {
       min-height: 130vh;
+    }
+  }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- h2's `4vw` term a few rules down keeps
+     growing with that extra width even though there's no extra
+     height to fit the wrapped lines it produces, which is what was
+     pushing text into neighboring sections. Text-only fix here, no
+     width change: this section's own islands already sit close
+     enough to `.content` at this width that widening the text box
+     risks the two overlapping, so only the three font sizes below
+     switch from scaling off viewport WIDTH to viewport HEIGHT, tying
+     text size to whichever dimension is actually scarce in this
+     orientation instead of the one that isn't (see
+     BonusIslandSection/EducationIslandSection/IntroIslandSection for
+     the sections that DO also widen `.content`, where nothing sits
+     close enough to collide). `max-height: 500px` catches real
+     landscape phones (a portrait phone is always taller than that)
+     without also catching a landscape TABLET (iPad landscape is
+     768px tall, well clear of this), and `orientation: landscape` on
+     top of that keeps a genuinely short DESKTOP window from picking
+     up phone-tuned sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .eyebrow {
+      font-size: clamp(0.65rem, 3.2vh, 0.8rem);
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 7vh, 2rem);
+    }
+
+    .body-text {
+      font-size: clamp(0.85rem, 4vh, 1rem);
+    }
+
+    /* New: per your report that the two islands sit too close to
+       `.content` on a landscape phone, getting covered by the text.
+       The base rule above places them at `left: 20vw` / `right: 12vw`
+       -- tuned for genuine desktop widths, where the text column
+       takes up a much smaller fraction of the total width -- but on
+       an ~800px-wide landscape phone that same 32ch-ish text column
+       eats a much bigger share of the width, so those same vw offsets
+       land the islands right on top of it instead of clear beside it
+       (confirmed directly: at 812x375, `.content` spans roughly
+       261-537px, `.computer-island-left` was landing at 162-362 and
+       `.computer-island-right` at 440-700 -- both overlapping it by
+       ~100px). Pushed further apart here: `left: 4vw` for the left
+       island (clear of `.content`'s left edge by ~30px at that same
+       width) and `right: -6vw` for the right one -- negative, so it
+       bleeds slightly past the section's own right edge rather than
+       stopping short of it, the same technique this project's own
+       mobile-portrait override already uses on this exact element
+       (`right: -8vw` there) for the same reason: there's no text or
+       other content out past the edge for it to clip awkwardly
+       against, so letting it bleed off-screen a little is cheaper and
+       looks more natural than cramming it in tighter against
+       `.content`. */
+    .computer-island-left {
+      left: 4vw;
+    }
+
+    .computer-island-right {
+      right: -6vw;
     }
   }
 </style>

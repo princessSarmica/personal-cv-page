@@ -23,9 +23,14 @@ const t = useTranslations(Astro.currentLocale);
 // `target` is the CSS class every section's own <section> element
 // already carries (the same classes this project's own scroll-
 // highlight IntersectionObserver already looks for in each section
-// component's <script>), not the `id` prop HomePage.astro passes --
-// two sections currently share the same id ("section-cs"), so a
-// class is the only reliable, collision-free way to find each one.
+// component's <script>), not the `id` prop HomePage.astro passes.
+// EducationIslandSection and ComputerIslandSection used to share the
+// same id ("section-cs" on both, since fixed -- ComputerIslandSection
+// is "section-computer" now) -- classes were the only reliable,
+// collision-free way to find each one while that bug was still live,
+// and they're kept here rather than switched back to ids now that
+// it's fixed, since a class-per-section stays robust against this
+// exact class of bug happening again in the future.
 const items = [
   { icon: "graduation-cap", eyebrow: t("education.eyebrow"), title: t("education.title"), target: ".education-section" },
   { icon: "palette", eyebrow: t("art.eyebrow"), title: t("art.title"), target: ".art-section" },

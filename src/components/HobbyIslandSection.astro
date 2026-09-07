@@ -1519,6 +1519,8 @@ const optimizedFountainImage = fountainImage
     }
   }
 
+
+
   .eyebrow {
     position: relative;
     isolation: isolate;
@@ -2647,6 +2649,40 @@ const optimizedFountainImage = fountainImage
     .hobby-palm-80s,
     .hobby-palm-hotspot {
       display: none;
+    }
+  }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- h2's `4vw` term a few rules down keeps
+     growing with that extra width even though there's no extra
+     height to fit the wrapped lines it produces, which is what was
+     pushing text into neighboring sections. Text-only fix here, no
+     width change: this section's own islands already sit close
+     enough to `.content` at this width that widening the text box
+     risks the two overlapping, so only the three font sizes below
+     switch from scaling off viewport WIDTH to viewport HEIGHT, tying
+     text size to whichever dimension is actually scarce in this
+     orientation instead of the one that isn't (see
+     BonusIslandSection/EducationIslandSection/IntroIslandSection for
+     the sections that DO also widen `.content`, where nothing sits
+     close enough to collide). `max-height: 500px` catches real
+     landscape phones (a portrait phone is always taller than that)
+     without also catching a landscape TABLET (iPad landscape is
+     768px tall, well clear of this), and `orientation: landscape` on
+     top of that keeps a genuinely short DESKTOP window from picking
+     up phone-tuned sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .eyebrow {
+      font-size: clamp(0.65rem, 3.2vh, 0.8rem);
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 7vh, 2rem);
+    }
+
+    .body-text {
+      font-size: clamp(0.85rem, 4vh, 1rem);
     }
   }
 </style>

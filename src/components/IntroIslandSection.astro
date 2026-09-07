@@ -481,4 +481,34 @@ const { id, name, titles } = Astro.props;
       padding-inline: 1.5rem;
     }
   }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- `h1`'s `6vw` term above keeps growing with
+     that extra width even though there's no extra height to fit the
+     wrapped lines it produces. `.content` gets noticeably wider here
+     (nothing else sits near it in this section, so there's no
+     collision risk), giving a line of text more room before it needs
+     to wrap at all, and both font sizes below switch from scaling off
+     viewport WIDTH to viewport HEIGHT, tying text size to whichever
+     dimension is actually scarce in this orientation instead of the
+     one that isn't. `max-height: 500px` catches real landscape phones
+     (a portrait phone is always taller than that) without also
+     catching a landscape TABLET (iPad landscape is 768px tall, well
+     clear of this), and `orientation: landscape` on top of that keeps
+     a genuinely short DESKTOP window from picking up phone-tuned
+     sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .content {
+      width: min(46ch, 62%);
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 9vh, 2.75rem);
+    }
+
+    .titles {
+      font-size: clamp(0.85rem, 4vh, 1.05rem);
+    }
+  }
 </style>

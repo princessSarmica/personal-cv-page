@@ -379,6 +379,8 @@ const optimizedBackgroundImage = await getImage({ src: backgroundImage });
     }
   }
 
+
+
   .eyebrow {
     position: relative;
     isolation: isolate;
@@ -491,6 +493,60 @@ const optimizedBackgroundImage = await getImage({ src: backgroundImage });
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
+    }
+  }
+
+  /* Phones in LANDSCAPE ("mobile wide screen" per your report): the
+     section is now genuinely SHORT (small `vh`) even though it's
+     WIDE (large `vw`) -- h2's `4vw` term a few rules down keeps
+     growing with that extra width even though there's no extra
+     height to fit the wrapped lines it produces, which is what was
+     pushing this section's text down into whatever comes after it.
+     Two changes together: `.content` gets noticeably wider here
+     (nothing else in this section sits near it at this width -- see
+     ArtIslandSection/ComputerIslandSection/HobbyIslandSection for
+     sections that DON'T get this, because their islands already sit
+     close enough to the text to collide with a wider box), so a line
+     of text has more room before it needs to wrap at all; and the
+     three font sizes below switch from scaling off viewport WIDTH to
+     viewport HEIGHT, tying text size to whichever dimension is
+     actually scarce in this orientation instead of the one that
+     isn't. `max-height: 500px` catches real landscape phones (a
+     portrait phone is always taller than that) without also catching
+     a landscape TABLET (iPad landscape is 768px tall, well clear of
+     this), and `orientation: landscape` on top of that keeps a
+     genuinely short DESKTOP window from picking up phone-tuned
+     sizing by accident. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    /* More room per your report that this section's text was sitting
+       very close to HobbyIslandSection right after it -- the base
+       rule's `aspect-ratio: 16/9` already grows this section past
+       130vh on a wide/landscape phone (wider than 16:9 relative to
+       its own height), but evidently not by enough. Plain `min-height`
+       here (not `aspect-ratio`) since the browser takes whichever
+       constraint needs MORE height (see the base rule's own comment),
+       so this only ever grows the section further, never shrinks it
+       below the aspect-ratio-driven height. Same technique used for
+       ArtIslandSection's and AchievementIslandSection's own landscape
+       bleed fixes. */
+    .bonus-section {
+      min-height: 180vh;
+    }
+
+    .content {
+      width: min(46ch, 62%);
+    }
+
+    .eyebrow {
+      font-size: clamp(0.65rem, 3.2vh, 0.8rem);
+    }
+
+    h2 {
+      font-size: clamp(1.4rem, 7vh, 2rem);
+    }
+
+    .body-text {
+      font-size: clamp(0.85rem, 4vh, 1rem);
     }
   }
 </style>
