@@ -464,6 +464,25 @@ const ICONS: Record<string, string> = {
       requestAnimationFrame(step);
     }
 
+    // Same warm-up MobileSectionScroll.astro's own `jumpTo` does, and
+    // for the same reason -- see that file's `preloadSectionImages`
+    // for the full explanation. Duplicated rather than shared because
+    // a nav-menu click's own jump is dispatched from here, not there:
+    // this component needs its own copy of "flip this section's still-
+    // lazy images to eager" to warm the section BEFORE the whip-pan
+    // even starts covering the screen, exactly like the mobile-scroll
+    // paging case does. Harmless to call twice for the same section
+    // (once from here, once from there) -- the selector only matches
+    // images still marked "lazy", so a second call simply finds
+    // nothing left to flip.
+    function preloadSectionImages(section: Element | null) {
+      section
+        ?.querySelectorAll<HTMLImageElement>('img[loading="lazy"]')
+        .forEach((img) => {
+          img.loading = "eager";
+        });
+    }
+
     const openLabel = toggle.dataset.labelOpen ?? "";
     const closeLabel = toggle.dataset.labelClose ?? "";
 
@@ -498,6 +517,7 @@ const ICONS: Record<string, string> = {
           // doesn't have one, so a menu click still goes somewhere.
           const targetEl = section?.querySelector(".content") ?? section;
           setOpen(false);
+          preloadSectionImages(section);
 
           // Which way this jump actually goes -- above vs. below where
           // the target needs to end up, by the sign of its current

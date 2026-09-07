@@ -50,14 +50,16 @@ import { Image } from 'astro:assets';
 import loadingJumpImage from '../images/loading_jump.webp';
 ---
 
-<Image
-  class="section-transition-overlay"
-  src={loadingJumpImage}
-  alt=""
-  aria-hidden="true"
-  loading="eager"
-  decoding="async"
-/>
+<div class="section-transition-overlay">
+  <Image
+    class="section-transition-overlay-image"
+    src={loadingJumpImage}
+    alt=""
+    aria-hidden="true"
+    loading="eager"
+    decoding="async"
+  />
+</div>
 
 <script>
   // Wrapped in `astro:page-load` (not run at the top level) for the
@@ -72,7 +74,7 @@ import loadingJumpImage from '../images/loading_jump.webp';
   document.addEventListener("astro:page-load", () => {
     cleanupTransitionOverlay?.();
 
-    const overlay = document.querySelector<HTMLImageElement>(
+    const overlay = document.querySelector<HTMLDivElement>(
       ".section-transition-overlay"
     );
     if (!overlay) return;
@@ -246,103 +248,63 @@ import loadingJumpImage from '../images/loading_jump.webp';
        front of the whip as it sweeps across the screen, instead of
        being covered like the rest of the page. */
     position: fixed;
-    /* This image is a REPLACED element, so `inset: 0` on its own
-       is not enough to make it fill the viewport: per the CSS sizing
-       rules for fixed/absolutely-positioned replaced elements, when
-       `width`/`height` are left at their default `auto`, the browser
-       falls back to the image's own INTRINSIC pixel size (confirmed
-       directly: with only `inset: 0` set, this rendered at exactly
-       the source `loading_jump.webp` dimensions instead of the
-       viewport) rather than stretching between the four inset edges
-       the way an ordinary (non-replaced) box would. `width: 100%` /
-       `height: 100%` are what actually force it to fill the
-       containing block (the viewport, for a `position: fixed`
-       element) regardless of the image's own dimensions; `inset: 0`
-       is kept alongside them to pin that box to all four edges. This
-       also sidesteps the `100vw`/`100dvh` version used previously,
-       whose `dvh` recalculation as mobile browser chrome shows/hides
-       is a known trouble spot for FIXED, ANIMATED elements -- `%`
-       here resolves against the same fixed-position containing block
-       without that dynamic-viewport-unit behavior.
-
-       Follow-up, per your report of a gap of cut-off space at the
-       bottom of the screen (the sweep image not quite reaching the
-       edge) specifically once the scroll-flick trigger was added:
-       `%`/`vh`-based sizing here resolves against the SMALL viewport
-       (the shorter measurement, with the browser's address bar still
-       showing) on the phones that make this distinction. A fast
-       flick is exactly what makes a mobile browser auto-collapse
-       that address bar mid-scroll, which hands you back MORE visible
-       height than the overlay was sized for an instant earlier --
-       precisely the gap you saw, and precisely why it only showed up
-       "sometimes" (only alongside a fast flick, not a slow scroll or
-       a nav-menu click, where the chrome doesn't move mid-animation).
+    /* This wrapper is an ordinary (non-replaced) `<div>`, so `inset: 0`
+       alone would already size it to fill its containing block --
+       `width`/`height` are still spelled out explicitly below anyway,
+       so this always matches on purpose rather than by relying on
+       that default. See `.section-transition-overlay-image` below for
+       why the `<img>` it wraps needs a very different, deliberately
+       OVERSIZED sizing story of its own. */
+    inset: 0;
+    /* `width` specifically needs `vw`, not `%`, per your report that
+       the sweep wasn't quite reaching the right edge of the screen:
+       checked directly, `100%` on a `position: fixed` element
+       resolves against `document.documentElement.clientWidth` (the
+       viewport MINUS a visible scrollbar's own width, ~15px here),
+       while `100vw` resolves against the full window width including
+       that scrollbar gutter (matches `window.innerWidth`) -- exactly
+       the sliver that was going uncovered on desktop browsers that
+       show a permanent scrollbar. */
+    width: 100vw;
+    /* `height: 100%` is the fallback for any browser old enough not
+       to understand `lvh` below -- an unsupported unit makes the
+       whole declaration invalid, which CSS ignores outright, silently
+       leaving this plain `%` value still in effect. Plain `%`/`vh`
+       sizing here would otherwise resolve against the SMALL viewport
+       (the shorter measurement, with a mobile browser's address bar
+       still showing) -- per your report of a gap of cut-off space at
+       the bottom of the screen specifically once the scroll-flick
+       trigger was added: a fast flick is exactly what makes a mobile
+       browser auto-collapse that address bar mid-scroll, handing back
+       MORE visible height than this was sized for an instant earlier.
        `height: 100lvh` (Large Viewport Height -- the viewport's size
        with the browser's UI treated as fully RETRACTED, i.e. the
-       biggest it can ever be) fixes this without bringing back the
-       `dvh` problem noted above: unlike `dvh`, `lvh` is a STATIC
-       value that does not itself re-fire/recalculate as the address
-       bar animates in and out mid-scroll, so there's no live-resizing
-       containing block for the whip's own `translateY` sweep to
-       glitch against -- it's simply always sized generously enough
-       to cover the tallest the visible area can ever get, in one
-       shot, which happens to slightly overshoot (harmlessly, off the
-       bottom edge) on the rarer occasions the address bar is still
-       showing. `height: 100%` is kept directly above as the fallback
-       for any browser old enough not to understand `lvh` -- an
-       unsupported unit makes the whole declaration invalid, which
-       CSS ignores outright, silently leaving the plain `%` value
-       from the line above still in effect. */
-    inset: 0;
-    width: 100%;
+       biggest it can ever be) fixes this without the analogous `dvh`
+       unit's own problem: unlike `dvh`, `lvh` is a STATIC value that
+       does not itself re-fire/recalculate as the address bar animates
+       in and out mid-scroll, so there's no live-resizing containing
+       block for the whip's own `translateY` sweep to glitch against
+       -- it's simply always sized generously enough to cover the
+       tallest the visible area can ever get, in one shot, which
+       happens to slightly overshoot (harmlessly, off the bottom edge)
+       on the rarer occasions the address bar is still showing. */
     height: 100%;
     height: 100lvh;
     z-index: 10000;
-    /* `loading_jump.webp` itself has a soft transparent fade baked
-       into its own top and bottom edges (checked directly against
-       the source file: fully transparent at the very edge, ramping
-       up to opaque over roughly the first/last 10% of its height) --
-       that's what you were actually seeing peek through as "blinking"
-       at the top and bottom, on every screen size, not a sizing or
-       object-fit problem (that band is a fixed PROPORTION of the
-       image regardless of screen size, so it was always there -- just
-       more pixels, and so more noticeable, on a bigger screen, and
-       extra obvious now that the whip sits still for a moment during
-       the hold instead of always being mid-motion). Neither `cover`
-       nor `fill` can fix transparency actually baked into the image
-       -- object-fit only ever decides how the image's own pixels map
-       onto the box, not what shows through pixels that are see-through
-       to begin with. This background-color is what actually fixes it:
-       it sits BEHIND the image (a plain `<img>`, so its own
-       transparent/semi-transparent pixels let this show through
-       directly), sampled as the image's own alpha-weighted average
-       color, so the fade blends into more of the same sky-blue
-       instead of the real page underneath. */
-    background-color: #2edef8;
-    /* `object-fit: fill` (changed from `cover`) per your report that
-       you were still seeing thin gaps -- the real page blinking
-       through -- at the top and bottom of the screen even with the
-       box itself now reliably full-viewport (see above): `cover`
-       only guarantees no gaps when the box's own size and the
-       image's aspect ratio line up exactly on every single frame,
-       and on a real phone the box's `%`-based size can still shift
-       very slightly as the browser's own address bar shows/hides
-       mid-animation -- `cover` would then briefly be scaled for the
-       PREVIOUS box size, leaving a sliver uncovered until it catches
-       up. `fill` sidesteps that risk entirely: instead of preserving
-       the image's own proportions and cropping the overflow, it
-       always stretches the image to EXACTLY match the box's current
-       width and height, on every frame, no matter what that size is
-       -- so there is no aspect-ratio math that can fall out of sync
-       with a shifting box, and the image always covers it edge to
-       edge with zero gap by construction. The trade-off is that the
-       image itself can look slightly squashed or stretched rather
-       than perfectly proportioned (no longer cropping the sides on a
-       narrow phone or the top/bottom on a wide screen, just scaling
-       to fit) -- worth it here since this only shows for a few
-       hundred ms during a fast whip-pan sweep, where "zero gaps,
-       every time" matters far more than pixel-perfect proportions. */
-    object-fit: fill;
+    /* This wrapper is what makes it possible to enlarge the actual
+       image (see `.section-transition-overlay-image` below) without
+       that overflowing back into the rest of the page: per your
+       report that the image wasn't "stretched enough" and needed to
+       be taller than the screen so its solid middle -- not just
+       whatever fraction of it happened to land in the viewport -- is
+       what actually covers it, the image inside is now deliberately
+       sized well past this box's own edges and centered. `overflow:
+       hidden` crops that overflow back down to exactly this element's
+       own bounds, so what gets cropped away is exactly the image's
+       own excess top and bottom -- which is exactly where its
+       transparent fade lives -- rather than the crop landing anywhere
+       else. */
+    overflow: hidden;
     pointer-events: none;
 
     /* Which way the sweep travels: `--whip-from` is where it enters
@@ -356,6 +318,70 @@ import loadingJumpImage from '../images/loading_jump.webp';
     --whip-from: 100%;
     --whip-to: -100%;
     transform: translateY(var(--whip-from));
+  }
+
+  .section-transition-overlay-image {
+    /* The actual `<img>`, a plain child of the wrapper above rather
+       than being `.section-transition-overlay` itself -- splitting
+       the two apart is what makes it SAFE to enlarge this element
+       without also disturbing the wrapper's own sweep math above:
+       `translateY`'s `%` resolves against an element's OWN size, so
+       if the enlarging below had stayed on the same element the
+       sweep animates, the sweep would suddenly be travelling farther
+       than intended the moment this got taller than the viewport,
+       instead of the two staying completely independent the way they
+       are now.
+
+       `height: 150%` (of the WRAPPER's height, since this is now
+       `position: absolute` inside it) plus `top: 50%` +
+       `translateY(-50%)` makes this image somewhat taller than the
+       screen and centers the excess evenly above and below, so the
+       wrapper's `overflow: hidden` crops away exactly that excess top
+       and bottom. This is a deliberately MODERATE zoom, not the
+       aggressive one that used to sit here: per your request, the
+       fade itself should still be visible at the top and bottom of
+       the screen rather than being cropped away entirely -- only the
+       fully-opaque middle needs to be enlarged enough to read as
+       "covering the screen". Checked directly against
+       `loading_jump.webp`'s own alpha channel: at 150%, the visible
+       slice runs from roughly 33% to 82% of the image's original
+       height, which keeps a clearly-visible ramp (alpha in the
+       20-50-ish range right at each screen edge, not near-zero) while
+       still giving the solidly-opaque core -- only ~22% of the
+       image's full height -- close to half the screen to itself
+       instead of the sliver it was at 100% (no zoom at all). Raise
+       this percentage for a bigger, more dominant opaque middle with
+       less fade showing either side; lower it back toward 100% for
+       more fade and less solid coverage. */
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 150%;
+    transform: translateY(-50%);
+    /* `object-fit: fill` (changed from `cover`) per your report that
+       you were still seeing thin gaps -- the real page blinking
+       through -- at the top and bottom of the screen even with the
+       box itself now reliably full-viewport: `cover` only guarantees
+       no gaps when the box's own size and the image's aspect ratio
+       line up exactly on every single frame, and on a real phone the
+       box's `%`-based size can still shift very slightly as the
+       browser's own address bar shows/hides mid-animation -- `cover`
+       would then briefly be scaled for the PREVIOUS box size, leaving
+       a sliver uncovered until it catches up. `fill` sidesteps that
+       risk entirely: instead of preserving the image's own
+       proportions and cropping the overflow, it always stretches the
+       image to EXACTLY match the box's current width and height, on
+       every frame, no matter what that size is -- so there is no
+       aspect-ratio math that can fall out of sync with a shifting
+       box, and the image always covers it edge to edge with zero gap
+       by construction. The trade-off is that the image itself can
+       look slightly squashed or stretched rather than perfectly
+       proportioned -- worth it here since this only shows for a few
+       hundred ms during a fast whip-pan sweep, where "zero gaps,
+       every time" matters far more than pixel-perfect proportions. */
+    object-fit: fill;
+    pointer-events: none;
   }
 
   /* Phase 1 (COVER): sweeps in from `--whip-from` (fully off-screen)

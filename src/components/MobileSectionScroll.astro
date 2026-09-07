@@ -1,0 +1,475 @@
+---
+// src/components/MobileSectionScroll.astro
+//
+// Per your request: on phones, turn scrolling itself into the same
+// section-to-section paging the nav menu already does -- one scroll
+// gesture moves you exactly one section, the whip-pan plays
+// automatically for that move, and you land on the next (or
+// previous) section the same way a nav-menu click would. A section
+// whose own content is taller than the screen (Achievements' bullet
+// list is the one that prompted this) still scrolls completely
+// normally WITHIN itself first -- paging to the next section only
+// takes over once you've scrolled all the way to that section's own
+// end, so nothing in a long list ever gets skipped past unread.
+//
+// This supersedes ScrollFlickTransition.astro, which only played the
+// whip-pan cosmetically on a fast flick and never touched scroll
+// position at all. That approximation made sense before this
+// existed (you can't really "pause scrolling for reading" AND
+// "flick between sections" using nothing but a velocity guess), but
+// now that this component owns section-to-section movement outright,
+// every crossing (fast flick or slow deliberate scroll, either
+// direction) goes through here instead. Its `<ScrollFlickTransition
+// />` mount has been removed from Layout.astro so the two don't both
+// react to the same crossing -- the file itself is left on disk
+// rather than deleted (just say the word if you'd like it actually
+// removed).
+//
+// How this fits the existing whip-pan wiring (see
+// SectionTransitionOverlay.astro's top-of-file comment for the full
+// event contract): exactly like IslandNavMenu.astro, this dispatches
+// "section-transition:trigger" to ask for the sweep and waits for
+// "section-transition:midpoint" to actually move the page, hidden
+// behind the fully-covered overlay. The one difference from
+// IslandNavMenu.astro is that its own midpoint listener is
+// registered once, per click, expecting to be the only reason a
+// midpoint firing means "move to my choice"; this component instead
+// listens for BOTH events unconditionally, always -- so it can react
+// even to a midpoint caused by a nav-menu click that had nothing to
+// do with this component, keeping its own idea of "which section is
+// current" resynced no matter who initiated the last jump. See
+// `ownPendingIndex` below for how the two cases (a jump THIS
+// component asked for vs. one it merely observed) share one
+// listener.
+//
+// Problems that only showed up once this was actually tried on a
+// live scroll, both fixed below -- worth recording since neither is
+// obvious from reading the boundary math alone:
+//
+//   1. A section's landing spot -- `.content` centered in the
+//      viewport, the same target IslandNavMenu.astro's own clicks
+//      use -- is NOT guaranteed to fall inside that same section's
+//      own [top, bottom-innerHeight] range this file computes for
+//      "how far can you scroll before handing off". A short
+//      `.content` block sitting near the TOP of a tall section
+//      centers well above that section's own bottom-derived range,
+//      which used to mean landing on it left `window.scrollY`
+//      already "out of range" for the section you'd JUST arrived on
+//      -- triggering another jump immediately, with no further
+//      scrolling at all, chaining forward through every remaining
+//      section in a runaway loop. `rangeFor` below now always widens
+//      the range to include that section's own resting point
+//      (`restY`), so arriving there can never immediately overscroll
+//      it again.
+//   2. The first version of this file let you scroll past a section
+//      boundary normally, THEN reacted to noticing `window.scrollY`
+//      had gone out of range by snapping it back. That's too late:
+//      a real flick's momentum is a browser-owned, compositor-driven
+//      animation, and once it's under way, neither
+//      `window.scrollTo` nor toggling `overflow: hidden` reliably
+//      kills it outright -- both just pause it, and the same leftover
+//      momentum can resume once unpaused, which read as extra,
+//      unwanted jumps chained onto the one you actually asked for.
+//      This version intercepts the input BEFORE the browser ever
+//      turns it into scrolling: the `wheel`/`touchmove` listeners
+//      below are registered non-passively and call
+//      `event.preventDefault()` the instant you're already at a
+//      section's edge and trying to go further outward -- so the
+//      browser's own scroll (and therefore its own momentum) never
+//      gets to start in that direction at all. There's nothing left
+//      to cancel after the fact. A lightweight `scroll` listener
+//      stays on as a backstop for input this can't see coming from
+//      wheel/touch (a physical keyboard's Page Down/arrow keys, a
+//      dragged scrollbar) -- those have no fling to outrun, so a
+//      plain "snap back and hand off" reaction is enough for them.
+---
+
+<script>
+  let cleanupMobileSectionScroll: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupMobileSectionScroll?.();
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    // Phones only, per your request ("make it on mobile screens") --
+    // same widened check (portrait AND short landscape) used
+    // everywhere else in this codebase for "is this actually a
+    // phone". Desktop/tablet scrolling is completely untouched by
+    // this file.
+    const isMobile = window.matchMedia(
+      "(max-width: 640px), (max-height: 500px) and (orientation: landscape)"
+    ).matches;
+
+    // Reduced motion disables this outright rather than keeping the
+    // paging but dropping just the whip-pan visual: forcing scroll to
+    // snap to fixed stops against the visitor's own gesture is
+    // exactly the kind of thing prefers-reduced-motion exists to opt
+    // out of (sudden viewport jumps, not just decorative animation),
+    // so this falls all the way back to ordinary free scrolling
+    // instead.
+    if (prefersReducedMotion || !isMobile) {
+      cleanupMobileSectionScroll = null;
+      return;
+    }
+
+    // Every real content section, in document order -- the same
+    // `.sky-chain` selector ScrollFlickTransition.astro used to use.
+    // Queried once per page-load (not on every scroll): the set of
+    // sections never changes after the page renders, and a stale
+    // NodeList would only matter if sections were added/removed
+    // later, which nothing here does.
+    const sections = Array.from(
+      document.querySelectorAll<HTMLElement>(".sky-chain")
+    );
+
+    if (sections.length < 2) {
+      cleanupMobileSectionScroll = null;
+      return;
+    }
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // The section's own designated landing target -- same convention
+    // IslandNavMenu.astro uses: the `.content` block (eyebrow + title
+    // + body-text) if there is one, the section itself otherwise
+    // (OtherIslandSection has no `.content` wrapper).
+    function targetFor(index: number) {
+      const el = sections[index];
+      return el.querySelector<HTMLElement>(".content") ?? el;
+    }
+
+    // The exact `window.scrollY` that centers section `index`'s own
+    // landing target in the viewport -- the same resting position
+    // `targetFor(index).scrollIntoView({ block: "center" })` settles
+    // on, computed without actually scrolling anywhere. Needed so
+    // `rangeFor` (below) can guarantee this point always falls inside
+    // the range it hands back -- see this file's own top-of-file
+    // comment, problem 1, for why that's not automatic.
+    function restY(index: number) {
+      const rect = targetFor(index).getBoundingClientRect();
+      const currentCenter = rect.top + rect.height / 2;
+      return window.scrollY + currentCenter - window.innerHeight / 2;
+    }
+
+    // The window `window.scrollY` may sit in while section `index` is
+    // the one you're reading, expressed as [min, max]. Starts from
+    // the section's own box:
+    //   - top (`offsetTop`) -- you can't scroll up past where it
+    //     starts while it's still current.
+    //   - as far down as you can go before the section's bottom edge
+    //     would be pulled above the viewport's bottom edge, i.e.
+    //     before you'd start revealing the NEXT section underneath --
+    //     `offsetTop + offsetHeight - innerHeight`.
+    // ...then widens with `Math.min`/`Math.max` to also cover
+    // `restY(index)` -- this section's own landing spot, which (per
+    // this file's own top-of-file comment, problem 1) can sit outside
+    // its raw box entirely for a short `.content` block near a tall
+    // section's top edge. Without this widening, arriving there would
+    // already read as "out of range" with no further scrolling at
+    // all, immediately handing off to the next section again.
+    //
+    // A section shorter than the screen (box-derived min > box-
+    // derived max before this widening) collapses toward a single
+    // point once restY is folded in, and ANY scroll away from it in
+    // either direction is correctly treated as "nothing left to read
+    // here, page on" -- the single-swipe-per-section behavior a short
+    // section should have, without needing to special-case "short"
+    // vs. "tall" sections separately anywhere below.
+    //
+    // Computed fresh every time (never cached) so a live layout
+    // change -- an image finishing loading and nudging a section's
+    // height, the browser's own address bar show/hide changing
+    // `innerHeight`, an orientation flip -- is picked up automatically
+    // on the very next check, with no resize listener needed.
+    function rangeFor(index: number) {
+      const el = sections[index];
+      const boxMin = el.offsetTop;
+      const boxMax = Math.max(boxMin, el.offsetTop + el.offsetHeight - window.innerHeight);
+      const rY = restY(index);
+      return { min: Math.min(boxMin, rY), max: Math.max(boxMax, rY) };
+    }
+
+    // Which section's raw [top, bottom) span a given scrollY falls
+    // inside -- deliberately the section's own WIDE box span, not
+    // `rangeFor`'s (possibly `restY`-widened) window above. Only used
+    // to notice "scrollY is somewhere `currentIndex` doesn't explain"
+    // after a jump this component didn't itself request (a nav-menu
+    // click landing straight on a distant section) -- this component's
+    // OWN jumps set `currentIndex` directly from the index they asked
+    // for instead (see `ownPendingIndex` below), since a jump's actual
+    // landing spot is exactly the case this function isn't reliable
+    // for (see problem 1 above).
+    function containingIndex(y: number) {
+      for (let i = 0; i < sections.length; i++) {
+        const el = sections[i];
+        if (y < el.offsetTop + el.offsetHeight || i === sections.length - 1) {
+          return i;
+        }
+      }
+      return sections.length - 1;
+    }
+
+    let currentIndex = containingIndex(window.scrollY);
+
+    // True from the instant ANY "section-transition:trigger" fires
+    // (this component's own, or IslandNavMenu.astro's) until the
+    // matching "section-transition:midpoint" has been fully handled.
+    // The wheel/touch listeners below also treat this as "swallow all
+    // input, unconditionally" -- there's no reading to protect mid-
+    // jump, and letting a second jump queue up on top of the first
+    // is exactly the chaining problem 2 (above) used to cause.
+    let isJumping = false;
+
+    // Set (alongside `ownPendingTarget`) just before THIS component
+    // dispatches its own trigger, so the midpoint handler below can
+    // set `currentIndex` directly to the index it actually asked for,
+    // rather than trying to re-derive it from where the page ends up
+    // (see problem 1 in this file's top-of-file comment for why that
+    // re-derivation isn't reliable for this component's own jumps).
+    // Left `null` when `isJumping` became true because of somebody
+    // else's trigger (a nav-menu click) -- there, `containingIndex`
+    // is the only option, and a good enough one: nav-menu jumps are
+    // never chained the way an overscroll-driven one can be.
+    let ownPendingIndex: number | null = null;
+    let ownPendingTarget: HTMLElement | null = null;
+
+    // Brief grace period right after landing, separate from
+    // `isJumping`: swallows any trailing wheel/touch input still
+    // arriving from the very gesture that just triggered a jump, so
+    // it can't immediately re-trigger a second one the instant
+    // `isJumping` clears. Short on purpose -- it's just mopping up
+    // the tail end of one gesture, not standing in for real momentum
+    // cancellation the way the old, removed "settle window" tried to
+    // (see problem 2 above for why that approach didn't hold up).
+    const LANDING_COOLDOWN_MS = 250;
+    let cooldownUntil = 0;
+
+    function inputBlocked() {
+      return isJumping || performance.now() < cooldownUntil;
+    }
+
+    document.addEventListener(
+      "section-transition:trigger",
+      () => {
+        isJumping = true;
+        // Defense in depth on top of the wheel/touch interception
+        // above: whatever DID slip through and start a jump (the
+        // backstop scroll listener below, or a nav-menu click)
+        // shouldn't be able to keep drifting further while the
+        // whip-pan is actually playing. An element that isn't a
+        // scroll container at all can't have anything -- input or
+        // leftover momentum -- move it.
+        document.documentElement.style.overflow = "hidden";
+      },
+      { signal }
+    );
+
+    document.addEventListener(
+      "section-transition:midpoint",
+      () => {
+        // Restored before moving anything: scrollIntoView needs an
+        // actual scroll container to have any effect at all.
+        document.documentElement.style.overflow = "";
+
+        if (ownPendingTarget) {
+          ownPendingTarget.scrollIntoView({ behavior: "instant", block: "center" });
+        }
+
+        // Deferred a tick so every OTHER same-moment midpoint
+        // listener has already applied its own scroll position first
+        // -- in particular IslandNavMenu.astro's, when this jump was
+        // actually its click rather than this component's own. Both
+        // components' midpoint listeners fire on the very same event,
+        // and JS runs same-tick listeners in registration order, not
+        // "whichever matters more" order -- reading `window.scrollY`
+        // straight away here (needed for the `containingIndex`
+        // fallback below) could catch it before or after
+        // IslandNavMenu's own `scrollIntoView` depending purely on
+        // which of the two mounted first, which isn't something this
+        // file should have to know or depend on. Reading it one tick
+        // later removes that dependency entirely.
+        window.setTimeout(() => {
+          currentIndex =
+            ownPendingIndex !== null ? ownPendingIndex : containingIndex(window.scrollY);
+          ownPendingIndex = null;
+          ownPendingTarget = null;
+          isJumping = false;
+          cooldownUntil = performance.now() + LANDING_COOLDOWN_MS;
+        }, 0);
+      },
+      { signal }
+    );
+
+    // Warms the section we're about to jump to, the moment we know
+    // we're jumping to it -- before this file's own top-of-file
+    // comment, this used to be exactly where "sections have trouble
+    // loading on fast mobile scrolling" came from: `<Image />` marks
+    // most of a section's decorative art (cloud tiles, background
+    // images) `loading="lazy"`, which normally means "start fetching
+    // once the browser notices this element getting close to the
+    // viewport" -- a heuristic built entirely around ordinary,
+    // gradual scrolling, where the browser can see an image
+    // approaching from a few screens away and get a head start. This
+    // component's own jump is the opposite of gradual (an instant
+    // `scrollIntoView`, dispatched via the trigger event below) --
+    // the section is simply the current one on the very next frame,
+    // with no gradual approach for that heuristic to notice. On a
+    // slow connection, a still-mid-fetch lazy image is exactly what
+    // was popping in late (or missing entirely for a moment) right
+    // after landing, and fast, repeated jumps only made it worse by
+    // never giving any single image the runway it needed.
+    //
+    // Flipping `loading` from "lazy" to "eager" on an already-parsed
+    // `<img>` makes the browser start (or continue) fetching it
+    // immediately instead of waiting on that proximity heuristic at
+    // all -- and it's done here, a beat before the whip-pan even
+    // starts covering the screen, so the fetch has the overlay's own
+    // ENTER_MS + HOLD_MS (see SectionTransitionOverlay.astro) as a
+    // free head start before the section is actually revealed. The
+    // selector only ever matches images still marked "lazy", so
+    // calling this more than once for the same section (once from
+    // here, once more from IslandNavMenu.astro if a nav-menu click
+    // targets the same section shortly after) costs nothing --
+    // anything already flipped simply stops matching.
+    function preloadSectionImages(section: HTMLElement) {
+      section
+        .querySelectorAll<HTMLImageElement>('img[loading="lazy"]')
+        .forEach((img) => {
+          img.loading = "eager";
+        });
+    }
+
+    function jumpTo(targetIndex: number, direction: 1 | -1) {
+      ownPendingIndex = targetIndex;
+      ownPendingTarget = targetFor(targetIndex);
+      preloadSectionImages(sections[targetIndex]);
+
+      document.dispatchEvent(
+        new CustomEvent("section-transition:trigger", { detail: { direction } })
+      );
+    }
+
+    // Primary defense (see problem 2 above): intercept the wheel
+    // gesture itself, before the browser turns it into a scroll.
+    // Registered non-passively so `preventDefault()` is actually
+    // allowed to do something. While mid-jump or in the landing
+    // cooldown, every wheel tick is swallowed outright; otherwise, a
+    // tick that would push `window.scrollY` further past the current
+    // section's own edge is the one that gets prevented (stopping
+    // that direction's scroll -- and therefore any momentum built
+    // from it -- from ever starting) and turned into a jump instead.
+    // A tick that's still within range is left completely alone, so
+    // ordinary in-section reading scrolls exactly as it always did.
+    document.addEventListener(
+      "wheel",
+      (event) => {
+        if (inputBlocked()) {
+          event.preventDefault();
+          return;
+        }
+
+        const { min, max } = rangeFor(currentIndex);
+        const y = window.scrollY;
+
+        if (event.deltaY > 0 && y >= max && currentIndex < sections.length - 1) {
+          event.preventDefault();
+          jumpTo(currentIndex + 1, 1);
+        } else if (event.deltaY < 0 && y <= min && currentIndex > 0) {
+          event.preventDefault();
+          jumpTo(currentIndex - 1, -1);
+        }
+      },
+      { signal, passive: false }
+    );
+
+    // Same idea for touch, which has no per-tick "delta" of its own
+    // the way `wheel` does -- tracked by hand from `touchstart`
+    // instead. `touchstart` itself never needs preventing (it doesn't
+    // scroll anything on its own), so it stays passive.
+    let touchStartY: number | null = null;
+
+    document.addEventListener(
+      "touchstart",
+      (event) => {
+        touchStartY = event.touches[0]?.clientY ?? null;
+      },
+      { signal, passive: true }
+    );
+
+    document.addEventListener(
+      "touchmove",
+      (event) => {
+        if (inputBlocked()) {
+          event.preventDefault();
+          return;
+        }
+
+        if (touchStartY === null) return;
+        const currentY = event.touches[0]?.clientY;
+        if (currentY === undefined) return;
+
+        // Positive: finger has moved up since touchstart, i.e. the
+        // same drag direction as scrolling further down the page.
+        const delta = touchStartY - currentY;
+        const { min, max } = rangeFor(currentIndex);
+        const y = window.scrollY;
+
+        if (delta > 0 && y >= max && currentIndex < sections.length - 1) {
+          event.preventDefault();
+          jumpTo(currentIndex + 1, 1);
+        } else if (delta < 0 && y <= min && currentIndex > 0) {
+          event.preventDefault();
+          jumpTo(currentIndex - 1, -1);
+        }
+      },
+      { signal, passive: false }
+    );
+
+    // Backstop only -- see problem 2 above. Wheel/touch can no longer
+    // get this component out of range in the first place (they're
+    // intercepted above before the browser ever scrolls), so by the
+    // time this fires at all it's almost certainly some OTHER input
+    // this file doesn't otherwise listen for (a physical keyboard's
+    // Page Down/arrow/space keys, a dragged scrollbar) -- none of
+    // which have a fling to outrun, so a plain "snap back to the
+    // edge and hand off" reaction is enough; there's no momentum here
+    // that reacting after the fact could fail to fully catch.
+    document.addEventListener(
+      "scroll",
+      () => {
+        if (inputBlocked()) return;
+
+        const y = window.scrollY;
+        const seenIndex = containingIndex(y);
+        if (Math.abs(seenIndex - currentIndex) > 1) {
+          // Not explained by ordinary boundary-crossing from the
+          // section this component thought was current -- almost
+          // certainly a nav-menu (or hash-link) jump straight to a
+          // distant section. Adopt it silently: that jump already
+          // played its own whip-pan, there's nothing left to do here
+          // but stop being wrong about `currentIndex`.
+          currentIndex = seenIndex;
+          return;
+        }
+
+        const { min, max } = rangeFor(currentIndex);
+
+        if (y > max && currentIndex < sections.length - 1) {
+          jumpTo(currentIndex + 1, 1);
+        } else if (y < min && currentIndex > 0) {
+          jumpTo(currentIndex - 1, -1);
+        }
+      },
+      { signal, passive: true }
+    );
+
+    cleanupMobileSectionScroll = () => {
+      controller.abort();
+      document.documentElement.style.overflow = "";
+    };
+  });
+</script>
