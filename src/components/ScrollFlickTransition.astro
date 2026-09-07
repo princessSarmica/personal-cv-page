@@ -58,44 +58,43 @@
       return;
     }
 
-    const controller = new AbortController();
-    const { signal } = controller;
-
     // How fast counts as a deliberate "flick" rather than an ordinary
-    // read-as-you-scroll pace, in pixels per millisecond (1.4 ==
-    // ~1400px every second). Tuned by feel against a phone-sized
+    // read-as-you-scroll pace, in pixels per millisecond averaged
+    // across one section-to-section crossing (1.0 == the distance
+    // between two sections' middle-crossing points covered in roughly
+    // a third of a second). Tuned by feel against a phone-sized
     // viewport, not measured -- if this fires too eagerly (playing on
     // completely normal scrolling) raise it; if it barely ever fires,
     // lower it.
-    const FLICK_VELOCITY_PX_MS = 1.4;
+    const FLICK_VELOCITY_PX_MS = 1.0;
 
-    // Plain `scrollY`/`performance.now()` reads on a passive scroll
-    // listener -- no `getBoundingClientRect()` here (that would force
-    // a layout read on every single scroll event, fighting the exact
-    // scroll-perf work done elsewhere in this project) -- so this
-    // stays cheap enough to run on every native scroll event without
-    // its own `requestAnimationFrame` throttling.
-    let lastScrollY = window.scrollY;
-    let lastScrollT = performance.now();
-    let velocityPxMs = 0;
-
-    window.addEventListener(
-      "scroll",
-      () => {
-        const now = performance.now();
-        const y = window.scrollY;
-        const dt = now - lastScrollT;
-        // Guards against a division blow-up on two events landing in
-        // the same tick (dt could be 0) -- just skip updating the
-        // velocity for that one event rather than producing Infinity.
-        if (dt > 0) {
-          velocityPxMs = (y - lastScrollY) / dt;
-        }
-        lastScrollY = y;
-        lastScrollT = now;
-      },
-      { passive: true, signal }
-    );
+    // First version of this tracked instantaneous velocity off a
+    // `scroll` listener (`scrollY` delta / time delta on every event)
+    // and read whatever that variable happened to hold when the
+    // IntersectionObserver below fired. Didn't work on a real phone,
+    // for two compounding reasons: (1) mobile browsers can fire
+    // `scroll` events far more sparsely during an inertial/momentum
+    // flick than on desktop, sometimes leaving long gaps with no
+    // event at all while the page is still moving; (2) IntersectionObserver
+    // notifications are explicitly allowed to run late/batched (spec-
+    // permitted, and mobile browsers use that leeway more than
+    // desktop), so by the time this component's callback actually ran,
+    // the flick had often already decelerated or fully stopped, and
+    // whatever velocity was last recorded read as near-zero even
+    // though the finger flick itself was fast.
+    //
+    // Fixed by dropping the `scroll` listener entirely and instead
+    // measuring the AVERAGE speed across the whole gap between one
+    // crossing and the next: `lastCheckY`/`lastCheckT` snapshot the
+    // scroll position and time at every observer firing (whether it
+    // triggers the whip-pan or not), and the next firing compares
+    // against that snapshot. This sidesteps both problems above --
+    // it no longer matters how sparse `scroll` events were, or how
+    // late the browser delivered this notification, since both ends
+    // of the measurement (`now`/`y`) are read fresh, together, right
+    // here, every time this callback actually runs.
+    let lastCheckY = window.scrollY;
+    let lastCheckT = performance.now();
 
     // One shared observer across every real content section (all of
     // them carry `.sky-chain` -- see EducationIslandSection.astro,
@@ -122,33 +121,43 @@
         (entries) => {
           if (!hasSettledInitialSections) {
             hasSettledInitialSections = true;
+            lastCheckY = window.scrollY;
+            lastCheckT = performance.now();
             return;
           }
 
-          for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
+          const entered = entries.find((entry) => entry.isIntersecting);
+          if (!entered) return;
 
-            if (Math.abs(velocityPxMs) >= FLICK_VELOCITY_PX_MS) {
-              const direction: 1 | -1 = velocityPxMs > 0 ? 1 : -1;
-              document.dispatchEvent(
-                new CustomEvent("section-transition:trigger", {
-                  detail: { direction },
-                })
-              );
-            }
+          const now = performance.now();
+          const y = window.scrollY;
+          const dt = now - lastCheckT;
+          const dy = y - lastCheckY;
+
+          // Guards against a division blow-up if this ever fires
+          // twice in the same tick (dt could be 0) -- just skip the
+          // speed check for that one firing rather than dividing by
+          // zero.
+          if (dt > 0 && Math.abs(dy) / dt >= FLICK_VELOCITY_PX_MS) {
+            const direction: 1 | -1 = dy > 0 ? 1 : -1;
+            document.dispatchEvent(
+              new CustomEvent("section-transition:trigger", {
+                detail: { direction },
+              })
+            );
           }
+
+          lastCheckY = y;
+          lastCheckT = now;
         },
         { rootMargin: "-40% 0px -40% 0px", threshold: 0 }
       );
 
       sections.forEach((section) => observer.observe(section));
 
-      cleanupScrollFlick = () => {
-        controller.abort();
-        observer.disconnect();
-      };
+      cleanupScrollFlick = () => observer.disconnect();
     } else {
-      cleanupScrollFlick = () => controller.abort();
+      cleanupScrollFlick = null;
     }
   });
 </script>
