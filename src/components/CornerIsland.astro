@@ -62,6 +62,16 @@
 import { Image } from 'astro:assets';
 import frontIslandImage from '../images/front_island.webp';
 import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp';
+// The little ghost your friend drew, per your request: sits on the
+// island in its still pose (ghost_figure.webp) almost all the time,
+// and every so often swaps to its own animated loop
+// (ghost_figure_animated.webp -- a gentle side-to-side sway of its
+// robe, 8 frames, ~820ms per loop) for a few seconds before fading
+// back to still. See `.corner-island-ghost` below for the crossfade
+// and the new <script> at the bottom of this file for the "every so
+// often" timing.
+import ghostFigureImage from '../images/ghost_figure.webp';
+import ghostFigureAnimatedImage from '../images/ghost_figure_animated.webp';
 ---
 
 <div class="corner-island" aria-hidden="true">
@@ -80,6 +90,23 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
       loading="eager"
       decoding="async"
     />
+
+    <div class="corner-island-ghost" aria-hidden="true">
+      <Image
+        class="corner-island-ghost-img corner-island-ghost-img--static"
+        src={ghostFigureImage}
+        alt=""
+        loading="eager"
+        decoding="async"
+      />
+      <Image
+        class="corner-island-ghost-img corner-island-ghost-img--animated"
+        src={ghostFigureAnimatedImage}
+        alt=""
+        loading="eager"
+        decoding="async"
+      />
+    </div>
   </div>
 </div>
 
@@ -103,6 +130,25 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
     z-index: 10001;
     pointer-events: none;
     animation: bob 6s ease-in-out infinite;
+    /* Per your report that the bob loop (and the ghost riding along
+       with it) doesn't look smooth while it's actually playing --
+       `will-change` tells the browser to promote this element to its
+       own GPU compositor layer UP FRONT and keep it there for as long
+       as this rule applies, rather than deciding on the fly whether
+       the `animation` above is worth promoting and potentially
+       re-layerizing it midway through a loop. This is the standard
+       fix for a `transform`-only animation (already the cheapest kind
+       -- no layout or paint work, purely the compositor moving an
+       existing layer) that still reads as stuttery: on an element
+       this large, with several images layered inside it (the island
+       art, the hobby crossfade, and now the ghost's own two-image
+       crossfade), a layer promotion that keeps getting created and
+       torn down is exactly the kind of thing that shows up as
+       occasional stutter in an otherwise very slow, very simple
+       up/down motion -- and slow motion is precisely where the eye
+       notices ANY inconsistency most, unlike a fast animation where
+       the same hiccup would likely go unnoticed. */
+    will-change: transform;
   }
 
   /* Freeze state: swaps out of the viewport-relative `fixed`
@@ -167,6 +213,88 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
     opacity: 1;
   }
 
+  /* The ghost's own little stage on top of the island artwork.
+     Positioned as a percentage of `.corner-island-inner`'s own box
+     (which is exactly the island artwork's box, per the comment
+     above) rather than fixed pixels, so it stays put on the same
+     spot of the illustration -- a patch of grass just below the
+     snowy peak, one of the few parts of the island that's actually
+     still on-screen given `.corner-island`'s own large negative
+     `bottom`/`left` offsets above -- at every viewport width the
+     island itself renders at. Tuned by eye against the actual
+     artwork; nudge `top`/`left` here if your friend's next version
+     of the art shifts where that patch of grass sits. */
+  .corner-island-ghost {
+    position: absolute;
+    top: 31%;
+    left: 47%;
+    width: 19%;
+    pointer-events: none;
+  }
+
+  .corner-island-ghost-img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Same "default drives layout, the alternate is laid on top via
+     absolute positioning" split as `.corner-island-img` above -- the
+     still pose keeps this box's own size stable (so the animated
+     loop crossfading in and out never shifts anything), and the two
+     files aren't quite the same aspect ratio (1144x1388 vs the
+     animated loop's own 438x560 export), so the overlay gets
+     `object-fit: contain` rather than stretching to match the still
+     pose's box exactly. */
+  .corner-island-ghost-img--static {
+    aspect-ratio: 1144 / 1388;
+    opacity: 1;
+    transition: opacity 0.35s ease;
+  }
+
+  .corner-island-ghost-img--animated {
+    position: absolute;
+    inset: 0;
+    /* The static image (1144x1388) and the animated loop (438x560)
+       aren't quite the same aspect ratio, so with height left at the
+       base class's `auto` this image was sizing itself off its OWN
+       intrinsic ratio instead of the static image's box -- slightly
+       taller for the same width, which read as "a tiny bit bigger"
+       right as the crossfade kicked in. Pinning both width and height
+       to 100% (matching the static image's box, which is what actually
+       drives `.corner-island-ghost`'s size) and letting `object-fit:
+       contain` fit the animated frame inside that exact box fixes it --
+       same footprint either way, so the crossfade doesn't shift size. */
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* Matching the box wasn't quite enough -- the ghost drawing itself
+       sits closer to the edges of its OWN canvas in the animated loop
+       (roughly the middle ~68-78% of that 438x560 frame) than in the
+       still pose (roughly ~60-72% of the 1144x1388 canvas), so even
+       once both canvases are fit into the same box, the animated
+       character reads as ~8% bigger than the static one. Both frames
+       center the figure the same way, so a plain, uncentered scale-down
+       lines the two up: shrinking by that same ~8% here (rather than
+       re-exporting the source art) is the quick fix, and safe to revisit
+       if the source images ever get re-cropped to match padding. */
+    transform: scale(0.92);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  /* `.is-playing` is toggled by the new <script> at the bottom of
+     this file on its own "every so often" timer -- nothing to do
+     with `.is-hobby` above, the ghost plays its loop regardless of
+     which section you're over. */
+  .corner-island-ghost.is-playing .corner-island-ghost-img--static {
+    opacity: 0;
+  }
+
+  .corner-island-ghost.is-playing .corner-island-ghost-img--animated {
+    opacity: 1;
+  }
+
   @keyframes bob {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-8px); }
@@ -188,6 +316,15 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
     /* Still swap images when the hobby section is reached, just
        instantly instead of via an animated fade. */
     .corner-island-img {
+      transition: none;
+    }
+
+    /* The new <script> below never starts the ghost's "every so
+       often" timer at all under reduced motion (see that script's own
+       comment), so this never actually fires in practice -- kept
+       anyway as the same belt-and-suspenders the rule above already
+       is, in case anything else ever toggles `.is-playing`. */
+    .corner-island-ghost-img {
       transition: none;
     }
   }
@@ -358,6 +495,103 @@ import frontIslandCartoonImage from '../images/front_island_cartoon_version.webp
     cleanupFreeze = () => {
       controller.abort();
       if (scrollRafId !== null) cancelAnimationFrame(scrollRafId);
+    };
+  });
+</script>
+
+<script>
+  // "Every so often" playback for the ghost's animated loop, per your
+  // request. Independent of both other scripts in this file -- it
+  // doesn't care whether the island is frozen or which section you're
+  // over, just that `.corner-island-ghost` exists at all.
+  //
+  // Wrapped in `astro:page-load` (fires on the initial load AND after
+  // every <ClientRouter /> navigation -- see src/layouts/Layout.astro)
+  // rather than running at the top level, for the same reason as the
+  // two scripts above: a language switch replaces this very element
+  // with a freshly-parsed one, and this module itself only executes
+  // once, so without re-running this init on every navigation the
+  // ghost would freeze in whichever pose it happened to be in the
+  // instant of the first language switch. `cleanupGhostLoop` clears
+  // the previous navigation's pending timers first.
+  let cleanupGhostLoop: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupGhostLoop?.();
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    const ghost = document.querySelector<HTMLElement>(".corner-island-ghost");
+    const animatedImg = ghost?.querySelector<HTMLImageElement>(
+      ".corner-island-ghost-img--animated"
+    );
+
+    // Reduced motion leaves the ghost sitting in its still pose
+    // permanently -- same call this project makes everywhere else
+    // (the island's own bob loop, every section's drift/bob
+    // animations): this timer exists purely to trigger a decorative
+    // animation nobody asked to see, so under that preference it
+    // simply never starts.
+    if (!ghost || !animatedImg || prefersReducedMotion) {
+      cleanupGhostLoop = null;
+      return;
+    }
+
+    // The animated export's own loop: 8 frames, ~820ms per full loop
+    // (measured directly from the file's ANMF chunk durations, not
+    // guessed), looping forever on its own once it's playing --
+    // there's no "play once and stop" built into an animated WebP, so
+    // how many loops it plays is entirely down to how long WE keep
+    // `.is-playing` on before fading back, below.
+    const LOOP_MS = 820;
+    const PLAY_LOOPS = 2;
+    const PLAY_MS = LOOP_MS * PLAY_LOOPS;
+
+    // How long the ghost sits still between appearances -- randomized
+    // per cycle (rather than one fixed interval) so it reads as the
+    // ghost occasionally doing something on its own, not a metronome.
+    const IDLE_MIN_MS = 8000;
+    const IDLE_MAX_MS = 16000;
+
+    function randomIdleMs() {
+      return IDLE_MIN_MS + Math.random() * (IDLE_MAX_MS - IDLE_MIN_MS);
+    }
+
+    let idleTimer: number | undefined;
+    let playTimer: number | undefined;
+
+    function scheduleNextPlay() {
+      idleTimer = window.setTimeout(playOnce, randomIdleMs());
+    }
+
+    function playOnce() {
+      // Forces the animated WebP to (re)start from its very first
+      // frame: reassigning `.src` to its own current value makes the
+      // browser redo the image-loading algorithm from scratch, even
+      // though the URL hasn't actually changed, which resets an
+      // animated image's own playback position -- the same trick
+      // widely used to restart an animated GIF on demand. Without
+      // this, the crossfade-in above would reveal the loop wherever
+      // its own internal timer already happened to be (it never
+      // actually stops advancing just because `opacity` is 0),
+      // instead of always starting the sway from the same, deliberate
+      // first frame.
+      animatedImg!.src = animatedImg!.src;
+      ghost!.classList.add("is-playing");
+
+      playTimer = window.setTimeout(() => {
+        ghost!.classList.remove("is-playing");
+        scheduleNextPlay();
+      }, PLAY_MS);
+    }
+
+    scheduleNextPlay();
+
+    cleanupGhostLoop = () => {
+      window.clearTimeout(idleTimer);
+      window.clearTimeout(playTimer);
     };
   });
 </script>
