@@ -53,7 +53,7 @@ export const ui = {
     "education.eyebrow": "Island 01",
     "education.title": "Education",
     "education.text":
-      "<ul><li>Radenci Primary School (2007-2016)</li><li>Franc Miklošič Grammar School, Ljutomer (2016-2020)</li><li>Faculty of Electrical Engineering, Computer Science and Informatics, Maribor - FERI: Computer Science and Information Technologies, undergraduate (1st cycle) (2020-2023)</li><li>Media Communications, FERI, postgraduate – master's (2nd cycle) (2023-2026)</li></ul>",
+      "<ul><li>Radenci Primary School (2007-2016)</li><li>Franc Miklošič Grammar School, Ljutomer (2016-2020)</li><li>Faculty of Electrical Engineering, Computer Science and Informatics, Maribor FERI<ul><li>Computer Science and Information Technologies, undergraduate (1st cycle) (2020-2023)</li><li>Media Communications, FERI, postgraduate – master's (2nd cycle) (2023-2026)</li></ul></li></ul>",
 
     "achievement.eyebrow": "Island 04",
     "achievement.title": "Achievements",
@@ -97,7 +97,7 @@ export const ui = {
     "education.eyebrow": "Insel 01",
     "education.title": "Ausbildung",
     "education.text":
-      "<ul><li>Grundschule Radenci (2007-2016)</li><li>Gymnasium Franc Miklošič, Ljutomer (2016-2020)</li><li>Fakultät für Elektrotechnik, Informatik und Informationstechnologien, Maribor - FERI: Informatik und Informationstechnologien, Bachelor (1. Stufe) (2020-2023)</li><li>Medienkommunikation, FERI, Master (2. Stufe) (2023-2026)</li></ul>",
+      "<ul><li>Grundschule Radenci (2007-2016)</li><li>Gymnasium Franc Miklošič, Ljutomer (2016-2020)</li><li>Fakultät für Elektrotechnik, Informatik und Informationstechnologien, Maribor FERI<ul><li>Informatik und Informationstechnologien, Bachelor (1. Stufe) (2020-2023)</li><li>Medienkommunikation, FERI, Master (2. Stufe) (2023-2026)</li></ul></li></ul>",
 
     "achievement.eyebrow": "Insel 04",
     "achievement.title": "Erfolge",
@@ -141,7 +141,7 @@ export const ui = {
     "education.eyebrow": "Otok 01",
     "education.title": "Izobrazba",
     "education.text":
-      "<ul><li>Osnovna šola Radenci (2007-2016)</li><li>Gimnazija Franca Miklošiča, Ljutomer (2016-2020)</li><li>Fakulteta za elektrotehniko, računalništvo in informatiko, Maribor - FERI: Računalništvo in informacijske tehnologije, UNI (1. stopnja) (2020-2023)</li><li>Medijske komunikacije, FERI (2. stopnja) (2023-2026)</li></ul>",
+      "<ul><li>Osnovna šola Radenci (2007-2016)</li><li>Gimnazija Franca Miklošiča, Ljutomer (2016-2020)</li><li>Fakulteta za elektrotehniko, računalništvo in informatiko, Maribor FERI<ul><li>Računalništvo in informacijske tehnologije, UNI (1. stopnja) (2020-2023)</li><li>Medijske komunikacije, FERI (2. stopnja) (2023-2026)</li></ul></li></ul>",
 
     "achievement.eyebrow": "Otok 04",
     "achievement.title": "Dosežki",

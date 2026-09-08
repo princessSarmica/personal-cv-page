@@ -1534,6 +1534,19 @@ const {
     margin-bottom: 0;
   }
 
+  /* The FERI degrees now nest under the university itself (a single
+     entry with two programmes underneath, rather than two separate
+     top-level bullets) -- indented further right so it reads as a
+     sub-list of that one entry, not just another line at the same
+     level. */
+  .body-text :global(li ul) {
+    margin: 0.4rem 0 0;
+  }
+
+  .body-text :global(li ul li) {
+    margin-left: 1.4em;
+  }
+
   .body-text :global(a) {
     color: #1a1a1a;
     font-weight: 700;
