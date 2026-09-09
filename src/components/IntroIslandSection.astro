@@ -101,9 +101,14 @@ interface Props {
   id: string;
   name: string;
   titles: string;
+  // Real HTML (a `tel:`/`mailto:` link pair), not plain text -- see
+  // the `*.text` keys' own comment in src/i18n/ui.ts for why this one
+  // is rendered with `set:html` below instead of `{contact}`
+  // interpolation, same reasoning as those.
+  contact: string;
 }
 
-const { id, name, titles } = Astro.props;
+const { id, name, titles, contact } = Astro.props;
 ---
 
 <section class="intro-section sky-chain" id={id}>
@@ -112,6 +117,7 @@ const { id, name, titles } = Astro.props;
   <div class="content">
     <h1>{name}</h1>
     <p class="titles">{titles}</p>
+    <p class="contact" set:html={contact} />
   </div>
 </section>
 
@@ -475,6 +481,31 @@ const { id, name, titles } = Astro.props;
     margin: 0;
   }
 
+  .contact {
+    font-size: 0.95rem;
+    color: #9aa3ba;
+    margin: 0.6rem 0 0;
+    line-height: 1.6;
+  }
+
+  .contact :global(strong) {
+    color: #d8dbe6;
+    font-weight: 600;
+  }
+
+  .contact :global(a) {
+    color: #d8dbe6;
+    text-decoration: underline;
+    text-decoration-color: #6b7390;
+    text-underline-offset: 0.15em;
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  }
+
+  .contact :global(a:hover) {
+    color: #f5f6fa;
+    text-decoration-color: #f5f6fa;
+  }
+
   @media (max-width: 640px) {
     .content {
       width: min(36ch, 100%);
@@ -509,6 +540,10 @@ const { id, name, titles } = Astro.props;
 
     .titles {
       font-size: clamp(0.85rem, 4vh, 1.05rem);
+    }
+
+    .contact {
+      font-size: clamp(0.75rem, 3.4vh, 0.95rem);
     }
   }
 </style>

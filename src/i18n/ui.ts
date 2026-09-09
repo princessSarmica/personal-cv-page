@@ -39,6 +39,8 @@ export const ui = {
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmer, Digital Artist",
+    "intro.contact":
+      '<strong>Contact:</strong><br><a href="tel:+38670717950">(+386) 070 717 950</a><br><a href="mailto:markomatkoficko@gmail.com">markomatkoficko@gmail.com</a>',
 
     "art.eyebrow": "Island 02",
     "art.title": "Creative Skills",
@@ -83,6 +85,8 @@ export const ui = {
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programmierer, Digitalkünstler",
+    "intro.contact":
+      '<strong>Kontakt:</strong><br><a href="tel:+38670717950">(+386) 070 717 950</a><br><a href="mailto:markomatkoficko@gmail.com">markomatkoficko@gmail.com</a>',
 
     "art.eyebrow": "Insel 02",
     "art.title": "Kreative Fähigkeiten",
@@ -127,6 +131,8 @@ export const ui = {
 
     "intro.name": "Marko Matko Ficko",
     "intro.titles": "Programer, digitalni umetnik",
+    "intro.contact":
+      '<strong>Kontakt:</strong><br><a href="tel:+38670717950">(+386) 070 717 950</a><br><a href="mailto:markomatkoficko@gmail.com">markomatkoficko@gmail.com</a>',
 
     "art.eyebrow": "Otok 02",
     "art.title": "Ustvarjalne kompetence",
