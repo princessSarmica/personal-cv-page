@@ -1,0 +1,321 @@
+---
+// src/components/CursorRipples.astro
+//
+// A "pixel dust" cursor trail: small opaque white squares kick up
+// from wherever the cursor moves, drift outward a little, then
+// flicker off (a hard on/off blink, not a smooth fade) — like the
+// dash/step sparkle effect in an 8-bit game, rather than a smooth,
+// organic cursor glow. Mounted once in Layout.astro (site-wide, not
+// per-section) — one `position: fixed; inset: 0` <canvas> that IS the
+// viewport, so no per-section bounding-rect math is needed, and it
+// stays exactly where you're looking regardless of scroll position,
+// since this is about the cursor itself, not any one section's
+// artwork.
+//
+// Disabled for as long as the intro section (`.intro-section`, the
+// space-background hero at the very top of the page) is in view —
+// only starts once you've scrolled past it. Watched via
+// IntersectionObserver rather than a scroll-position calculation, so
+// it stays correct regardless of that section's height on any given
+// screen size.
+//
+// `pointer-events: none` throughout, so it never intercepts a click —
+// purely decorative, drawn on top of everything (see the z-index
+// comment in the <style> below) but never in the way of it.
+//
+// Deliberately gated to `pointerType === "mouse"`: a touchscreen's
+// pointer only ever moves while actively touching/dragging the page,
+// so the same "spawn dust as it moves" trigger would fire on every
+// scroll swipe on a phone instead — there's no touch equivalent of
+// "just moving the cursor around" for this to react to, so touch
+// devices simply see no dust at all, same as prefers-reduced-motion
+// below.
+---
+
+<canvas class="cursor-ripples" aria-hidden="true"></canvas>
+
+<script>
+  // Wrapped in `astro:page-load` (fires on the initial load AND after
+  // every <ClientRouter /> navigation) rather than running at the top
+  // level: a language switch replaces this `<canvas>` with a freshly-
+  // parsed one, and this module itself only ever executes once, so
+  // without re-running this init on every navigation the effect would
+  // go dead after the first language switch.
+  // `cleanupCursorRipples` tears down the previous navigation's rAF
+  // loop, `pointermove` listener, resize-debounce timer, and
+  // IntersectionObserver first, so switching languages back and forth
+  // all session never piles up duplicates of any of them running at
+  // once (`window` is never recreated by a soft navigation).
+  let cleanupCursorRipples: (() => void) | null = null;
+
+  document.addEventListener("astro:page-load", () => {
+    cleanupCursorRipples?.();
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    const canvas = document.querySelector<HTMLCanvasElement>(".cursor-ripples");
+    const ctx = canvas?.getContext("2d") ?? null;
+
+    if (!canvas || !ctx || prefersReducedMotion) {
+      cleanupCursorRipples = null;
+      return;
+    }
+
+    // No anti-aliasing on any drawImage-style scaling this canvas
+    // might ever do — mostly a no-op for the plain `fillRect` squares
+    // drawn below, but it's the correct "this is a pixel-art surface"
+    // signal for a canvas like this one, and costs nothing to set.
+    ctx.imageSmoothingEnabled = false;
+
+    const MAX_DPR = 2; // cap device-pixel-ratio for perf on very high-density screens
+
+    // A new burst of dust only spawns once the cursor has actually
+    // travelled this far since the last one — ties spawn spacing to
+    // distance moved rather than time elapsed, so a slow drift spawns
+    // a few widely-spaced bursts and a fast flick spawns a proper
+    // trail of them, instead of either spamming dust while the cursor
+    // sits still and jitters a pixel, or (time-based) spawning it so
+    // far apart during a fast motion that the "trail" look is lost.
+    const MIN_SPAWN_DISTANCE = 28;
+
+    // How many little squares pop out per burst, and how big each one
+    // is (in CSS pixels, before DPR scaling) — kept small and uniform
+    // on purpose, like sprite pixels from the same small grid, rather
+    // than varied smooth sizes.
+    const PARTICLES_PER_BURST = 5;
+    const GRID_SIZE = 5;
+
+    // Total lifetime of a single square, and the point (as a fraction
+    // of that lifetime) after which it starts hard-blinking on/off a
+    // couple of times before disappearing for good, instead of fading
+    // smoothly — a smooth fade reads as "glow," a blink reads as
+    // "pixel sprite."
+    const LIFETIME_MS = 480;
+    const FLICKER_START_FRACTION = 0.55;
+    const FLICKER_INTERVAL_MS = 55;
+
+    // Each square drifts outward from its spawn point at a small
+    // random speed (CSS px/ms) and angle — a light "kicked up" motion
+    // rather than sitting frozen in place.
+    const MIN_SPEED = 0.01;
+    const MAX_SPEED = 0.045;
+
+    // Spawn spread — each square in a burst starts at a small random
+    // offset from the actual cursor position rather than stacking
+    // exactly on top of each other.
+    const SPAWN_SPREAD = 10;
+
+    const DUST_COLOR = "255, 255, 255";
+
+    interface Particle {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      size: number;
+      start: number;
+    }
+
+    let width = 0;
+    let height = 0;
+    let dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    let particles: Particle[] = [];
+    let lastSpawnX = -99999;
+    let lastSpawnY = -99999;
+    let rafId: number | null = null;
+
+    // Set by the IntersectionObserver below: true whenever any part of
+    // `.intro-section` is still visible in the viewport, i.e. before
+    // you've scrolled past the space-background hero. Dust simply
+    // doesn't spawn while this is true; any already spawned (from just
+    // before scrolling back up into the section, say) are left to
+    // finish their lifetime naturally rather than being yanked away.
+    let introSectionInView = false;
+
+    // Snapping each square's drawn position to a fixed page-wide grid
+    // (rather than letting it sit at its exact float position) is
+    // what actually sells the "pixel" look — without this, the
+    // squares are just small smooth-edged blocks; with it, they read
+    // as tiles snapping into a grid the way sprites in a pixel-art
+    // game do.
+    function snapToGrid(value: number) {
+      return Math.round(value / GRID_SIZE) * GRID_SIZE;
+    }
+
+    function resize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+      canvas!.width = Math.round(width * dpr);
+      canvas!.height = Math.round(height * dpr);
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.imageSmoothingEnabled = false;
+    }
+
+    resize();
+
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // Small debounce — a window resize/zoom can fire many times in
+    // quick succession, and resetting the (cleared, since resizing a
+    // canvas element wipes it regardless) canvas on every single one
+    // is wasted work.
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    window.addEventListener(
+      "resize",
+      () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(resize, 120);
+      },
+      { signal }
+    );
+
+    // Only runs while at least one square is still alive — same
+    // reasoning as IntroIslandSection's star field: keeps the
+    // per-frame cost at zero the moment the cursor stops moving,
+    // rather than redrawing an empty canvas forever in the
+    // background.
+    function tick(now: number) {
+      ctx!.clearRect(0, 0, width, height);
+
+      particles = particles.filter((p) => now - p.start < LIFETIME_MS);
+
+      ctx!.fillStyle = `rgb(${DUST_COLOR})`;
+
+      for (const p of particles) {
+        const age = now - p.start;
+        const t = age / LIFETIME_MS;
+
+        // Solid for most of the lifetime, then a couple of hard on/off
+        // blinks right before disappearing, instead of a smooth fade
+        // — this is the "pixel sprite" cue, the same way an old
+        // game's pickup sparkle or hit-flash never eases its alpha.
+        let visible = true;
+        if (t > FLICKER_START_FRACTION) {
+          const flickerStep = Math.floor(age / FLICKER_INTERVAL_MS);
+          visible = flickerStep % 2 === 0;
+        }
+        if (!visible) continue;
+
+        const px = p.x + p.vx * age;
+        const py = p.y + p.vy * age;
+        const drawX = snapToGrid(px);
+        const drawY = snapToGrid(py);
+
+        ctx!.fillRect(drawX, drawY, p.size, p.size);
+      }
+
+      rafId = particles.length > 0 ? requestAnimationFrame(tick) : null;
+    }
+
+    function ensureLoopRunning() {
+      if (rafId === null) {
+        rafId = requestAnimationFrame(tick);
+      }
+    }
+
+    window.addEventListener(
+      "pointermove",
+      (e) => {
+        if (e.pointerType !== "mouse") return;
+        if (introSectionInView) return;
+
+        const dx = e.clientX - lastSpawnX;
+        const dy = e.clientY - lastSpawnY;
+        if (Math.hypot(dx, dy) < MIN_SPAWN_DISTANCE) return;
+
+        lastSpawnX = e.clientX;
+        lastSpawnY = e.clientY;
+
+        const now = performance.now();
+        for (let i = 0; i < PARTICLES_PER_BURST; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = MIN_SPEED + Math.random() * (MAX_SPEED - MIN_SPEED);
+          // Roughly one in five squares in a burst is double-size —
+          // a little size variety within an otherwise uniform grid,
+          // same trick pixel-art sparkle effects use to avoid every
+          // single particle looking identical.
+          const size = Math.random() < 0.2 ? GRID_SIZE * 2 : GRID_SIZE;
+
+          particles.push({
+            x: e.clientX + (Math.random() - 0.5) * SPAWN_SPREAD,
+            y: e.clientY + (Math.random() - 0.5) * SPAWN_SPREAD,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size,
+            start: now,
+          });
+        }
+
+        ensureLoopRunning();
+      },
+      { signal, passive: true }
+    );
+
+    // Watches the intro section (the space-background hero at the top
+    // of the page) and flips `introSectionInView` off the moment it's
+    // scrolled fully out of view, on again if you scroll back up into
+    // it. `threshold: 0` — any visible sliver of the section at all
+    // counts as "still in it," so the dust effect only ever starts
+    // once the hero is completely behind you.
+    let introObserver: IntersectionObserver | null = null;
+    const introSection = document.querySelector(".intro-section");
+    if (introSection) {
+      introObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            introSectionInView = entry.isIntersecting;
+          }
+        },
+        { threshold: 0 }
+      );
+      introObserver.observe(introSection);
+    } else {
+      // No intro section found on this page (shouldn't happen on this
+      // site, but fails safe rather than leaving the effect
+      // permanently disabled if a future page ever omits it).
+      introSectionInView = false;
+    }
+
+    cleanupCursorRipples = () => {
+      controller.abort();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (resizeTimer !== null) clearTimeout(resizeTimer);
+      introObserver?.disconnect();
+      particles = [];
+    };
+  });
+</script>
+
+<style>
+  /* `position: fixed; inset: 0` — this element IS the viewport, same
+     technique as Layout.astro's own (now-removed) halftone spotlight,
+     so the script above can use `clientX`/`clientY` directly with no
+     per-section bounding-rect math, and the effect stays put on
+     screen rather than scrolling away with the page.
+
+     `z-index: 10010` — deliberately above EVERY other tier on the
+     page, including IslandNavMenu/LanguageSwitcher/GitHubLink
+     (`z-index: 10002`, themselves the highest tier before this) and
+     CornerIsland (`z-index: 10001`): this is a cursor decoration that
+     should read as being right at the cursor, on top of literally
+     everything, the same way a real mouse cursor itself always
+     renders above the whole page. */
+  .cursor-ripples {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10010;
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cursor-ripples {
+      display: none;
+    }
+  }
+</style>

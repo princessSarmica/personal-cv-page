@@ -8,6 +8,7 @@ import CornerIsland from '../components/CornerIsland.astro';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import IslandNavMenu from '../components/IslandNavMenu.astro';
 import GitHubLink from '../components/GitHubLink.astro';
+import CursorRipples from '../components/CursorRipples.astro';
 // SectionTransitionOverlay.astro (the loading_jump.webp whip-pan
 // cover) and MobileSectionScroll.astro (the "one swipe = one section"
 // mobile paging that used to trigger it) are both unmounted per your
@@ -91,58 +92,9 @@ const faviconIcoHref = withBase('favicon.ico');
     <GitHubLink />
     <slot />
     <CornerIsland />
-    <div class="halftone-spotlight" aria-hidden="true"></div>
+    <CursorRipples />
   </body>
 </html>
-
-<script>
-  // Single, page-wide driver for the halftone cursor spotlight (see
-  // `.halftone-spotlight` in the global styles below). Position
-  // tracking is trivial here: the element is `position: fixed;
-  // inset: 0`, so its own box IS the viewport, meaning the cursor's
-  // `clientX`/`clientY` are already exactly the right coordinates —
-  // no per-section bounding-rect math needed. Whether the spotlight is
-  // actually visible is handled separately, in pure CSS, via
-  // `body:has(.halftone-hover:hover) .halftone-spotlight` — this
-  // script only ever needs to know where the cursor is, never which
-  // section it's over.
-  //
-  // Wrapped in `astro:page-load` (fires once after the very first
-  // page load, then again after every <ClientRouter /> navigation --
-  // see the <head> above) instead of running directly at the top
-  // level: a language switch replaces `.halftone-spotlight` with a
-  // freshly-parsed element, and this module itself only ever executes
-  // once, so without re-running this init on every navigation the
-  // FIRST language switch would leave the spotlight permanently dead.
-  // `cleanupSpotlight` tears down the previous navigation's listener
-  // before attaching a new one, so switching languages back and forth
-  // all session never piles up duplicate `mousemove` listeners on
-  // `window` -- unlike the elements inside `<body>`, `window` itself
-  // is never recreated by a soft navigation.
-  let cleanupSpotlight: (() => void) | null = null;
-
-  document.addEventListener("astro:page-load", () => {
-    cleanupSpotlight?.();
-
-    const spotlight = document.querySelector<HTMLElement>(".halftone-spotlight");
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-
-    if (spotlight && !prefersReducedMotion) {
-      const controller = new AbortController();
-      window.addEventListener(
-        "mousemove",
-        (e) => {
-          spotlight.style.setProperty("--mx", `${e.clientX}px`);
-          spotlight.style.setProperty("--my", `${e.clientY}px`);
-        },
-        { signal: controller.signal }
-      );
-      cleanupSpotlight = () => controller.abort();
-    }
-  });
-</script>
 
 <script>
   // Keeps your scroll position when switching languages via
@@ -375,122 +327,4 @@ const faviconIcoHref = withBase('favicon.ico');
     margin-top: 0;
   }
 
-  /* Halftone cursor spotlight — a dot-grid pattern that shows around
-     the cursor while it's over any `.halftone-hover` section,
-     print-halftone style (inspired by the card hover effect on
-     rossdraws.com/collections/tutorials).
-
-     ONE element for the whole page (added once in the `<body>` above,
-     not per-section) — this replaces an earlier per-section design
-     that sized `.halftone-overlay` to each section and let it bleed
-     `--halftone-radius` past that section's own edges so the circle
-     wouldn't get clipped mid-shape near a boundary. That worked at
-     internal seams (the next section painted over the bleed) but
-     broke in two ways: the very last section's downward bleed had
-     nothing to paint over it, quietly adding blank scrollable space
-     to the bottom of the page; and OtherIslandSection sets its own
-     `overflow-x: hidden` for its full-viewport-width breakout, which
-     (per the CSS overflow spec: setting one overflow axis to non-
-     visible computes the other to `auto` if it was `visible`) made
-     ITS OWN `overflow-y` compute to `auto` — so unlike every other
-     section, it actually clipped its own overlay's upward bleed at
-     its own top edge, cutting the circle off right where it meets
-     BonusIslandSection.
-
-     This version sidesteps both bugs instead of patching around them:
-     `position: fixed; inset: 0` means the element IS the viewport, not
-     sized to or bounded by any section, so there's no section
-     boundary left to bleed past or get clipped by, and being `fixed`
-     it's out of normal flow entirely — it can never add to the page's
-     scrollable height regardless of how big its mask circle is.
-     `--mx`/`--my` are plain viewport coordinates, kept in sync with
-     the cursor by the single script in this file (no per-section
-     bounding-rect math needed any more either, since this element's
-     box always starts at (0, 0) in viewport space). `mix-blend-mode:
-     overlay` still blends the dots against whatever section happens
-     to be underneath at that screen position — that part didn't need
-     to change, blend modes don't care whether the element above is
-     sized to a section or the whole viewport.
-
-     Visibility is handled in pure CSS via `:has()` rather than a
-     per-section `:hover` rule targeting a per-section child: `body:
-     has(.halftone-hover:hover) .halftone-spotlight` sets opacity only
-     while the cursor is over SOME `.halftone-hover` section, whichever
-     one it currently is — the single spotlight element doesn't need
-     to know which.
-
-     `z-index: 0` (not something high like 9999) is deliberate: every
-     island/illustration in this family (`.art-island`, `.computer-
-     island`, `.education-island-*`, `.achievement-island`, and
-     CornerIsland.astro's own front island) is `z-index: 1` or higher,
-     and `.content` is `z-index: 2`/`3` — while each section's own
-     `background-image` and the `.seam-fade-*` gradients sit at
-     `z-index: 0`/auto, the same tier as this element. Since this
-     `<div>` is the LAST element in the document (added after every
-     section and after `<CornerIsland />`), it paints AFTER everything
-     else at that z-index-0 tier — i.e. visually on top of every
-     section's background and every seam-fade gradient, which is what
-     lets `mix-blend-mode: overlay` actually tint them — but still
-     BELOW every island and every `.content` block, which have a
-     strictly higher z-index and so paint after (on top of) this
-     element regardless of DOM order. Blend modes only affect what's
-     already painted BEHIND an element, never what paints after it, so
-     the net effect is: halftone shows on backgrounds and seam fades,
-     and islands/text render normally on top, untouched. If some
-     future island or foreground decoration on the page ever omits an
-     explicit `z-index` (leaving it at the default `auto`, tying with
-     this element), it would need one added to stay excluded — same
-     requirement every other island in this family already follows. */
-  .halftone-spotlight {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.6s ease;
-    --halftone-color: #ffffff;
-    --halftone-radius: 160px;
-    --mx: 50vw;
-    --my: 50vh;
-    background-image: radial-gradient(circle, var(--halftone-color) 38%, transparent 40%);
-    background-size: 10px 10px;
-    mix-blend-mode: overlay;
-    mask-image: radial-gradient(circle var(--halftone-radius) at var(--mx) var(--my), black 0%, black 55%, transparent 100%);
-    -webkit-mask-image: radial-gradient(circle var(--halftone-radius) at var(--mx) var(--my), black 0%, black 55%, transparent 100%);
-  }
-
-  body:has(.halftone-hover:hover) .halftone-spotlight {
-    opacity: 0.55;
-  }
-
-  /* ComputerIslandSection's drifting clouds layer (`.computer-clouds-
-     bg`) sits at `z-index: 1`, one tier above this spotlight's normal
-     `z-index: 0` — needed so those clouds also win their OWN separate
-     comparison against ArtIslandSection's bleeding moon (see that
-     class's own comment for the full reasoning and the rough-
-     transition bug that came from trying to fix this by lowering the
-     clouds to `0` instead). Left as `0` globally, that one tier gap
-     means the spotlight normally paints BEHIND those clouds, hiding
-     the cursor effect there specifically -- this rule bumps the
-     spotlight up to tie with them, but ONLY while the cursor is
-     actually over `.computer-spotlight-front` (just that section, not
-     every `.halftone-hover` section site-wide, which would tie the
-     spotlight with every OTHER section's islands too and start
-     showing it on top of foreground art everywhere instead of just
-     here). Being tied at `1` rather than winning outright is fine in
-     this one case: unlike the moon/clouds pairing above, nothing on
-     this side is independently animated frame-to-frame, so there's no
-     repaint-order flicker for a tie to expose -- the tiebreak (DOM/
-     tree order, later wins) resolves it cleanly and statically in the
-     spotlight's favor, since `.halftone-spotlight` is the very last
-     element in the whole document. */
-  body:has(.computer-spotlight-front:hover) .halftone-spotlight {
-    z-index: 1;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .halftone-spotlight {
-      transition: none;
-    }
-  }
 </style>
