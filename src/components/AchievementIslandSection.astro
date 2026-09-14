@@ -945,6 +945,22 @@ const {
     .content {
       width: min(50ch, 100%);
     }
+
+    /* New: per your request to move the clouds higher specifically on
+       wide screens -- the base `.achievement-clouds-bg` rule further
+       down (`top: -18vh; bottom: 18vh;`) still applies everywhere
+       else (tablet and mobile), this override only kicks in at this
+       same `min-width: 1100px` breakpoint already used for the wider
+       text column above. Both values are shifted by the same extra
+       `10vh` together (top more negative, bottom more positive) --
+       see that base rule's own comment for why they have to move as
+       a mirrored pair to keep the box's total height constant while
+       only its position shifts upward. Adjust this pair directly for
+       more/less. */
+    .achievement-clouds-bg {
+      top: -28vh;
+      bottom: 28vh;
+    }
   }
 
 
