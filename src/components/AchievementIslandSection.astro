@@ -589,7 +589,7 @@ const {
        `backgroundImage` is back, but as a SEPARATE layered element
        (`.achievement-background-image` below) rather than a property
        on this one — see that rule's own comment. */
-    background-color: #2ddcfc;
+    background-color: var(--cyan-sky, #2ddcfc);
   }
 
   /* New: `cloudsBackground` (your achievement_island_background_
@@ -709,7 +709,7 @@ const {
      match THIS section's sky color instead of that one's. */
   .achievement-clouds-fill {
     flex: 1 1 auto;
-    background: #2ddcfc;
+    background: var(--cyan-sky, #2ddcfc);
   }
 
   /* Sized to its own content only (`flex: 0 0 auto`) -- exactly as

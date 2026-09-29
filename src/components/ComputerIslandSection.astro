@@ -438,11 +438,11 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     z-index: -1;
     background-image: linear-gradient(
       to bottom,
-      #2d50ea 0%,
-      #2e76ed 25%,
-      #CFD7FC 50%,
-      #38d5fa 75%,
-      #2ddcfc 100%
+      var(--blue-computer-deep, #2d50ea) 0%,
+      var(--blue-computer-mid, #2e76ed) 25%,
+      var(--lavender-computer, #CFD7FC) 50%,
+      var(--cyan-computer, #38d5fa) 75%,
+      var(--cyan-sky, #2ddcfc) 100%
     );
     pointer-events: none;
   }

@@ -1467,7 +1467,7 @@ const optimizedFountainImage = fountainImage
        gradient against, unlike e.g. AchievementIslandSection's clouds
        layer. Adjust either hex directly for a different pair of
        shades, or the `to bottom` keyword for a different direction. */
-    background: linear-gradient(to bottom, #2dddfc, #00d4f4);
+    background: linear-gradient(to bottom, var(--cyan-sky-top, #2dddfc), var(--cyan-sky-deep, #00d4f4));
   }
 
   .content {
@@ -2001,8 +2001,8 @@ const optimizedFountainImage = fountainImage
     right: 0;
     top: 0;
     height: 1.5px;
-    background: #ff2fd6;
-    box-shadow: 0 0 0.3em 0 rgba(255, 47, 214, 0.85);
+    background: var(--neon-pink, #ff2fd6);
+    box-shadow: 0 0 0.3em 0 var(--neon-pink-glow, rgba(255, 47, 214, 0.85));
     opacity: 0;
     pointer-events: none;
   }
@@ -2018,8 +2018,8 @@ const optimizedFountainImage = fountainImage
     right: 0;
     top: -2px;
     height: 1.5px;
-    background: #00f6ff;
-    box-shadow: 0 0 0.3em 0 rgba(0, 246, 255, 0.85);
+    background: var(--neon-cyan, #00f6ff);
+    box-shadow: 0 0 0.3em 0 var(--neon-cyan-glow, rgba(0, 246, 255, 0.85));
   }
 
   .hobby-palm-hotspot:hover .hobby-palm-scanline {

@@ -233,6 +233,75 @@ const faviconIcoHref = withBase('favicon.ico');
   :root {
     color-scheme: light;
 
+    /* ---- Shared saturated colors (wide-gamut aware) ----------------
+       Plain hex like `#2ddcfc` is sRGB. Chromium/Safari colour-manage
+       it faithfully (so it looks "muted" on wide-gamut monitors), while
+       Firefox on Windows sends the raw numbers to the screen (so it
+       looks extra vivid). To get the vivid look everywhere, the same
+       numbers are re-declared below as Display P3 -- and the island
+       images in /public/images are tagged with a Display P3 ICC profile
+       so they match these flats exactly (no seams).
+       Edit colours HERE; components only reference the variables. */
+    --cyan-flat: #40CAEC;
+    --cyan-sky: #2ddcfc;
+    --cyan-sky-top: #2dddfc;
+    --cyan-sky-deep: #00d4f4;
+    --cyan-computer: #38d5fa;
+    --blue-computer-deep: #2d50ea;
+    --blue-computer-mid: #2e76ed;
+    --lavender-computer: #CFD7FC;
+    --sky-2: #0ADEFB;
+    --neon-pink: #ff2fd6;
+    --neon-cyan: #00f6ff;
+    --neon-pink-glow: rgba(255, 47, 214, 0.85);
+    --neon-cyan-glow: rgba(0, 246, 255, 0.85);
+
+    /* Wide-gamut override. `@supports` keeps browsers without `color()`
+       on the hex values above. */
+  }
+
+  @supports (color: color(display-p3 1 1 1)) {
+    :root {
+      --cyan-flat: color(display-p3 0.2510 0.7922 0.9255);
+      --cyan-sky: color(display-p3 0.1765 0.8627 0.9882);
+      --cyan-sky-top: color(display-p3 0.1765 0.8667 0.9882);
+      --cyan-sky-deep: color(display-p3 0.0000 0.8314 0.9569);
+      --cyan-computer: color(display-p3 0.2196 0.8353 0.9804);
+      --blue-computer-deep: color(display-p3 0.1765 0.3137 0.9176);
+      --blue-computer-mid: color(display-p3 0.1804 0.4627 0.9294);
+      --lavender-computer: color(display-p3 0.8118 0.8431 0.9882);
+      --sky-2: color(display-p3 0.0392 0.8706 0.9843);
+      --neon-pink: color(display-p3 1.0000 0.1843 0.8392);
+      --neon-cyan: color(display-p3 0.0000 0.9647 1.0000);
+      --neon-pink-glow: color(display-p3 1.0000 0.1843 0.8392 / 0.85);
+      --neon-cyan-glow: color(display-p3 0.0000 0.9647 1.0000 / 0.85);
+    }
+  }
+
+  /* Firefox keeps the hex values: it already renders them vivid (no
+     colour management for untagged CSS colours), and mixing P3 CSS
+     colours with tagged images there could show seams. Delete this
+     block if you want the P3 values in Firefox too. */
+  @supports (-moz-appearance: none) {
+    :root {
+      --cyan-flat: #40CAEC;
+      --cyan-sky: #2ddcfc;
+      --cyan-sky-top: #2dddfc;
+      --cyan-sky-deep: #00d4f4;
+      --cyan-computer: #38d5fa;
+      --blue-computer-deep: #2d50ea;
+      --blue-computer-mid: #2e76ed;
+      --lavender-computer: #CFD7FC;
+      --sky-2: #0ADEFB;
+      --neon-pink: #ff2fd6;
+      --neon-cyan: #00f6ff;
+      --neon-pink-glow: rgba(255, 47, 214, 0.85);
+      --neon-cyan-glow: rgba(0, 246, 255, 0.85);
+    }
+  }
+
+  :root {
+
     /* The seam-fade system (a shared set of --sky-N / --dusk-blue /
        --intro-seam / --in-between-seam-1 boundary colors, plus the
        `.seam-fade-top`/`.seam-fade-bottom` gradient-band classes below
