@@ -675,8 +675,12 @@ const optimizedMoonBackground = await getImage({ src: moonBackground, width: 240
         holder.id = requestAnimationFrame(poll);
       }
 
+      // No entrance sequence any more: the final artwork is visible
+      // straight away (see `.art-island-reveal-final` in the styles) and
+      // the wireframe effect only plays while the cursor is over the
+      // island. `watchEntrance` above is kept but no longer called.
       reveals.forEach((reveal) => {
-        watchEntrance(reveal, () => watchHoverReveal(reveal));
+        watchHoverReveal(reveal);
       });
     }
 
@@ -1213,7 +1217,9 @@ const optimizedMoonBackground = await getImage({ src: moonBackground, width: 240
      above ever fires: final artwork invisible, wireframe invisible AND
      fully clipped away (nothing has "constructed" yet). */
   .art-island-reveal-final {
-    opacity: 0;
+    /* Visible from the start (no entrance animation) -- the wireframe
+       materialize/dematerialize effect now only plays on hover. */
+    opacity: 1;
   }
 
   .art-island-reveal-loading {
@@ -1455,14 +1461,22 @@ const optimizedMoonBackground = await getImage({ src: moonBackground, width: 240
 
        Third follow-up: left (top) island nudged up again -- another
        1rem more negative, -3.5rem -> -4.5rem. */
+    /* Left (top) island enlarged on phones: 340px -> 390px, and raised
+       from -4.5rem to -6rem so the taller artwork doesn't run down into
+       the text block (it's ~525px tall at this width). Adjust `width`
+       and `top` together if you want it larger still. */
     .art-island-top {
-      top: -4.5rem;
-      width: 340px;
+      top: -6rem;
+      width: 390px;
     }
 
+    /* Right (bottom) island enlarged on phones: 320px -> 420px. It stays
+       anchored to the right edge (base rule's `right`), so the extra
+       width grows leftwards; `bottom` is unchanged. Adjust `width` to
+       taste. */
     .art-island-bottom {
       bottom: 3rem;
-      width: 320px;
+      width: 420px;
     }
   }
 
@@ -1573,6 +1587,28 @@ const optimizedMoonBackground = await getImage({ src: moonBackground, width: 240
     .art-island-bottom {
       bottom: 3rem;
       width: 320px;
+    }
+  }
+
+  /* Mobile text tweak: slightly smaller type and wider text blocks on
+     phones (portrait). Kept as its own block at the end of the styles so
+     it overrides the earlier per-section mobile `.content` width. */
+  @media (max-width: 640px) and (min-height: 501px) {
+    .content {
+      width: min(44ch, 100%);
+      padding-inline: 1rem;
+    }
+
+    .eyebrow {
+      font-size: 0.7rem;
+    }
+
+    h2 {
+      font-size: clamp(1.45rem, 7vw, 1.75rem);
+    }
+
+    .body-text {
+      font-size: 0.92rem;
     }
   }
 </style>

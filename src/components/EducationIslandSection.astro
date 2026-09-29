@@ -1543,8 +1543,13 @@ const {
     margin: 0.4rem 0 0;
   }
 
+  /* Sub-items (the two FERI degrees): shifted further LEFT than before
+     (1.4em -> 0.5em) and set smaller, so they still read as belonging
+     to the faculty line above without pushing the block wide. */
   .body-text :global(li ul li) {
-    margin-left: 1.4em;
+    margin-left: 0.5em;
+    font-size: 0.85em;
+    margin-bottom: 0.3rem;
   }
 
   .body-text :global(a) {
@@ -1706,6 +1711,28 @@ const {
 
     .body-text {
       font-size: clamp(0.85rem, 4vh, 1rem);
+    }
+  }
+
+  /* Mobile text tweak: slightly smaller type and wider text blocks on
+     phones (portrait). Kept as its own block at the end of the styles so
+     it overrides the earlier per-section mobile `.content` width. */
+  @media (max-width: 640px) and (min-height: 501px) {
+    .content {
+      width: min(44ch, 100%);
+      padding-inline: 1rem;
+    }
+
+    .eyebrow {
+      font-size: 0.7rem;
+    }
+
+    h2 {
+      font-size: clamp(1.45rem, 7vw, 1.75rem);
+    }
+
+    .body-text {
+      font-size: 0.92rem;
     }
   }
 </style>

@@ -815,7 +815,8 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     .content {
       width: min(32ch, 100%);
       padding-inline: 1.5rem;
-      margin-top: 17rem;
+      /* 17rem -> 19.5rem so the enlarged right island above doesn't run into the text. */
+      margin-top: 19.5rem;
     }
 
     /* On mobile the powerline island's mid-left absolute position sits
@@ -834,7 +835,8 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
       order: 1;
       top: auto;
       left: auto;
-      width: clamp(180px, 50vw, 260px);
+      /* Smaller on phones: was clamp(180px, 50vw, 260px) (~195px at 390px wide). */
+      width: clamp(130px, 36vw, 190px);
       margin: 2.5rem auto 0;
     }
 
@@ -847,6 +849,53 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
     .computer-island-right {
       right: -8vw;
       top: 10vh;
+      /* Bigger on phones: base width is clamp(260px, 32vw, 440px), i.e. 260px at 390px wide. */
+      width: 300px;
+    }
+  }
+
+  /* Island positions on wide screens (placed AFTER the base island rules
+     so it wins over them): the left (pole) island moved further left
+     (`left` 20vw -> 13vw) so it isn't hidden behind the text block, and
+     the right (computer) island kept clear of the text on the right. */
+  @media (min-width: 1100px) {
+    /* Right (computer) island: kept clear of the text column. The text
+       is centred (50ch, ~430px), so the island's left edge must stay
+       right of `50vw + ~225px`; the island is min(32vw, 440px) wide, so
+       `right` <= 50vw - ~690px. Clamped so it can bleed slightly off the
+       right edge at ~1100px and never drifts too far in on huge screens. */
+    .computer-island-right {
+      right: clamp(-3rem, calc(50vw - 690px), 6vw);
+    }
+
+    .computer-island-left {
+      left: 13vw;
+    }
+  }
+
+  /* Left (pole) island lower on tablet/desktop: base `top: 52vh` -> 62vh.
+     Not applied on phones (there it's in normal flow) or short landscape
+     phones. Adjust the value to taste. */
+  @media (min-width: 641px) and (min-height: 501px) {
+    .computer-island-left {
+      top: 62vh;
+    }
+  }
+
+  /* Small/medium screens (tablets, narrow windows, 641-1099px): the text
+     column takes a big share of the width here, so the base vw offsets
+     put both islands on top of it. Pushed clear of the text: the left
+     island near the left edge, the right one bleeding slightly off the
+     right edge, and both a touch smaller so they fit in the gutters. */
+  @media (min-width: 641px) and (max-width: 1099px) {
+    .computer-island-left {
+      left: 4.5vw;
+      width: clamp(160px, 18vw, 200px);
+    }
+
+    .computer-island-right {
+      right: -1.5vw;
+      width: clamp(200px, 26vw, 300px);
     }
   }
 
@@ -921,12 +970,39 @@ const { id, eyebrow, title, text, leftImage, rightImage, cloudsBackground } = As
        against, so letting it bleed off-screen a little is cheaper and
        looks more natural than cramming it in tighter against
        `.content`. */
+    /* Bigger on landscape phones (the outer gutters beside the text are
+       ~260px wide at 812px): left ~28vw, right ~32vw. Tweak to taste. */
     .computer-island-left {
       left: 4vw;
+      top: 38vh; /* raised from 52vh so the bigger island stays inside the section */
+      width: clamp(200px, 28vw, 260px);
     }
 
     .computer-island-right {
       right: -6vw;
+      width: clamp(240px, 32vw, 320px);
+    }
+  }
+
+  /* Mobile text tweak: slightly smaller type and wider text blocks on
+     phones (portrait). Kept as its own block at the end of the styles so
+     it overrides the earlier per-section mobile `.content` width. */
+  @media (max-width: 640px) and (min-height: 501px) {
+    .content {
+      width: min(44ch, 100%);
+      padding-inline: 1rem;
+    }
+
+    .eyebrow {
+      font-size: 0.7rem;
+    }
+
+    h2 {
+      font-size: clamp(1.45rem, 7vw, 1.75rem);
+    }
+
+    .body-text {
+      font-size: 0.92rem;
     }
   }
 </style>
