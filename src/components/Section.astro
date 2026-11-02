@@ -1,45 +1,38 @@
 ---
 // src/components/Section.astro
 //
-// Plain content section: eyebrow + title + text. No illustration or
-// animation yet — that comes later once the drawings + GSAP pass happens.
+// Plain content section: eyebrow + title + text, on a white page.
+// No artwork, no animation -- the layout is intentionally bare so each
+// island can be redesigned from scratch.
 //
-// An empty `.illustration` div is already reserved in the markup/CSS so
-// that adding the artwork later is just filling in this slot, not
-// restructuring the layout.
+// `text` is trusted, hand-written HTML from src/i18n/ui.ts (bullet
+// lists and links), so it is rendered with `set:html`.
 //
-// Usage:
-//   <Section
-//     id="section-1"
-//     eyebrow="Island 01"
-//     title="Lorem Ipsum Dolor"
-//     text="Lorem ipsum dolor sit amet..."
-//   />
+// `class` lets a section keep the class name the nav menu
+// (IslandNavMenu.astro) uses to find it, e.g. "education-section".
+// The nav scrolls to the `.content` element inside each section.
 
 interface Props {
   id: string;
+  class?: string;
   eyebrow?: string;
   title: string;
   text: string;
 }
 
-const { id, eyebrow, title, text } = Astro.props;
+const { id, class: className, eyebrow, title, text } = Astro.props;
 ---
 
-<section class="site-section" id={id}>
+<section class:list={["site-section", className]} id={id}>
   <div class="content">
     {eyebrow && <p class="eyebrow">{eyebrow}</p>}
     <h2>{title}</h2>
-    <p class="body-text">{text}</p>
+    <div class="body-text" set:html={text} />
   </div>
-
-  <!-- Reserved for the section's illustration, added later -->
-  <div class="illustration" aria-hidden="true"></div>
 </section>
 
 <style>
   .site-section {
-    position: relative;
     min-height: 100vh;
     display: grid;
     place-items: center;
@@ -47,11 +40,9 @@ const { id, eyebrow, title, text } = Astro.props;
   }
 
   .content {
-    position: relative;
-    z-index: 2;
-    max-width: 34rem;
+    max-width: 44rem;
+    width: 100%;
     margin: 0 auto;
-    text-align: center;
   }
 
   .eyebrow {
@@ -71,22 +62,19 @@ const { id, eyebrow, title, text } = Astro.props;
 
   .body-text {
     font-size: 1.05rem;
-    color: #444;
-    max-width: 32ch;
-    margin: 0 auto;
+    color: #333;
   }
 
-  .illustration {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    /* full-section backdrop placeholder — later this is where the
-       section's illustration sits behind the centered text.
-       The persistent bottom-left "you sitting on an island" piece
-       is separate and should live as a fixed element in Layout.astro,
-       not here. */
-    border: 1px dashed #ccc;
-    border-radius: 8px;
-    margin: 1rem;
+  .body-text :global(ul) {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  .body-text :global(li) {
+    margin: 0.4rem 0;
+  }
+
+  .body-text :global(a) {
+    color: inherit;
   }
 </style>

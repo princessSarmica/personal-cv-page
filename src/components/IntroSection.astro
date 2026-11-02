@@ -1,0 +1,241 @@
+---
+// src/components/IntroSection.astro
+//
+// Layered intro, back to front:
+//   1. water reflection  -- shown in full, at its natural proportions
+//                           (on every screen size, landscape too). The
+//                           picture sits in `.water-frame`, which sets
+//                           the section's height.
+//                           A <canvas> sits exactly on top of it and
+//                           draws the same picture with a cursor ripple
+//                           distortion (src/scripts/image-ripple.ts).
+//                           The plain <img> stays underneath as the
+//                           fallback (no WebGL, reduced motion, no JS).
+//   2. concrete top      -- top-left corner, in front of the water
+//   3. concrete bottom   -- starts 62% of the way down and hangs below
+//                           the water, so it bleeds into the next section
+//   4. text              -- name, titles and contact on top of everything
+//
+// Sizes are percentages of the section's width, so the composition
+// scales as one picture (same proportions as the Photoshop mock-up).
+//
+// Bleed: the bottom concrete is anchored to the BOTTOM of the water
+// frame and hangs ~42.6% of the page width below it. `margin-bottom: 24%` (percent
+// of the width) reserves most of that space so the next section's text
+// doesn't sit under the stone; the rest (~18.6% of the width) overlaps
+// the next section's top. Raise the margin for less overlap, lower it
+// for more.
+//
+// To cut the water off at the bottom on wide screens, add e.g.
+// `max-height: 140svh;` to `.water-frame` below (the concrete follows,
+// because it is anchored to the frame's bottom).
+//
+// The section has `z-index: 1` so the concrete paints OVER the next
+// section instead of being hidden behind it. No `overflow: hidden` here
+// on purpose -- that would cut the bleed off.
+//
+// `contact` is trusted HTML from src/i18n/ui.ts (tel/mailto links).
+
+import { Image } from 'astro:assets';
+import waterReflection from '../images/intro_section/intro_water_reflection_background.webp';
+import concreteTop from '../images/intro_section/intro_concrete_top_background.webp';
+import concreteBottom from '../images/intro_section/intro_concrete_bottom_background.webp';
+
+interface Props {
+  id: string;
+  name: string;
+  titles: string;
+  contact: string;
+}
+
+const { id, name, titles, contact } = Astro.props;
+---
+
+<section class="intro-section" id={id}>
+  <div class="water-frame">
+    <div class="water-stack">
+      <Image
+        class="water"
+        src={waterReflection}
+        alt=""
+        widths={[960, 1440, 1920]}
+        sizes="100vw"
+        loading="eager"
+        fetchpriority="high"
+      />
+      <canvas class="water-canvas" aria-hidden="true"></canvas>
+    </div>
+  </div>
+  <Image class="layer concrete-top" src={concreteTop} alt="" loading="eager" />
+  <Image class="layer concrete-bottom" src={concreteBottom} alt="" loading="eager" />
+
+  <div class="content">
+    <h1>{name}</h1>
+    <p class="titles">{titles}</p>
+    <p class="contact" set:html={contact} />
+  </div>
+</section>
+
+<script>
+  // Starts the ripple effect on the water picture. With the
+  // ClientRouter (language switches are soft navigations), the page
+  // is swapped without a reload, so the effect is set up on every
+  // `astro:page-load` and torn down before every swap.
+  import { createImageRipple, type ImageRipple } from '../scripts/image-ripple';
+
+  let ripple: ImageRipple | null = null;
+
+  function stop() {
+    ripple?.destroy();
+    ripple = null;
+  }
+
+  function start() {
+    stop();
+
+    // Respect "reduce motion": keep the plain picture.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const section = document.querySelector<HTMLElement>('.intro-section');
+    const canvas = section?.querySelector<HTMLCanvasElement>('canvas.water-canvas');
+    const image = section?.querySelector<HTMLImageElement>('img.water');
+    if (!section || !canvas || !image) return;
+
+    ripple = createImageRipple({
+      canvas,
+      image,
+      listenOn: section,
+      // Feel of the effect: bigger blobs (fraction of the width) and a
+      // slightly stronger push. Defaults are 0.075 and 0.035.
+      brushSize: 0.15,
+      strength: 0.045,
+      // Hides the plain <img> only once the canvas is really showing
+      // the picture (and shows it again if WebGL goes away).
+      onActive: (active) => section.classList.toggle('ripple-on', active),
+    });
+  }
+
+  document.addEventListener('astro:page-load', start);
+  document.addEventListener('astro:before-swap', stop);
+</script>
+
+<style>
+  .intro-section {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 24%;
+  }
+
+  /* Wrapper that sets the section's height (= the picture's own height).
+     `overflow: hidden` only matters if a `max-height` is added. */
+  .water-frame {
+    overflow: hidden;
+  }
+
+  .water-stack {
+    position: relative;
+  }
+
+  .water {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: none;
+  }
+
+  /* Once the canvas is drawing the picture, the <img> underneath is
+     hidden (it stays in the layout, so it still sets the height). */
+  .ripple-on .water {
+    opacity: 0;
+  }
+
+  .water-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+  }
+
+  .layer {
+    position: absolute;
+    display: block;
+    max-width: none;
+    height: auto;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .concrete-top {
+    top: 0;
+    left: 0;
+    width: 64%;
+  }
+
+  /* Anchored to the bottom of the water frame, then pushed down by 52.08%
+     of its own height (= 42.6% of the page width) so it hangs below it. */
+  .concrete-bottom {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    transform: translateY(52.08%);
+  }
+
+  .content {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(44rem, 88%);
+    text-align: center;
+    color: #0e1a33;
+    /* Soft white halo so the text stays readable where it crosses the
+       darker blue glass towers. */
+    text-shadow:
+      0 0 0.5em rgba(255, 255, 255, 0.95),
+      0 0 1.2em rgba(255, 255, 255, 0.7);
+  }
+
+  /* Wide/landscape screens: the text is centred on the first screen
+     (50% of the viewport height), not on the whole, taller section. */
+  @media (min-aspect-ratio: 1/1) {
+    .content {
+      top: 50svh;
+    }
+  }
+
+  /* Name: angular techno face, uppercase, wide-tracked. */
+  h1 {
+    font-family: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    font-size: clamp(1.7rem, 5.4vw, 4.25rem);
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    text-wrap: balance;
+    line-height: 1.1;
+    margin: 0 0 0.75rem;
+  }
+
+  /* Titles + contact: monospace, so the name stands out. */
+  .titles,
+  .contact {
+    font-family: 'Share Tech Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  }
+
+  .titles {
+    font-size: clamp(0.95rem, 2vw, 1.3rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 0 clamp(1rem, 3vw, 2rem);
+  }
+
+  .contact {
+    margin: 0;
+    letter-spacing: 0.04em;
+  }
+
+  .contact :global(a) {
+    color: inherit;
+  }
+</style>

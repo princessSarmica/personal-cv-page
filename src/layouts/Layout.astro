@@ -1,47 +1,29 @@
 ---
 // src/layouts/Layout.astro
-// Basic page shell. Keeping global resets minimal on purpose so nothing
-// here fights with the per-section styles later.
+// Basic page shell: head, the three fixed corner controls (language
+// switcher, section nav, GitHub link), and the page content slot.
+// The page itself is a plain white canvas for now.
 
 import { ClientRouter } from 'astro:transitions';
-import CornerIsland from '../components/CornerIsland.astro';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import IslandNavMenu from '../components/IslandNavMenu.astro';
 import GitHubLink from '../components/GitHubLink.astro';
-import CursorRipples from '../components/CursorRipples.astro';
-// SectionTransitionOverlay.astro (the loading_jump.webp whip-pan
-// cover) and MobileSectionScroll.astro (the "one swipe = one section"
-// mobile paging that used to trigger it) are both unmounted per your
-// request: nav-menu clicks and mobile scrolling should just go
-// straight to the target section, with no image sweeping across the
-// screen in between and no scroll-hijacking on mobile at all. Both
-// files -- along with ScrollFlickTransition.astro, unused even
-// earlier -- are left on disk rather than deleted; say the word if
-// you'd like any of them actually removed.
 
 interface Props {
   title?: string;
 }
 
-// No hardcoded English fallback here any more: HomePage.astro always
-// passes a `title` already resolved for the current locale (via
-// src/i18n/ui.ts), so the only time this default would ever fire is
-// if some future page forgets to pass one -- "My CV" was only ever
-// the English string anyway, and defaulting to it regardless of
-// locale would be wrong on the German/Slovenian routes.
+// HomePage.astro always passes a `title` already resolved for the
+// current locale (via src/i18n/ui.ts).
 const { title } = Astro.props;
 
 // Astro.currentLocale is set from the URL according to the `i18n`
-// config in astro.config.mjs; it can be undefined on a route i18n
-// doesn't recognize (there shouldn't be one on this site, but the
-// fallback keeps the <html lang> attribute valid regardless).
+// config in astro.config.mjs; the fallback keeps <html lang> valid.
 const htmlLang = Astro.currentLocale ?? 'en';
 
 // import.meta.env.BASE_URL is Astro's configured `base` (see
-// astro.config.mjs) -- "/personal-cv-page" for this project, with no
-// trailing slash. Joining it to a public/ filename with a hardcoded
-// "/" would double up if a future base value ever did end in "/", so
-// this only adds one when the base doesn't already have it.
+// astro.config.mjs). public/ files are served under it, so the favicon
+// hrefs need it prepended with exactly one "/" in between.
 const withBase = (path: string) =>
   `${import.meta.env.BASE_URL}${import.meta.env.BASE_URL.endsWith('/') ? '' : '/'}${path}`;
 const faviconSvgHref = withBase('favicon.svg');
@@ -53,36 +35,24 @@ const faviconIcoHref = withBase('favicon.ico');
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    {/*
-      Astro serves everything under public/ (favicon.svg, favicon.ico)
-      at the configured `base` path (see astro.config.mjs), not at the
-      site root. A plain "/favicon.ico" href would be missing that
-      prefix and 404 in production -- worse, in dev it makes Astro's
-      router log an error, because the browser's own automatic
-      "/favicon.ico" request (sent on every page load when no icon
-      link is present) doesn't include the base either. The hrefs are
-      built from `import.meta.env.BASE_URL` up in the frontmatter
-      (see `faviconSvgHref`/`faviconIcoHref`) so they always land on
-      exactly one "/" between the base and the filename, however the
-      configured base is written.
-    */}
     <link rel="icon" type="image/svg+xml" href={faviconSvgHref} />
     <link rel="icon" type="image/x-icon" href={faviconIcoHref} />
+    {/*
+      Intro fonts (Google Fonts): Chakra Petch for the name, Share Tech
+      Mono for the titles/contact. `display=swap` shows text right away
+      in a fallback font and swaps when the font arrives.
+    */}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Share+Tech+Mono&display=swap"
+    />
     <title>{title}</title>
     {/*
-      Enables Astro's View Transitions router: clicking the
-      LanguageSwitcher's links (or any same-origin link) now does a
-      soft, client-side navigation -- swapping the page content in
-      place -- instead of a full browser reload. The three locale
-      routes (src/pages/index.astro, /de/, /sl/) stay real, separate,
-      crawlable pages; this only changes HOW the browser moves between
-      them. See the bottom <script> below and every section
-      component's own script for why this means DOM-attached
-      listeners/observers/animation loops now need to be re-initialized
-      on every navigation (via the `astro:page-load` event) rather than
-      just once at parse time -- a soft navigation reuses the same
-      document, so a script that only ever runs at the top level would
-      otherwise go quiet after the very first language switch.
+      Enables Astro's View Transitions router, so the LanguageSwitcher
+      links do a soft client-side navigation instead of a full reload.
+      Scripts that attach listeners must re-run on `astro:page-load`.
     */}
     <ClientRouter />
   </head>
@@ -91,38 +61,14 @@ const faviconIcoHref = withBase('favicon.ico');
     <IslandNavMenu />
     <GitHubLink />
     <slot />
-    <CornerIsland />
-    <CursorRipples />
   </body>
 </html>
 
 <script>
-  // Keeps your scroll position when switching languages via
-  // LanguageSwitcher.astro, instead of Astro's <ClientRouter />
-  // default of scrolling a freshly-navigated-to page back to the top
-  // (the same thing a normal browser navigation to a new page does --
-  // reasonable in general, just not what you want here, since a
-  // language switch is conceptually "this same page, different text,"
-  // not a move to a different page).
-  //
-  // `astro:before-preparation` fires right as the navigation starts,
-  // while you're still looking at the OLD page -- that's the last
-  // moment `window.scrollY` reflects where you actually were.
-  // `event.navigationType` distinguishes a normal forward navigation
-  // (clicking a locale link -- "push") from the browser's own Back/
-  // Forward buttons ("traverse"): only the former gets the scroll
-  // position captured here and restored below, so native Back/Forward
-  // scroll restoration (returning you to wherever you'd scrolled to on
-  // that earlier page, which Astro already handles correctly on its
-  // own) is left alone rather than overridden.
-  //
-  // `astro:after-swap` fires right after the new page's content has
-  // replaced the old page's and Astro has applied ITS OWN default
-  // scroll position -- this listener immediately overrides that with
-  // the position captured above. `behavior: "instant"` skips this
-  // page's `scroll-behavior: smooth` (see the global styles below) for
-  // this one jump, since restoring your place should feel instant, not
-  // like an animated scroll from the top.
+  // Keeps your scroll position when switching languages (the
+  // ClientRouter default is to jump back to the top). Only a normal
+  // forward navigation ("push") restores the position; the browser's
+  // own Back/Forward ("traverse") keeps its native scroll restoration.
   let scrollYBeforeNav: number | null = null;
 
   document.addEventListener("astro:before-preparation", (event) => {
@@ -136,182 +82,9 @@ const faviconIcoHref = withBase('favicon.ico');
   });
 </script>
 
-<script>
-  // Pauses every currently-running animation on the page for as long
-  // as you're actively scrolling, per your report that fast scrolling
-  // and fast nav-menu jumps both still felt stiff even after the
-  // loading_jump.webp cover (and the forced mobile paging that used
-  // to trigger it) were removed. That stiffness was never really
-  // ABOUT the cover or the paging -- it's that every section on this
-  // page runs its own always-on decorative loop (each island's own
-  // `bob-*`, every section's own cloud-drift track, ~25-30 of them in
-  // total across the whole page), all animating at once regardless of
-  // scroll position. A native smooth-scroll or a fast fling has to
-  // share the compositor with every one of those loops the whole way
-  // down, which is the actual source of the jank -- the whip-pan
-  // never fixed that cost, it only ever hid it behind a cover image
-  // while it happened.
-  //
-  // `document.getAnimations()` (no per-section changes needed at
-  // all -- this reaches every CSS animation AND transition on the
-  // page, whatever selector or file it's declared in) returns every
-  // one of those as a pausable `Animation` object. Pausing all of
-  // them the instant a scroll starts, then resuming all of them a
-  // short beat after the LAST scroll event (not the first -- see
-  // `RESUME_DELAY_MS` below), removes exactly the extra compositor
-  // work a scroll was competing with, for exactly as long as a scroll
-  // is actually happening, with nothing to look at for the visitor:
-  // a decorative loop simply continues from the exact point it was
-  // paused at once you stop, and a one-shot reveal animation (a
-  // glitch-pop, a materialize) that happens to be mid-play when a
-  // scroll starts pauses and resumes the same way -- neither restarts
-  // or skips ahead, so nothing looks different, it just stops costing
-  // anything while you're mid-scroll.
-  //
-  // Feature-detected (`typeof document.getAnimations === "function"`)
-  // since it's a newer API than most of what this project otherwise
-  // relies on -- on a browser old enough not to have it, this quietly
-  // does nothing rather than throwing, leaving scrolling exactly as
-  // stiff (or not) as it already was for that visitor.
-  let cleanupScrollAnimationPause: (() => void) | null = null;
-
-  document.addEventListener("astro:page-load", () => {
-    cleanupScrollAnimationPause?.();
-
-    if (typeof document.getAnimations !== "function") {
-      cleanupScrollAnimationPause = null;
-      return;
-    }
-
-    const controller = new AbortController();
-    const { signal } = controller;
-
-    // How long a scroll has to have been quiet before animations
-    // resume -- long enough to not immediately flip back on between
-    // two ticks of the same fling, short enough that resuming still
-    // reads as "right after you stopped" rather than a noticeable
-    // extra delay.
-    const RESUME_DELAY_MS = 200;
-
-    let isPaused = false;
-    let resumeTimer: number | undefined;
-
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (!isPaused) {
-          isPaused = true;
-          document.getAnimations().forEach((animation) => animation.pause());
-        }
-
-        // Pushes the resume point back on every scroll event, so a
-        // sustained fling (many events in a row) only resumes once
-        // AFTER the last one of them, not partway through.
-        window.clearTimeout(resumeTimer);
-        resumeTimer = window.setTimeout(() => {
-          isPaused = false;
-          document.getAnimations().forEach((animation) => animation.play());
-        }, RESUME_DELAY_MS);
-      },
-      { signal, passive: true }
-    );
-
-    cleanupScrollAnimationPause = () => {
-      controller.abort();
-      window.clearTimeout(resumeTimer);
-      // Belt-and-suspenders for a language switch landing mid-scroll:
-      // don't leave anything paused behind for the next page's own
-      // init to inherit.
-      if (isPaused) {
-        document.getAnimations().forEach((animation) => animation.play());
-      }
-    };
-  });
-</script>
-
 <style is:global>
   :root {
     color-scheme: light;
-
-    /* ---- Shared saturated colors (wide-gamut aware) ----------------
-       Plain hex like `#2ddcfc` is sRGB. Chromium/Safari colour-manage
-       it faithfully (so it looks "muted" on wide-gamut monitors), while
-       Firefox on Windows sends the raw numbers to the screen (so it
-       looks extra vivid). To get the vivid look everywhere, the same
-       numbers are re-declared below as Display P3 -- and the island
-       images in /public/images are tagged with a Display P3 ICC profile
-       so they match these flats exactly (no seams).
-       Edit colours HERE; components only reference the variables. */
-    --cyan-flat: #40CAEC;
-    --cyan-sky: #2ddcfc;
-    --cyan-sky-top: #2dddfc;
-    --cyan-sky-deep: #00d4f4;
-    --cyan-computer: #38d5fa;
-    --blue-computer-deep: #2d50ea;
-    --blue-computer-mid: #2e76ed;
-    --lavender-computer: #CFD7FC;
-    --sky-2: #0ADEFB;
-    --neon-pink: #ff2fd6;
-    --neon-cyan: #00f6ff;
-    --neon-pink-glow: rgba(255, 47, 214, 0.85);
-    --neon-cyan-glow: rgba(0, 246, 255, 0.85);
-
-    /* Wide-gamut override. `@supports` keeps browsers without `color()`
-       on the hex values above. */
-  }
-
-  @supports (color: color(display-p3 1 1 1)) {
-    :root {
-      --cyan-flat: color(display-p3 0.2510 0.7922 0.9255);
-      --cyan-sky: color(display-p3 0.1765 0.8627 0.9882);
-      --cyan-sky-top: color(display-p3 0.1765 0.8667 0.9882);
-      --cyan-sky-deep: color(display-p3 0.0000 0.8314 0.9569);
-      --cyan-computer: color(display-p3 0.2196 0.8353 0.9804);
-      --blue-computer-deep: color(display-p3 0.1765 0.3137 0.9176);
-      --blue-computer-mid: color(display-p3 0.1804 0.4627 0.9294);
-      --lavender-computer: color(display-p3 0.8118 0.8431 0.9882);
-      --sky-2: color(display-p3 0.0392 0.8706 0.9843);
-      --neon-pink: color(display-p3 1.0000 0.1843 0.8392);
-      --neon-cyan: color(display-p3 0.0000 0.9647 1.0000);
-      --neon-pink-glow: color(display-p3 1.0000 0.1843 0.8392 / 0.85);
-      --neon-cyan-glow: color(display-p3 0.0000 0.9647 1.0000 / 0.85);
-    }
-  }
-
-  /* Firefox keeps the hex values: it already renders them vivid (no
-     colour management for untagged CSS colours), and mixing P3 CSS
-     colours with tagged images there could show seams. Delete this
-     block if you want the P3 values in Firefox too. */
-  @supports (-moz-appearance: none) {
-    :root {
-      --cyan-flat: #40CAEC;
-      --cyan-sky: #2ddcfc;
-      --cyan-sky-top: #2dddfc;
-      --cyan-sky-deep: #00d4f4;
-      --cyan-computer: #38d5fa;
-      --blue-computer-deep: #2d50ea;
-      --blue-computer-mid: #2e76ed;
-      --lavender-computer: #CFD7FC;
-      --sky-2: #0ADEFB;
-      --neon-pink: #ff2fd6;
-      --neon-cyan: #00f6ff;
-      --neon-pink-glow: rgba(255, 47, 214, 0.85);
-      --neon-cyan-glow: rgba(0, 246, 255, 0.85);
-    }
-  }
-
-  :root {
-
-    /* The seam-fade system (a shared set of --sky-N / --dusk-blue /
-       --intro-seam / --in-between-seam-1 boundary colors, plus the
-       `.seam-fade-top`/`.seam-fade-bottom` gradient-band classes below
-       that blended each section's edge into them) has been removed per
-       your request — sections now meet directly, no blended band. Each
-       section's own top-of-file comment still describes the OLD
-       pairing history for context on why its background image was
-       cropped/positioned the way it is, but the variables and classes
-       themselves are gone. See the "background sizing" comment further
-       down for how sections now handle their edges instead. */
   }
 
   * {
@@ -320,32 +93,8 @@ const faviconIcoHref = withBase('favicon.ico');
 
   html {
     scroll-behavior: smooth;
-    /* Page-level horizontal-scroll guard. This used to live as
-       `overflow: hidden` on each individual flanking-island section
-       (Art/Computer/Education/Achievement), clipping their
-       intentionally edge-bleeding islands. That worked for the
-       horizontal bleed it was meant for, but also clipped those
-       islands VERTICALLY whenever one needed more room than its own
-       section's box provided — the "islands cut off at the top/bottom"
-       bug. Moving the horizontal clip up here means the individual
-       sections no longer need `overflow: hidden` at all: horizontal
-       bleed off the viewport's left/right edges is still caught here,
-       but an island that overflows past its own section's top/bottom
-       is now free to do so instead of being hard-clipped.
-       `overflow-x: hidden` alone left a sliver of white space visible
-       on some mobile screens — one of the intentionally bleeding
-       islands (Art's corners, Education's stack, CornerIsland, etc.)
-       was pushing the page's actual scrollable width past the visible
-       viewport, and `hidden` on `html` by itself doesn't always fully
-       suppress that on every mobile browser. `overflow-x: clip` is a
-       stricter mode that also removes the overflow from the
-       scrollable area entirely (rather than just hiding a scrollbar),
-       so it's added as a second line — browsers that don't support
-       `clip` yet just keep using the `hidden` line above it, and ones
-       that do support it get the stronger guarantee. `width: 100%`
-       plus `max-width: 100vw` on `body` below closes the gap the rest
-       of the way, so no descendant can widen the actual html/body box
-       in the first place. */
+    /* Guards against horizontal scroll from anything bleeding off the
+       viewport; `clip` is the stricter mode, `hidden` the fallback. */
     overflow-x: hidden;
     overflow-x: clip;
   }
@@ -360,40 +109,4 @@ const faviconIcoHref = withBase('favicon.ico');
     color: #1a1a1a;
     line-height: 1.5;
   }
-
-  /* Breathing room between sections. Every section component in this
-     project (Section.astro, ArtIslandSection.astro,
-     ComputerIslandSection.astro, EducationIslandSection.astro,
-     AchievementIslandSection.astro, ...) renders a top-level
-     `<section>`, and they're all siblings directly under `<body>` via
-     `<slot />` here — so one adjacent-sibling rule here adds the gap
-     between every pair of them, instead of having to repeat a
-     margin/padding rule inside each section component individually.
-     `section + section` only matches from the second section onward,
-     so the very first section on the page stays flush with the top.
-     If a section ever needs to sit flush against its neighbor on
-     purpose, override with `margin-top: 0` on that specific instance
-     (e.g. via a wrapper class) rather than removing this rule. */
-  section + section {
-    margin-top: clamp(2rem, 6vw, 5rem);
-  }
-
-  /* The 4 gradient-backed sections (ArtIslandSection,
-     ComputerIslandSection, EducationIslandSection,
-     AchievementIslandSection), plus BonusIslandSection and
-     OtherIslandSection (both backed by real images instead of a CSS
-     gradient, but part of the same continuous chain visually), all
-     carry this marker class specifically so this override can zero
-     out the gap rule above between them. A visible white strip from
-     the rule above would show through right at each seam and break
-     the continuous-sky illusion, so consecutive `.sky-chain` sections
-     sit flush against each other; the gap rule still applies normally
-     around any section that ISN'T part of the chain.
-     IntroIslandSection now also carries `.sky-chain` (it's the first
-     section in the chain, ahead of ArtIslandSection), so this rule is
-     what makes those two sit flush together too. */
-  .sky-chain + .sky-chain {
-    margin-top: 0;
-  }
-
 </style>
