@@ -10,6 +10,7 @@ import Layout from '../layouts/Layout.astro';
 import { useTranslations } from '../i18n/utils';
 import IntroSection from './IntroSection.astro';
 import Section from './Section.astro';
+import EducationSection from './EducationSection.astro';
 
 const t = useTranslations(Astro.currentLocale);
 ---
@@ -22,7 +23,7 @@ const t = useTranslations(Astro.currentLocale);
     contact={t("intro.contact")}
   />
 
-  <Section
+  <EducationSection
     id="section-cs"
     class="education-section"
     eyebrow={t("education.eyebrow")}

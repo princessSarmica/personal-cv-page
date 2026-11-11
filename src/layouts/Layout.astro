@@ -1,8 +1,4 @@
 ---
-// src/layouts/Layout.astro
-// Basic page shell: head, the three fixed corner controls (language
-// switcher, section nav, GitHub link), and the page content slot.
-// The page itself is a plain white canvas for now.
 
 import { ClientRouter } from 'astro:transitions';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
@@ -13,17 +9,10 @@ interface Props {
   title?: string;
 }
 
-// HomePage.astro always passes a `title` already resolved for the
-// current locale (via src/i18n/ui.ts).
 const { title } = Astro.props;
 
-// Astro.currentLocale is set from the URL according to the `i18n`
-// config in astro.config.mjs; the fallback keeps <html lang> valid.
 const htmlLang = Astro.currentLocale ?? 'en';
 
-// import.meta.env.BASE_URL is Astro's configured `base` (see
-// astro.config.mjs). public/ files are served under it, so the favicon
-// hrefs need it prepended with exactly one "/" in between.
 const withBase = (path: string) =>
   `${import.meta.env.BASE_URL}${import.meta.env.BASE_URL.endsWith('/') ? '' : '/'}${path}`;
 const faviconSvgHref = withBase('favicon.svg');
@@ -37,11 +26,6 @@ const faviconIcoHref = withBase('favicon.ico');
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href={faviconSvgHref} />
     <link rel="icon" type="image/x-icon" href={faviconIcoHref} />
-    {/*
-      Intro fonts (Google Fonts): Chakra Petch for the name, Share Tech
-      Mono for the titles/contact. `display=swap` shows text right away
-      in a fallback font and swaps when the font arrives.
-    */}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -49,11 +33,6 @@ const faviconIcoHref = withBase('favicon.ico');
       href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Share+Tech+Mono&display=swap"
     />
     <title>{title}</title>
-    {/*
-      Enables Astro's View Transitions router, so the LanguageSwitcher
-      links do a soft client-side navigation instead of a full reload.
-      Scripts that attach listeners must re-run on `astro:page-load`.
-    */}
     <ClientRouter />
   </head>
   <body>
@@ -65,10 +44,6 @@ const faviconIcoHref = withBase('favicon.ico');
 </html>
 
 <script>
-  // Keeps your scroll position when switching languages (the
-  // ClientRouter default is to jump back to the top). Only a normal
-  // forward navigation ("push") restores the position; the browser's
-  // own Back/Forward ("traverse") keeps its native scroll restoration.
   let scrollYBeforeNav: number | null = null;
 
   document.addEventListener("astro:before-preparation", (event) => {
@@ -93,8 +68,6 @@ const faviconIcoHref = withBase('favicon.ico');
 
   html {
     scroll-behavior: smooth;
-    /* Guards against horizontal scroll from anything bleeding off the
-       viewport; `clip` is the stricter mode, `hidden` the fallback. */
     overflow-x: hidden;
     overflow-x: clip;
   }

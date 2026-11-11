@@ -1,26 +1,3 @@
-// src/scripts/image-ripple.ts
-//
-// Cursor "ripple" distortion for a single picture, in plain three.js
-// (the same technique as the ui-layouts "image ripple effect", minus
-// React / react-three-fiber).
-//
-// How it works, per frame:
-//   1. TRAIL PASS -- every pointer move drops a soft white "brush" blob
-//      into an off-screen scene. Blobs grow a little and fade out, and
-//      the scene is drawn (additively) into a small render target, so
-//      the target is a black picture with a glowing trail behind the
-//      cursor.
-//   2. IMAGE PASS -- a full-screen quad draws the picture. For every
-//      pixel it looks up the trail brightness at the same spot and
-//      shifts where it samples the picture by that amount, in a
-//      direction that depends on the brightness. That bends the picture
-//      into rings that spread and settle as the trail fades.
-//
-// The canvas is only redrawn while a trail is visible and the picture
-// is on screen; when everything has faded out it stops completely.
-//
-// The picture comes from an <img> that is already on the page (so the
-// browser's optimised file is reused and no separate asset is needed).
 
 import {
   AdditiveBlending,
@@ -39,27 +16,16 @@ import {
 } from 'three';
 
 export interface ImageRippleOptions {
-  /** Canvas the effect is drawn on; should cover the same box as `image`. */
   canvas: HTMLCanvasElement;
-  /** The already-loaded picture to distort. */
   image: HTMLImageElement;
-  /** Element whose pointer movement drives the ripples (default: canvas). */
   listenOn?: HTMLElement;
-  /** How far the picture is pushed, as a fraction of its size. Default 0.035. */
   strength?: number;
-  /** Brush size as a fraction of the canvas width. Default 0.075. */
   brushSize?: number;
-  /** Per-frame opacity multiplier of a blob; closer to 1 = longer trail. Default 0.965. */
   fade?: number;
-  /** Number of blobs kept in the pool. Default 80. */
   brushCount?: number;
-  /** Minimum pointer travel (CSS px) before the next blob. Default 8. */
   spacing?: number;
-  /** Caps the canvas resolution multiplier. Default 1.5. */
   maxPixelRatio?: number;
-  /** Optional custom brush picture (white blob on transparent). Default: generated. */
   brushSrc?: string;
-  /** Called with true once the canvas is showing the picture, false if it stops. */
   onActive?: (active: boolean) => void;
 }
 
@@ -72,7 +38,7 @@ interface Brush {
   material: MeshBasicMaterial;
 }
 
-const VERTEX = /* glsl */ `
+const VERTEX = `
   varying vec2 vUv;
   void main() {
     vUv = uv;
@@ -80,7 +46,7 @@ const VERTEX = /* glsl */ `
   }
 `;
 
-const FRAGMENT = /* glsl */ `
+const FRAGMENT = `
   varying vec2 vUv;
   uniform sampler2D uImage;
   uniform sampler2D uTrail;
@@ -94,7 +60,6 @@ const FRAGMENT = /* glsl */ `
   }
 `;
 
-/** A soft white round blob, drawn on a small 2D canvas. */
 function makeBrushTexture(): CanvasTexture {
   const size = 128;
   const c = document.createElement('canvas');
@@ -109,11 +74,6 @@ function makeBrushTexture(): CanvasTexture {
   return new CanvasTexture(c);
 }
 
-/**
- * Starts the effect. Returns `null` when WebGL isn't available (the
- * plain <img> then just stays visible). Call `destroy()` to stop it and
- * free the GPU resources.
- */
 export function createImageRipple(options: ImageRippleOptions): ImageRipple | null {
   const {
     canvas,
@@ -136,7 +96,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
     return null;
   }
 
-  // ---- trail pass ------------------------------------------------------
   const trailScene = new Scene();
   const trailCamera = new OrthographicCamera(-1, 1, 1, -1, -1000, 1000);
   const trailTarget = new WebGLRenderTarget(2, 2, {
@@ -174,12 +133,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
   }
   let nextBrush = 0;
 
-  // ---- image pass ------------------------------------------------------
-  // The texture is filled from a private copy of the picture (see
-  // loadSource) instead of from `image` itself: an <img> that uses
-  // srcset/sizes reports a *density-corrected* naturalWidth (e.g. 649
-  // for a 1440px file), and uploading the real 1440px bitmap into a
-  // texture allocated at that smaller size fails.
   const texture = new Texture();
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
@@ -203,7 +156,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
   imageScene.add(imageQuad);
   const imageCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  // ---- state -----------------------------------------------------------
   let width = 0;
   let height = 0;
   let brushPx = 100;
@@ -227,7 +179,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
     renderer.render(imageScene, imageCamera);
   }
 
-  /** Advances every live blob one step; returns whether any are left. */
   function stepTrail(): boolean {
     let anyAlive = false;
     const target = brushPx * 1.1;
@@ -259,8 +210,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
     const alive = stepTrail();
     drawTrail();
     drawImage();
-    // Keep going while blobs are alive; one more pass above already
-    // rendered the final, fully faded frame when the last one died.
     if (alive) raf = requestAnimationFrame(frame);
   }
 
@@ -278,7 +227,7 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
 
     const pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio, 4096 / Math.max(w, h));
     renderer.setPixelRatio(pixelRatio);
-    renderer.setSize(w, h, false); // CSS decides the displayed size
+    renderer.setSize(w, h, false);
 
     trailTarget.setSize(Math.max(2, Math.round(w / 2)), Math.max(2, Math.round(h / 2)));
     trailCamera.left = -w / 2;
@@ -289,7 +238,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
 
     brushPx = Math.max(90, w * brushSize);
 
-    // Resizing clears the canvas, so repaint straight away.
     if (ready) {
       drawTrail();
       drawImage();
@@ -321,7 +269,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
     wake();
   }
 
-  /** Gives up: leaves the plain <img> visible and frees the GPU. */
   function fail() {
     setActive(false);
     api.destroy();
@@ -330,13 +277,11 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
   function start() {
     if (destroyed) return;
     const gl = renderer.getContext();
-    gl.getError(); // clear anything older, so only our own errors count
+    gl.getError();
     ready = true;
     resize();
     drawTrail();
     drawImage();
-    // If the texture upload (or anything else) failed, the canvas would be
-    // blank -- never swap out the real picture for that.
     if (gl.getError() !== gl.NO_ERROR) {
       fail();
       return;
@@ -346,7 +291,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
 
   let loadedUrl = '';
 
-  /** Loads the <img>'s current file into a private Image and uploads it. */
   function loadSource() {
     if (destroyed) return;
     const url = image.currentSrc || image.src;
@@ -354,7 +298,7 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
     loadedUrl = url;
     const copy = new Image();
     copy.onload = () => {
-      if (destroyed || url !== loadedUrl) return; // superseded
+      if (destroyed || url !== loadedUrl) return;
       texture.image = copy;
       texture.needsUpdate = true;
       if (!ready) {
@@ -372,8 +316,6 @@ export function createImageRipple(options: ImageRippleOptions): ImageRipple | nu
     copy.src = url;
   }
 
-  // The <img> can switch to a different file later (e.g. after the
-  // window grows); pick that up whenever it happens.
   function onImageLoad() {
     loadSource();
   }

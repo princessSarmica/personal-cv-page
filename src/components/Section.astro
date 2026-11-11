@@ -1,16 +1,4 @@
 ---
-// src/components/Section.astro
-//
-// Plain content section: eyebrow + title + text, on a white page.
-// No artwork, no animation -- the layout is intentionally bare so each
-// island can be redesigned from scratch.
-//
-// `text` is trusted, hand-written HTML from src/i18n/ui.ts (bullet
-// lists and links), so it is rendered with `set:html`.
-//
-// `class` lets a section keep the class name the nav menu
-// (IslandNavMenu.astro) uses to find it, e.g. "education-section".
-// The nav scrolls to the `.content` element inside each section.
 
 interface Props {
   id: string;
