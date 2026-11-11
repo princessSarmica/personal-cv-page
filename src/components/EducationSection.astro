@@ -103,7 +103,7 @@ const { id, class: className, eyebrow, title, text } = Astro.props;
     display: grid;
     align-items: center;
     justify-items: start;
-    padding: calc(var(--edu-bar) + 2rem) clamp(1.25rem, 6vw, 6rem);
+    padding: calc(var(--edu-lift) + var(--edu-bar) + 1rem) clamp(1.25rem, 6vw, 6rem) calc(var(--edu-bar) + 2rem);
   }
 
   .edu-bg {
